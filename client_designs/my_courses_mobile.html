@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@100;200;300;400;500;600;700;800;900&family=Roboto:wght@100;300;400;500;700;900" rel="stylesheet" />
+  <title>VideoLecture — My Courses (Mobile)</title>
+  <style>
+    :root{
+      --bg:#F6F7FB;
+      --surface-1:#FFFFFF;
+      --text-1:#151923;
+      --text-2:#5A6272;
+      --text-3:#8C95A6;
+      --border-1:#E8EAF2;
+      --primary:#2F6FED;
+      --primary-600:#1D4ED8;
+      --primary-100:#DBEAFE;
+      --primary-rgb:47,111,237;
+      --accent-rgb:56,189,248;
+      --success:#22C55E;
+      --pad:16px;
+      --radius-lg:22px;
+      --radius-md:16px;
+      --radius-pill:999px;
+      --shadow-1:0 14px 40px rgba(21,25,35,0.10);
+      --shadow-2:0 26px 70px rgba(21,25,35,0.14);
+    }
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      font-family: 'Poppins', 'Roboto', sans-serif;
+      background: var(--bg);
+      display:grid;
+      place-items:center;
+    }
+
+    /* Responsive device frame (client presentation) */
+    .phone{
+      width: min(430px, calc(100vw - 32px));
+      height: min(900px, calc(100vh - 32px));
+      max-width: 390px;
+      max-height: 844px;
+      border-radius: 40px;
+      background: rgba(255,255,255,0.70);
+      border: 1px solid rgba(255,255,255,0.55);
+      box-shadow: var(--shadow-2);
+      overflow:hidden;
+      position:relative;
+    }
+    .screen{
+      position:absolute; inset:0;
+      background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(255,255,255,0.62));
+    }
+
+    .layout{ height:100%; display:flex; }
+    .rail{
+      width:64px;
+      padding:14px 8px;
+      border-right:1px solid rgba(232,234,242,0.95);
+      background: rgba(255,255,255,0.92);
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:10px;
+    }
+    .logo{
+      width:42px; height:42px;
+      border-radius:16px;
+      display:grid;
+      place-items:center;
+      font-weight:980;
+      color: var(--text-1);
+      background: linear-gradient(135deg, rgba(var(--primary-rgb),0.22), rgba(var(--accent-rgb),0.14));
+      border: 1px solid rgba(232,234,242,0.95);
+      margin-bottom:4px;
+    }
+    .railBtn{
+      width:44px; height:44px;
+      border-radius: 16px;
+      display:grid;
+      place-items:center;
+      color: var(--text-2);
+      border:1px solid transparent;
+    }
+    .railBtn svg{ width:18px; height:18px; }
+    .railBtn.active{
+      background: var(--primary);
+      color:white;
+      border-color: rgba(var(--primary-rgb),0.55);
+      box-shadow: 0 14px 28px rgba(var(--primary-rgb),0.22);
+    }
+    .spacer{ flex:1; }
+
+    .page{
+      flex:1;
+      min-width:0;
+      height:100%;
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+    }
+    .header{
+      padding: 18px var(--pad) 12px;
+      flex:0 0 auto;
+    }
+    .scroll{
+      flex:1;
+      min-height:0;
+      overflow:auto;
+      padding: 0 var(--pad) 18px;
+    }
+    .scroll{
+      scrollbar-width: thin;
+      scrollbar-color: rgba(21,25,35,0.28) transparent;
+    }
+    .scroll::-webkit-scrollbar{ width:6px; }
+    .scroll::-webkit-scrollbar-track{ background:transparent; }
+    .scroll::-webkit-scrollbar-thumb{ background: rgba(21,25,35,0.22); border-radius:999px; }
+
+    .top{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom: 12px;
+    }
+    .h1{
+      font-size:20px;
+      font-weight:980;
+      letter-spacing:-0.2px;
+      color: var(--text-1);
+    }
+    .iconBtn{
+      width:40px; height:40px;
+      border-radius: 16px;
+      border: 1px solid rgba(232,234,242,0.95);
+      background: rgba(255,255,255,0.95);
+      display:grid;
+      place-items:center;
+      color: var(--text-2);
+      box-shadow: 0 14px 28px rgba(21,25,35,0.05);
+      flex:0 0 auto;
+    }
+    .iconBtn svg{ width:18px; height:18px; }
+
+    .sectionTitle{
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:12px;
+      margin: 16px 2px 10px;
+    }
+    .sectionTitle .k{
+      font-size:12px;
+      font-weight:950;
+      color: var(--text-3);
+      text-transform:uppercase;
+      letter-spacing:0.3px;
+    }
+    .sectionTitle .link{
+      font-size:12px;
+      font-weight:950;
+      color: var(--primary-600);
+      white-space:nowrap;
+    }
+
+    .card{
+      background: rgba(255,255,255,0.95);
+      border:1px solid rgba(232,234,242,0.95);
+      border-radius: 26px;
+      padding:14px;
+      box-shadow: 0 14px 28px rgba(21,25,35,0.06);
+      margin-bottom:14px;
+      display:flex;
+      gap:14px;
+      align-items:flex-start;
+    }
+    .thumb{
+      width:72px; height:72px;
+      border-radius: 22px;
+      background: linear-gradient(135deg, rgba(var(--primary-rgb),0.22), rgba(var(--accent-rgb),0.18));
+      border:1px solid rgba(232,234,242,0.95);
+      flex:0 0 auto;
+      position:relative;
+      overflow:hidden;
+    }
+    .thumb:after{
+      content:"";
+      position:absolute;
+      inset:-25px;
+      background: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.60), transparent 58%);
+      transform: rotate(18deg);
+    }
+    .cMain{ flex:1; min-width:0; }
+    .cTitle{
+      font-size:14px;
+      font-weight:980;
+      color: var(--text-1);
+      margin:0;
+      line-height:1.2;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .cSub{
+      margin-top:6px;
+      font-size:12px;
+      font-weight:850;
+      color: var(--text-3);
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .bar{
+      margin-top:10px;
+      height:8px;
+      border-radius: var(--radius-pill);
+      background: rgba(21,25,35,0.08);
+      overflow:hidden;
+    }
+    .fill{
+      height:100%;
+      border-radius: var(--radius-pill);
+      background: linear-gradient(90deg, var(--primary), rgba(var(--accent-rgb),0.85));
+    }
+    .meta{
+      margin-top:10px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      font-size:12px;
+      color: var(--text-3);
+      font-weight:900;
+    }
+    .btn{
+      margin-top:12px;
+      height:38px;
+      border-radius: 999px;
+      background: var(--primary);
+      color:white;
+      font-weight:980;
+      font-size:12px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding: 0 18px;
+      border:1px solid rgba(var(--primary-rgb),0.55);
+      box-shadow: 0 14px 28px rgba(var(--primary-rgb),0.20);
+      width:max-content;
+      white-space:nowrap;
+    }
+
+    .completedCard{
+      padding:14px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      background: rgba(255,255,255,0.95);
+      border:1px solid rgba(232,234,242,0.95);
+      border-radius: 26px;
+      box-shadow: 0 14px 28px rgba(21,25,35,0.05);
+      margin-bottom: 10px;
+    }
+    .completedCard .left{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      min-width:0;
+    }
+    .badge{
+      height:24px;
+      padding:0 10px;
+      border-radius: var(--radius-pill);
+      display:inline-flex;
+      align-items:center;
+      font-size:11px;
+      font-weight:950;
+      letter-spacing:0.2px;
+      white-space:nowrap;
+    }
+    .badge.completed{
+      background: rgba(34,197,94,0.14);
+      color:#15803D;
+      border: 1px solid rgba(34,197,94,0.22);
+    }
+    .cta{
+      font-size:12px;
+      font-weight:950;
+      color: var(--primary-600);
+      white-space:nowrap;
+      margin-top:6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="phone" aria-label="Mobile frame">
+    <div class="screen">
+      <div class="layout">
+        <aside class="rail" aria-label="Left navigation">
+          <img class="logo" src="../isotiponuevoCXF-SVG.svg" alt="VideoLecture" />
+          <div class="railBtn" title="Home">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8v10a2 2 0 0 1-2 2h-4v-6H9v6H5a2 2 0 0 1-2-2V11z"></path></svg>
+          </div>
+          <div class="railBtn active" title="My Courses">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7l9-4 9 4-9 4-9-4z"></path><path d="M3 10v7l9 4 9-4v-7"></path></svg>
+          </div>
+          <div class="railBtn" title="Search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3-3"></path></svg>
+          </div>
+          <div class="spacer"></div>
+          <div class="railBtn" title="Profile">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+          </div>
+        </aside>
+
+        <main class="page">
+          <div class="header">
+            <div class="top">
+            <div class="h1">My Courses</div>
+            <div class="iconBtn" aria-label="Search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3-3"></path>
+              </svg>
+            </div>
+            </div>
+          </div>
+
+          <div class="scroll" aria-label="My Courses content scroll">
+          <div class="sectionTitle">
+            <div class="k">Continue learning</div>
+            <div class="link">See all</div>
+          </div>
+
+          <div class="card">
+            <div class="thumb" aria-hidden="true"></div>
+            <div class="cMain">
+              <p class="cTitle">T‑shirt Design Essentials</p>
+              <div class="cSub">Fabio Sanches Lozada</div>
+              <div class="bar"><div class="fill" style="width:62%"></div></div>
+              <div class="meta"><span>62% complete</span><span>Lesson 3 of 8</span></div>
+              <div class="btn">Resume</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="thumb" style="background:linear-gradient(135deg, rgba(var(--accent-rgb),0.20), rgba(140,255,203,0.18))" aria-hidden="true"></div>
+            <div class="cMain">
+              <p class="cTitle">Branding Basics for Creators</p>
+              <div class="cSub">Studio Team</div>
+              <div class="bar"><div class="fill" style="width:28%"></div></div>
+              <div class="meta"><span>28% complete</span><span>Lesson 2 of 7</span></div>
+              <div class="btn">Resume</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="thumb" style="background:linear-gradient(135deg, rgba(var(--primary-rgb),0.16), rgba(140,255,203,0.18))" aria-hidden="true"></div>
+            <div class="cMain">
+              <p class="cTitle">Print‑Ready Color &amp; Contrast</p>
+              <div class="cSub">Design Lab</div>
+              <div class="bar"><div class="fill" style="width:88%"></div></div>
+              <div class="meta"><span>88% complete</span><span>Lesson 8 of 9</span></div>
+              <div class="btn">Resume</div>
+            </div>
+          </div>
+
+          <div class="sectionTitle" style="margin-top:18px;">
+            <div class="k">Completed</div>
+            <div class="link">View</div>
+          </div>
+
+          <div class="completedCard">
+            <div class="left">
+              <div class="thumb" style="width:62px;height:62px;background:linear-gradient(135deg, rgba(21,25,35,0.06), rgba(var(--primary-rgb),0.14))" aria-hidden="true"></div>
+              <div style="min-width:0">
+                <p class="cTitle" style="margin:0">Typography Essentials</p>
+                <div class="cSub" style="margin-top:6px;">Completed course</div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;">
+              <span class="badge completed">COMPLETED</span>
+              <span class="cta">View certificate</span>
+            </div>
+          </div>
+          </div>
+        </main>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

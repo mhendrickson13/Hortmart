@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@100;200;300;400;500;600;700;800;900&family=Roboto:wght@100;300;400;500;700;900" rel="stylesheet" />
+  <title>VideoLecture — Client Designs Index</title>
+  <style>
+    :root{
+      --bg:#F6F7FB;
+      --surface-1:#FFFFFF;
+      --text-1:#151923;
+      --text-2:#5A6272;
+      --text-3:#8C95A6;
+      --border-1:#E8EAF2;
+      --primary:#2F6FED;
+      --primary-600:#1D4ED8;
+      --primary-100:#DBEAFE;
+      --primary-rgb:47,111,237;
+      --accent-rgb:56,189,248;
+      --shadow-1:0 14px 40px rgba(21,25,35,0.10);
+      --shadow-2:0 26px 70px rgba(21,25,35,0.14);
+      --radius-lg:22px;
+      --radius-md:16px;
+      --radius-pill:999px;
+    }
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      font-family: 'Poppins', 'Roboto', sans-serif;
+      background: var(--bg);
+      color: var(--text-1);
+    }
+    .wrap{
+      width: 100%;
+      max-width: 100%;
+      border-radius: 28px;
+      background: rgba(255,255,255,0.72);
+      border: 1px solid rgba(255,255,255,0.55);
+      box-shadow: var(--shadow-2);
+      padding: 18px;
+    }
+    .top{
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:12px;
+      padding: 10px 10px 14px;
+    }
+    .h1{
+      font-size:26px;
+      font-weight:980;
+      letter-spacing:-0.2px;
+    }
+    .sub{
+      margin-top:6px;
+      color: var(--text-3);
+      font-weight:850;
+      font-size:13px;
+    }
+    .pill{
+      height:28px;
+      padding:0 12px;
+      border-radius: var(--radius-pill);
+      display:inline-flex;
+      align-items:center;
+      font-size:12px;
+      font-weight:950;
+      letter-spacing:0.2px;
+      background: rgba(var(--primary-rgb),0.10);
+      color: var(--primary-600);
+      border: 1px solid rgba(var(--primary-rgb),0.14);
+      white-space:nowrap;
+    }
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:12px;
+      padding: 0 10px 10px;
+    }
+    .section{
+      border-radius: 22px;
+      background: rgba(255,255,255,0.92);
+      border:1px solid rgba(232,234,242,0.95);
+      box-shadow: var(--shadow-1);
+      padding:14px;
+      min-width:0;
+    }
+    .st{
+      font-size:12px;
+      font-weight:950;
+      color: var(--text-3);
+      text-transform:uppercase;
+      letter-spacing:0.3px;
+      margin-bottom:12px;
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      align-items:center;
+    }
+    .cards{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap:10px;
+    }
+    a.card{
+      text-decoration:none;
+      color: inherit;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.95);
+      border:1px solid rgba(232,234,242,0.95);
+      padding:12px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+    }
+    a.card:hover{
+      transform: translateY(-1px);
+      box-shadow: 0 18px 44px rgba(21,25,35,0.10);
+      border-color: rgba(var(--primary-rgb),0.20);
+    }
+    .l{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      min-width:0;
+    }
+    .ico{
+      width:40px; height:40px;
+      border-radius: 16px;
+      border:1px solid rgba(232,234,242,0.95);
+      background: linear-gradient(135deg, rgba(var(--primary-rgb),0.16), rgba(var(--accent-rgb),0.10));
+      display:grid;
+      place-items:center;
+      color: var(--primary-600);
+      flex:0 0 auto;
+    }
+    .ico svg{ width:18px; height:18px; }
+    .nm{
+      font-weight:980;
+      font-size:13px;
+      color: var(--text-1);
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .sm{
+      margin-top:4px;
+      font-weight:850;
+      color: var(--text-3);
+      font-size:12px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .arrow{
+      width:34px; height:34px;
+      border-radius: 14px;
+      border:1px solid rgba(232,234,242,0.95);
+      background: rgba(255,255,255,0.95);
+      display:grid;
+      place-items:center;
+      color: var(--text-2);
+      flex:0 0 auto;
+    }
+    .arrow svg{ width:16px; height:16px; }
+    @media (max-width: 980px){
+      .grid{ grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div style="display:flex;align-items:center;gap:14px;">
+        <img src="../isotiponuevoCXF-SVG.svg" alt="Logo" style="width:40px;height:40px;" />
+        <div>
+          <div class="h1">VideoLecture — Client Designs</div>
+        <div class="sub">Open any screen below. All pages are static HTML/CSS mockups.</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;">
+        <span class="pill">Blue theme</span>
+        <span class="pill">Premium SaaS</span>
+        <span class="pill">Mobile + Desktop</span>
+      </div>
+    </div>
+
+    <div class="grid">
+      <section class="section">
+        <div class="st"><span>Learner — Mobile</span><span class="pill">Core flow</span></div>
+        <div class="cards">
+          <a class="card" href="./my_courses_mobile.html">
+            <div class="l">
+              <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7l9-4 9 4-9 4-9-4z"></path><path d="M3 10v7l9 4 9-4v-7"></path></svg></div>
+              <div style="min-width:0">
+                <div class="nm">My Courses</div>
+                <div class="sm">Dashboard, progress cards, resume CTA</div>
+              </div>
+            </div>
+            <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"></path></svg></div>
+          </a>
+          <a class="card" href="./learner_course_catalog_mobile.html">
+            <div class="l">
+              <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3-3"></path></svg></div>
+              <div style="min-width:0">
+                <div class="nm">Course Catalog</div>
+                <div class="sm">Explore, featured course, category grid</div>
+              </div>
+            </div>
+            <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"></path></svg></div>
+          </a>
+          <a class="card" href="./learner_course_overview_mobile.html">
+            <div class="l">
+              <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3z"></path><path d="M8 8h8"></path><path d="M8 12h8"></path><path d="M8 16h5"></path></svg></div>
+              <div style="min-width:0">
+                <div class="nm">Course Overview</div>
+                <div class="sm">Progress + syllabus + instructor module</div>
+              </div>
+            </div>
+            <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"></path></svg></div>
+          </a>
+          <a class="card" href="./course_player_mobile.html">
+            <div class="l">
+              <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 5v14l11-7z"></path></svg></div>
+              <div style="min-width:0">
+                <div class="nm">Course Player — Notes</div>
+                <div class="sm">Fixed header, tab scroll only, bottom sheet</div>
+              </div>
+            </div>
+            <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"></path></svg></div>
+          </a>
+          <a class="card" href="./course_player_mobile_qa.html">
+            <div class="l">
+              <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v12H7l-3 3V4z"></path></svg></div>
+              <div style="min-width:0">
+                <div class="nm">Course Player — Q&amp;A</div>
+                <div class="sm">Ask box, answers list, narrow scrollbars</div>
+              </div>
+            </div>
+            <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"></path></svg></div>
+          </a>
+          <a class="card" href="./course_player_mobile_resources.html">
+            <div class="l">
+              <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg></div>
+              <div style="min-width:0">
+                <div class="nm">Course Player — Resources</div>
+                <div class="sm">Downloads + links, clean card layout</div>
+              </div>
+            </div>
+            <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"></path></svg></div>
+          </a>
+          <a class="card" href="./learner_progress_completion_mobile.html">
+            <div class="l">
+              <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3 7h7l-5.5 4.7L18 21l-6-3.7L6 21l1.5-7.3L2 9h7l3-7z"></path></svg></div>
+              <div style="min-width:0">
+                <div class="nm">Progress &amp; Completion</div>
+                <div class="sm">Certificate, download, time chart</div>
+              </div>
+            </div>
+            <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"></path></svg></div>
+          </a>
+          <a class="card" href="./learner_profile_settings_mobile.html">
+            <div class="l">
+              <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="7" r="4"></circle><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path></svg></div>
+              <div style="min-width:0">
+                <div class="nm">Profile &amp; Settings</div>
+                <div class="sm">Preferences, security, support, actions</div>
+              </div>
+            </div>
+            <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"></path></svg></div>
+          </a>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="st"><span>Learner — Desktop</span><span class="pill">Core flow</span></div>
+        <div class="cards">
+          <a class="card" href="./learner_course_overview_desktop.html">
+            <div class="l">
+              <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3z"></path><path d="M8 8h8"></path><path d="M8 12h8"></path><path d="M8 16h5"></path></svg></div>
+              <div style="min-width:0">
+                <div class="nm">Course Overview (Desktop)</div>
+                <div class="sm">Hero + tabs + syllabus preview + rating panel</div>
+              </div>
+            </div>
+            <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"></path></svg></div>
+          </a>
+          <a class="card" href="./course_player_desktop.html">
+            <div class="l">
+              <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 5v14l11-7z"></path></svg></div>
+              <div style="min-width:0">
+                <div class="nm">Course Player (Desktop)</div>
+                <div class="sm">Video + tabs + lessons panel</div>
+              </div>
+            </div>
+            <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"></path></svg></div>
+          </a>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="st"><span>Admin — Desktop</span><span class="pill">Creator workflow</span></div>
+        <div class="cards">
+          <a class="card" href="./admin_dashboard_desktop.html">
+            <div class="l">
+              <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 13h8V3H3v10z"></path><path d="M13 21h8V11h-8v10z"></path><path d="M13 3h8v6h-8V3z"></path><path d="M3 21h8v-6H3v6z"></path></svg></div>
+              <div style="min-width:0">
+                <div class="nm">Dashboard</div>
+                <div class="sm">KPIs, sales chart, top courses</div>
+              </div>
+            </div>
+            <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"></path></svg></div>
+          </a>
+          <a class="card" href="./admin_courses_list_desktop.html">
+            <div class="l">
+              <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7l9-4 9 4-9 4-9-4z"></path><path d="M3 10v7l9 4 9-4v-7"></path></svg></div>
+              <div style="min-width:0">
+                <div class="nm">Courses List</div>
+                <div class="sm">Manage courses, status, actions</div>
+              </div>
+            </div>
+            <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"></path></svg></div>
+          </a>
+          <a class="card" href="./admin_course_creation_wizard_desktop.html">
+            <div class="l">
+              <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg></div>
+              <div style="min-width:0">
+                <div class="nm">Course Creation Wizard</div>
+                <div class="sm">Step-by-step setup, preview, save draft</div>
+              </div>
+            </div>
+            <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"></path></svg></div>
+          </a>
+          <a class="card" href="./admin_course_editor_curriculum_desktop.html">
+            <div class="l">
+              <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v12H7l-3 3V4z"></path></svg></div>
+              <div style="min-width:0">
+                <div class="nm">Course Editor + Curriculum</div>
+                <div class="sm">Modules/lessons, publish checklist</div>
+              </div>
+            </div>
+            <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"></path></svg></div>
+          </a>
+          <a class="card" href="./admin_lesson_editor_desktop.html">
+            <div class="l">
+              <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg></div>
+              <div style="min-width:0">
+                <div class="nm">Lesson Editor</div>
+                <div class="sm">Upload video, resources, behavior toggles</div>
+              </div>
+            </div>
+            <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"></path></svg></div>
+          </a>
+          <a class="card" href="./admin_analytics_desktop.html">
+            <div class="l">
+              <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"></path><path d="M7 14l4-4 3 3 6-6"></path></svg></div>
+              <div style="min-width:0">
+                <div class="nm">Analytics (Overview)</div>
+                <div class="sm">Sales + progress distribution</div>
+              </div>
+            </div>
+            <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"></path></svg></div>
+          </a>
+          <a class="card" href="./admin_course_analytics_desktop.html">
+            <div class="l">
+              <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20"></path><path d="M2 12h20"></path></svg></div>
+              <div style="min-width:0">
+                <div class="nm">Course Analytics (Detail)</div>
+                <div class="sm">Funnel, lesson drop-off, sales</div>
+              </div>
+            </div>
+            <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"></path></svg></div>
+          </a>
+          <a class="card" href="./admin_users_desktop.html">
+            <div class="l">
+              <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></div>
+              <div style="min-width:0">
+                <div class="nm">Users List</div>
+                <div class="sm">Search, status filter, actions</div>
+              </div>
+            </div>
+            <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"></path></svg></div>
+          </a>
+          <a class="card" href="./admin_user_detail_desktop.html">
+            <div class="l">
+              <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="7" r="4"></circle><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path></svg></div>
+              <div style="min-width:0">
+                <div class="nm">User Detail</div>
+                <div class="sm">Enrollments, spend, audit log</div>
+              </div>
+            </div>
+            <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"></path></svg></div>
+          </a>
+          <a class="card" href="./admin_settings_profile_desktop.html">
+            <div class="l">
+              <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"></path><path d="M19.4 15a7.7 7.7 0 0 0 .1-2l2-1-2-4-2 1a7.6 7.6 0 0 0-1.7-1L15 3h-6l-.9 5a7.6 7.6 0 0 0-1.7 1l-2-1-2 4 2 1a7.7 7.7 0 0 0 .1 2l-2 1 2 4 2-1a7.6 7.6 0 0 0 1.7 1l.9 5h6l.9-5a7.6 7.6 0 0 0 1.7-1l2 1 2-4-2-1z"></path></svg></div>
+              <div style="min-width:0">
+                <div class="nm">Settings &amp; Profile</div>
+                <div class="sm">Profile, payouts, security</div>
+              </div>
+            </div>
+            <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"></path></svg></div>
+          </a>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="st"><span>Design System</span><span class="pill">Tokens</span></div>
+        <div class="cards">
+          <a class="card" href="./style_guide.html">
+            <div class="l">
+              <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg></div>
+              <div style="min-width:0">
+                <div class="nm">Style Guide</div>
+                <div class="sm">Colors, typography, components</div>
+              </div>
+            </div>
+            <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"></path></svg></div>
+          </a>
+        </div>
+      </section>
+    </div>
+  </div>
+</body>
+</html>
+

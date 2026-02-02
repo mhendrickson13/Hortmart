@@ -1,0 +1,665 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@100;200;300;400;500;600;700;800;900&family=Roboto:wght@100;300;400;500;700;900" rel="stylesheet" />
+  <title>VideoLecture — Course Player (Desktop)</title>
+  <style>
+    :root{
+      --bg:#F6F7FB;
+      --surface-1:#FFFFFF;
+      --surface-3:#EEF5FF;
+      --text-1:#151923;
+      --text-2:#5A6272;
+      --text-3:#8C95A6;
+      --border-1:#E8EAF2;
+      --primary:#2F6FED;
+      --primary-600:#1D4ED8;
+      --primary-100:#DBEAFE;
+      --primary-rgb:47,111,237;
+      --accent-rgb:56,189,248;
+      --success:#22C55E;
+      --overlay-scrim:rgba(21,25,35,0.35);
+      --radius-lg:20px;
+      --radius-md:14px;
+      --radius-pill:999px;
+      --shadow-1:0 14px 40px rgba(21,25,35,0.10);
+      --shadow-2:0 26px 70px rgba(21,25,35,0.14);
+    }
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      font-family: 'Poppins', 'Roboto', sans-serif;
+      background: var(--bg);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .canvas{
+      width:100%;
+      min-height:100vh;
+      position:relative;
+      overflow:hidden;
+      background: var(--surface-1);
+      border: 1px solid rgba(255,255,255,0.55);
+    }
+    .blob{
+      position:absolute;
+      width:420px; height:420px;
+      border-radius: 50%;
+      filter: blur(1px);
+      opacity:0.7;
+      pointer-events:none;
+    }
+    .blob.one{ left:-120px; top:-120px; background: radial-gradient(circle at 30% 30%, rgba(var(--primary-rgb),0.35), rgba(var(--primary-rgb),0.10) 55%, transparent 70%); }
+    .blob.two{ right:-160px; top:-80px; background: radial-gradient(circle at 30% 30%, rgba(var(--accent-rgb),0.35), rgba(var(--accent-rgb),0.12) 55%, transparent 70%); }
+    .blob.three{ left:-130px; bottom:-180px; background: radial-gradient(circle at 30% 30%, rgba(140,255,203,0.30), rgba(140,255,203,0.10) 55%, transparent 70%); }
+
+    .app{
+      position:absolute;
+      left:28px; right:28px; top:28px; bottom:28px;
+      border-radius:28px;
+      background: rgba(255,255,255,0.72);
+      border: 1px solid rgba(232,234,242,0.65);
+      box-shadow: var(--shadow-1);
+      display:grid;
+      grid-template-columns: 84px 1fr 360px;
+      gap:20px;
+      padding:18px;
+    }
+    .rail{
+      border-radius:22px;
+      background: rgba(255,255,255,0.85);
+      border:1px solid rgba(232,234,242,0.9);
+      padding:14px 10px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:12px;
+    }
+    .logo{
+      width:44px; height:44px;
+      border-radius:16px;
+      display:grid;
+      place-items:center;
+      margin-bottom:6px;
+      background: linear-gradient(135deg, rgba(var(--primary-rgb),0.22), rgba(var(--accent-rgb),0.16));
+      border: 1px solid rgba(232,234,242,0.9);
+    }
+    .railBtn{
+      width:48px; height:48px;
+      border-radius:18px;
+      display:grid;
+      place-items:center;
+      color: var(--text-2);
+      border: 1px solid transparent;
+    }
+    .railBtn.active{
+      background: var(--primary);
+      color: white;
+      box-shadow: 0 12px 26px rgba(var(--primary-rgb),0.35);
+    }
+    .railBtn svg{ width:20px; height:20px; }
+    .spacer{ flex:1; }
+    .avatar{
+      width:44px; height:44px; border-radius:16px;
+      background: linear-gradient(135deg, rgba(21,25,35,0.06), rgba(21,25,35,0.02));
+      border:1px solid rgba(232,234,242,0.9);
+    }
+
+    .main{
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+      min-width:0;
+    }
+    .topbar{
+      display:flex;
+      gap:12px;
+      align-items:center;
+    }
+    .back{
+      width:40px; height:40px; border-radius:14px;
+      border: 1px solid rgba(232,234,242,0.95);
+      background: rgba(255,255,255,0.95);
+      display:grid;
+      place-items:center;
+      color: var(--text-2);
+    }
+    .search{
+      flex:1;
+      height:40px;
+      border-radius: 14px;
+      border: 1px solid rgba(232,234,242,0.95);
+      background: rgba(255,255,255,0.95);
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding:0 14px;
+      color: var(--text-3);
+      min-width:0;
+    }
+    .search span{
+      font-size:13px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .header{
+      display:flex;
+      gap:14px;
+      align-items:flex-start;
+    }
+    .courseIcon{
+      width:44px; height:44px;
+      border-radius:16px;
+      background: linear-gradient(135deg, rgba(var(--primary-rgb),0.30), rgba(var(--accent-rgb),0.18));
+      border:1px solid rgba(232,234,242,0.95);
+    }
+    .titleBlock{
+      flex:1;
+      min-width:0;
+    }
+    .title{
+      font-size:26px;
+      line-height:1.15;
+      font-weight:750;
+      color: var(--text-1);
+      letter-spacing:-0.2px;
+      margin:0;
+    }
+    .sub{
+      margin-top:6px;
+      font-size:13px;
+      color: var(--text-2);
+    }
+    .sub b{ color: var(--primary-600); font-weight:650; }
+    .headerRight{
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    .pillBtn{
+      height:36px;
+      border-radius: var(--radius-pill);
+      padding:0 14px;
+      background: rgba(21,25,35,0.90);
+      color:white;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      font-size:13px;
+      font-weight:650;
+      box-shadow: 0 12px 26px rgba(21,25,35,0.18);
+    }
+    .pillBtn svg{ width:16px; height:16px; }
+    .iconBtn{
+      width:36px; height:36px;
+      border-radius: 14px;
+      border: 1px solid rgba(232,234,242,0.95);
+      background: rgba(255,255,255,0.95);
+      display:grid;
+      place-items:center;
+      color: var(--text-2);
+    }
+    .iconBtn svg{ width:16px; height:16px; }
+
+    .videoCard{
+      height:420px;
+      border-radius: 26px;
+      background: linear-gradient(135deg, rgba(var(--primary-rgb),0.18), rgba(var(--accent-rgb),0.14));
+      border:1px solid rgba(232,234,242,0.9);
+      box-shadow: var(--shadow-1);
+      overflow:hidden;
+      position:relative;
+    }
+    .poster{
+      position:absolute;
+      inset:0;
+      display:grid;
+      place-items:center;
+    }
+    .poster svg{ width:90%; max-width:680px; opacity:0.95; }
+    .play{
+      position:absolute;
+      left:50%; top:50%;
+      transform: translate(-50%,-50%);
+      width:86px; height:86px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.70);
+      border: 1px solid rgba(255,255,255,0.85);
+      backdrop-filter: blur(8px);
+      display:grid;
+      place-items:center;
+      box-shadow: 0 16px 34px rgba(21,25,35,0.18);
+    }
+    .play:before{
+      content:"";
+      width:0; height:0;
+      border-left:18px solid rgba(21,25,35,0.75);
+      border-top:12px solid transparent;
+      border-bottom:12px solid transparent;
+      margin-left:4px;
+    }
+
+    .tabs{
+      display:flex;
+      gap:8px;
+      padding:6px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.92);
+      border:1px solid rgba(232,234,242,0.95);
+      width:max-content;
+    }
+    .tab{
+      padding:10px 14px;
+      border-radius: 14px;
+      font-size:13px;
+      font-weight:650;
+      color: var(--text-2);
+    }
+    .tab.active{
+      background: var(--primary-100);
+      color: var(--primary-600);
+      box-shadow: 0 10px 18px rgba(var(--primary-rgb),0.12);
+    }
+    .stats{
+      display:grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap:12px;
+    }
+    .chip{
+      border-radius: 18px;
+      background: rgba(255,255,255,0.92);
+      border:1px solid rgba(232,234,242,0.95);
+      padding:12px 14px;
+      display:flex;
+      gap:10px;
+      align-items:center;
+      min-width:0;
+    }
+    .chip svg{ width:18px; height:18px; color: var(--text-2); }
+    .chip .k{
+      font-size:11px; color: var(--text-3); font-weight:650; letter-spacing:0.2px;
+      text-transform:uppercase;
+    }
+    .chip .v{
+      font-size:13px; color: var(--text-1); font-weight:700;
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+      margin-top:2px;
+    }
+
+    .side{
+      border-radius:22px;
+      background: rgba(255,255,255,0.85);
+      border:1px solid rgba(232,234,242,0.9);
+      padding:14px;
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+      min-width:0;
+    }
+    .lessonTitle{
+      font-size:14px;
+      font-weight:800;
+      color: var(--text-1);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .lessonTitle span{ color: var(--text-3); font-weight:650; font-size:12px; }
+    .lessonList{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+    .lesson{
+      border-radius: 18px;
+      border:1px solid rgba(232,234,242,0.95);
+      background: rgba(255,255,255,0.92);
+      padding:12px 12px;
+      display:flex;
+      gap:10px;
+      align-items:flex-start;
+    }
+    .lesson.now{
+      background: var(--primary);
+      border-color: rgba(var(--primary-rgb),0.45);
+      color: white;
+      box-shadow: 0 14px 28px rgba(var(--primary-rgb),0.25);
+    }
+    .statusDot{
+      width:18px; height:18px;
+      border-radius:999px;
+      margin-top:2px;
+      border: 2px solid rgba(140,149,166,0.5);
+      flex:0 0 auto;
+      display:grid;
+      place-items:center;
+    }
+    .lesson.completed .statusDot{
+      border-color: rgba(34,197,94,0.65);
+      background: rgba(34,197,94,0.12);
+    }
+    .lesson.completed .statusDot:before{
+      content:"";
+      width:7px; height:4px;
+      border-left:2px solid rgba(21,25,35,0.65);
+      border-bottom:2px solid rgba(21,25,35,0.65);
+      transform: rotate(-45deg);
+      margin-top:-1px;
+    }
+    .lesson.now .statusDot{ border-color: rgba(255,255,255,0.75); }
+    .lesson.locked{
+      opacity:0.55;
+    }
+    .lMain{ flex:1; min-width:0; }
+    .lName{
+      font-size:13px;
+      font-weight:800;
+      color: inherit;
+      line-height:1.25;
+      margin:0;
+    }
+    .lMeta{
+      margin-top:6px;
+      font-size:12px;
+      color: inherit;
+      opacity:0.85;
+      display:flex;
+      gap:10px;
+      align-items:center;
+    }
+    .pill{
+      height:22px;
+      padding:0 10px;
+      border-radius: var(--radius-pill);
+      display:inline-flex;
+      align-items:center;
+      font-size:11px;
+      font-weight:800;
+      letter-spacing:0.2px;
+      border: 1px solid transparent;
+      white-space:nowrap;
+    }
+    .pill.completed{
+      background: rgba(34,197,94,0.14);
+      color: #15803D;
+      border-color: rgba(34,197,94,0.22);
+    }
+    .pill.now{
+      background: rgba(255,255,255,0.22);
+      color: white;
+      border-color: rgba(255,255,255,0.32);
+    }
+    .pill.locked{
+      background: rgba(90,98,114,0.10);
+      color: var(--text-2);
+      border-color: rgba(90,98,114,0.10);
+    }
+    .miniChart{
+      margin-top:auto;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.92);
+      border:1px solid rgba(232,234,242,0.95);
+      padding:12px 12px 10px;
+    }
+    .miniChart .h{
+      font-size:12px;
+      font-weight:850;
+      color: var(--text-1);
+      margin-bottom:8px;
+    }
+    .days{
+      display:flex;
+      justify-content:space-between;
+      font-size:10px;
+      color: var(--text-3);
+      margin-top:8px;
+      font-weight:700;
+    }
+  </style>
+</head>
+<body>
+  <div class="canvas">
+    <div class="blob one"></div>
+    <div class="blob two"></div>
+    <div class="blob three"></div>
+
+    <div class="app">
+      <aside class="rail">
+        <img class="logo" src="../isotiponuevoCXF-SVG.svg" alt="Logo" />
+        <div class="railBtn active" title="Courses">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 7l9-4 9 4-9 4-9-4z"></path>
+            <path d="M21 10v7"></path>
+            <path d="M3 10v7l9 4 9-4"></path>
+          </svg>
+        </div>
+        <div class="railBtn" title="Messages">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 4h16v12H7l-3 3V4z"></path>
+          </svg>
+        </div>
+        <div class="railBtn" title="Bookmarks">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M6 3h12v18l-6-4-6 4V3z"></path>
+          </svg>
+        </div>
+        <div class="spacer"></div>
+        <div class="railBtn" title="Settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"></path>
+            <path d="M19.4 15a7.7 7.7 0 0 0 .1-2l2-1-2-4-2 1a7.6 7.6 0 0 0-1.7-1L15 3h-6l-.9 5a7.6 7.6 0 0 0-1.7 1l-2-1-2 4 2 1a7.7 7.7 0 0 0 .1 2l-2 1 2 4 2-1a7.6 7.6 0 0 0 1.7 1l.9 5h6l.9-5a7.6 7.6 0 0 0 1.7-1l2 1 2-4-2-1z"></path>
+          </svg>
+        </div>
+        <div class="avatar" title="Profile"></div>
+      </aside>
+
+      <main class="main">
+        <div class="topbar">
+          <div class="back" aria-label="Back">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 18l-6-6 6-6"></path>
+            </svg>
+          </div>
+          <div class="search" role="search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;opacity:.8">
+              <circle cx="11" cy="11" r="7"></circle>
+              <path d="M20 20l-3-3"></path>
+            </svg>
+            <span>Search in this course</span>
+          </div>
+        </div>
+
+        <section class="header">
+          <div class="courseIcon" aria-hidden="true"></div>
+          <div class="titleBlock">
+            <h1 class="title">T‑shirt Design Essentials</h1>
+            <div class="sub">Instructor &nbsp; <b>Fabio Sanches Lozada</b></div>
+          </div>
+          <div class="headerRight">
+            <div style="display:flex; align-items:center; gap:8px; margin-right:6px;">
+              <div style="width:28px;height:28px;border-radius:999px;background:linear-gradient(135deg, rgba(var(--primary-rgb),0.35), rgba(var(--accent-rgb),0.25));border:1px solid rgba(232,234,242,0.9)"></div>
+              <div style="width:28px;height:28px;border-radius:999px;background:linear-gradient(135deg, rgba(var(--accent-rgb),0.35), rgba(140,255,203,0.25));border:1px solid rgba(232,234,242,0.9); margin-left:-10px"></div>
+              <div style="width:28px;height:28px;border-radius:999px;background:linear-gradient(135deg, rgba(140,255,203,0.35), rgba(var(--primary-rgb),0.22));border:1px solid rgba(232,234,242,0.9); margin-left:-10px"></div>
+              <div style="font-size:11px;color:var(--text-3);font-weight:750;margin-left:6px;">Other students</div>
+            </div>
+            <div class="pillBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 17.3l-6.2 3.7 1.7-7.1L2 9.2l7.2-.6L12 2l2.8 6.6 7.2.6-5.5 4.7 1.7 7.1z"></path>
+              </svg>
+              Leave a rating
+            </div>
+            <div class="iconBtn" title="Like">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20.8 4.6c-1.5-1.5-4-1.5-5.5 0L12 7.9 8.7 4.6c-1.5-1.5-4-1.5-5.5 0s-1.5 4 0 5.5l8.8 8.8 8.8-8.8c1.5-1.5 1.5-4 0-5.5z"></path>
+              </svg>
+            </div>
+            <div class="iconBtn" title="Share">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M15 8l-3-3-3 3"></path>
+                <path d="M12 5v10"></path>
+                <path d="M20 21H4"></path>
+              </svg>
+            </div>
+            <div class="iconBtn" title="Save">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M6 3h12v18l-6-4-6 4V3z"></path>
+              </svg>
+            </div>
+          </div>
+        </section>
+
+        <section class="videoCard" aria-label="Video player">
+          <div class="poster">
+            <svg viewBox="0 0 720 420" fill="none">
+              <defs>
+                <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="rgba(var(--primary-rgb),0.55)"/>
+                  <stop offset="1" stop-color="rgba(var(--accent-rgb),0.45)"/>
+                </linearGradient>
+                <linearGradient id="g2" x1="0" y1="1" x2="1" y2="0">
+                  <stop offset="0" stop-color="rgba(255,255,255,0.75)"/>
+                  <stop offset="1" stop-color="rgba(255,255,255,0.20)"/>
+                </linearGradient>
+              </defs>
+              <rect x="18" y="18" width="684" height="384" rx="26" fill="url(#g2)" opacity="0.9"/>
+              <path d="M120 290c70-90 160-140 270-120 120 22 140 110 260 70" stroke="url(#g1)" stroke-width="14" stroke-linecap="round" opacity="0.85"/>
+              <circle cx="190" cy="150" r="46" fill="rgba(255,255,255,0.65)"/>
+              <circle cx="540" cy="160" r="64" fill="rgba(255,255,255,0.45)"/>
+              <rect x="155" y="250" width="410" height="18" rx="9" fill="rgba(21,25,35,0.12)"/>
+              <rect x="155" y="280" width="300" height="14" rx="7" fill="rgba(21,25,35,0.10)"/>
+            </svg>
+          </div>
+          <div class="play" aria-hidden="true"></div>
+        </section>
+
+        <nav class="tabs" aria-label="Content tabs">
+          <div class="tab active">Overview</div>
+          <div class="tab">Q&amp;A</div>
+          <div class="tab">Notes</div>
+          <div class="tab">Resources</div>
+        </nav>
+
+        <section class="stats" aria-label="Course stats">
+          <div class="chip">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 4h6v6H4z"></path><path d="M14 4h6v6h-6z"></path><path d="M4 14h6v6H4z"></path><path d="M14 14h6v6h-6z"></path>
+            </svg>
+            <div style="min-width:0">
+              <div class="k">Skill level</div>
+              <div class="v">All levels</div>
+            </div>
+          </div>
+          <div class="chip">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 8v5l3 2"></path><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"></path>
+            </svg>
+            <div style="min-width:0">
+              <div class="k">Course length</div>
+              <div class="v">1 total hour</div>
+            </div>
+          </div>
+          <div class="chip">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="8.5" cy="7" r="4"></circle>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+            <div style="min-width:0">
+              <div class="k">Students</div>
+              <div class="v">3850</div>
+            </div>
+          </div>
+          <div class="chip">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M2 12h20"></path>
+              <path d="M12 2a15.3 15.3 0 0 1 0 20"></path>
+              <path d="M12 2a15.3 15.3 0 0 0 0 20"></path>
+              <path d="M2 12a10 10 0 0 0 20 0"></path>
+              <path d="M2 12a10 10 0 0 1 20 0"></path>
+            </svg>
+            <div style="min-width:0">
+              <div class="k">Language</div>
+              <div class="v">US English</div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <aside class="side" aria-label="Lessons panel">
+        <div class="lessonTitle">
+          <div>Course content</div>
+          <span>8 lessons</span>
+        </div>
+        <div class="lessonList">
+          <div class="lesson completed">
+            <div class="statusDot"></div>
+            <div class="lMain">
+              <p class="lName">Every T‑shirt has a Story</p>
+              <div class="lMeta">
+                <span>8 min</span>
+                <span class="pill completed">COMPLETED</span>
+              </div>
+            </div>
+          </div>
+          <div class="lesson completed">
+            <div class="statusDot"></div>
+            <div class="lMain">
+              <p class="lName">History of the T‑Shirt</p>
+              <div class="lMeta">
+                <span>12 min</span>
+                <span class="pill completed">COMPLETED</span>
+              </div>
+            </div>
+          </div>
+          <div class="lesson now">
+            <div class="statusDot"></div>
+            <div class="lMain">
+              <p class="lName">What Makes a Good Graphic</p>
+              <div class="lMeta">
+                <span style="opacity:.9">Now watching</span>
+                <span class="pill now">NOW WATCHING</span>
+              </div>
+            </div>
+          </div>
+          <div class="lesson">
+            <div class="statusDot"></div>
+            <div class="lMain">
+              <p class="lName">The Kinds of Fabric</p>
+              <div class="lMeta"><span>14 min</span></div>
+            </div>
+          </div>
+          <div class="lesson locked">
+            <div class="statusDot"></div>
+            <div class="lMain">
+              <p class="lName">T‑Shirt Construction</p>
+              <div class="lMeta">
+                <span>27 min</span>
+                <span class="pill locked">LOCKED</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="miniChart">
+          <div class="h">Your time on the course</div>
+          <svg viewBox="0 0 320 80" width="100%" height="72" fill="none">
+            <path d="M8 62 C 48 62, 60 25, 90 25 C 120 25, 140 52, 170 52 C 200 52, 220 18, 250 18 C 280 18, 292 40, 312 40"
+                  stroke="rgba(var(--primary-rgb),0.85)" stroke-width="4" stroke-linecap="round"/>
+            <circle cx="90" cy="25" r="5" fill="rgba(var(--primary-rgb),0.95)"/>
+            <circle cx="250" cy="18" r="5" fill="rgba(var(--primary-rgb),0.95)"/>
+          </svg>
+          <div class="days"><span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span></div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</body>
+</html>
+

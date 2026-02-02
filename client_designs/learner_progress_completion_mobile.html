@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@100;200;300;400;500;600;700;800;900&family=Roboto:wght@100;300;400;500;700;900" rel="stylesheet" />
+  <title>VideoLecture — Progress & Completion (Mobile)</title>
+  <style>
+    :root{
+      --bg:#F6F7FB;
+      --surface-1:#FFFFFF;
+      --text-1:#151923;
+      --text-2:#5A6272;
+      --text-3:#8C95A6;
+      --border-1:#E8EAF2;
+      --primary:#2F6FED;
+      --primary-600:#1D4ED8;
+      --primary-100:#DBEAFE;
+      --primary-rgb:47,111,237;
+      --accent-rgb:56,189,248;
+      --success:#22C55E;
+      --pad:16px;
+      --radius-lg:22px;
+      --radius-md:16px;
+      --radius-pill:999px;
+      --shadow-1:0 14px 40px rgba(21,25,35,0.10);
+      --shadow-2:0 26px 70px rgba(21,25,35,0.14);
+    }
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      font-family: 'Poppins', 'Roboto', sans-serif;
+      background: var(--bg);
+      display:grid;
+      place-items:center;
+    }
+
+    .phone{
+      width: min(430px, calc(100vw - 32px));
+      height: min(900px, calc(100vh - 32px));
+      max-width: 390px;
+      max-height: 844px;
+      border-radius:40px;
+      background: rgba(255,255,255,0.70);
+      border: 1px solid rgba(255,255,255,0.55);
+      box-shadow: var(--shadow-2);
+      overflow:hidden;
+      position:relative;
+    }
+    .screen{
+      position:absolute; inset:0;
+      background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(255,255,255,0.62));
+    }
+
+    .layout{ height:100%; display:flex; }
+    .rail{
+      width:64px;
+      padding:14px 8px;
+      border-right:1px solid rgba(232,234,242,0.95);
+      background: rgba(255,255,255,0.92);
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:10px;
+    }
+    .logo{
+      width:42px; height:42px;
+      border-radius:16px;
+      display:grid;
+      place-items:center;
+      font-weight:980;
+      color: var(--text-1);
+      background: linear-gradient(135deg, rgba(var(--primary-rgb),0.22), rgba(var(--accent-rgb),0.14));
+      border: 1px solid rgba(232,234,242,0.95);
+      margin-bottom:4px;
+    }
+    .railBtn{
+      width:44px; height:44px;
+      border-radius: 16px;
+      display:grid;
+      place-items:center;
+      color: var(--text-2);
+      border:1px solid transparent;
+    }
+    .railBtn svg{ width:18px; height:18px; }
+    .railBtn.active{
+      background: var(--primary);
+      color:white;
+      border-color: rgba(var(--primary-rgb),0.55);
+      box-shadow: 0 14px 28px rgba(var(--primary-rgb),0.22);
+    }
+    .spacer{ flex:1; }
+
+    .page{
+      flex:1;
+      min-width:0;
+      height:100%;
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+    }
+    .header{
+      padding: 18px var(--pad) 12px;
+      flex:0 0 auto;
+    }
+    .scroll{
+      flex:1;
+      min-height:0;
+      overflow:auto;
+      padding: 0 var(--pad) 18px;
+    }
+    .scroll{
+      scrollbar-width: thin;
+      scrollbar-color: rgba(21,25,35,0.28) transparent;
+    }
+    .scroll::-webkit-scrollbar{ width:6px; }
+    .scroll::-webkit-scrollbar-track{ background:transparent; }
+    .scroll::-webkit-scrollbar-thumb{ background: rgba(21,25,35,0.22); border-radius:999px; }
+    .top{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom: 12px;
+    }
+    .iconBtn{
+      width:40px; height:40px;
+      border-radius: 16px;
+      border: 1px solid rgba(232,234,242,0.95);
+      background: rgba(255,255,255,0.95);
+      display:grid;
+      place-items:center;
+      color: var(--text-2);
+      box-shadow: 0 14px 28px rgba(21,25,35,0.05);
+      flex:0 0 auto;
+    }
+    .iconBtn svg{ width:18px; height:18px; }
+    .h1{
+      flex:1;
+      font-size:18px;
+      font-weight:980;
+      letter-spacing:-0.2px;
+      color: var(--text-1);
+      line-height:1.1;
+      padding-top:2px;
+    }
+
+    .card{
+      border-radius: 26px;
+      background: rgba(255,255,255,0.95);
+      border:1px solid rgba(232,234,242,0.95);
+      box-shadow: 0 14px 28px rgba(21,25,35,0.06);
+      padding:14px;
+      margin-bottom:14px;
+    }
+    .title{
+      font-weight:980;
+      color: var(--text-1);
+      font-size:16px;
+      letter-spacing:-0.1px;
+    }
+    .sub{
+      margin-top:6px;
+      font-weight:850;
+      color: var(--text-3);
+      font-size:12px;
+    }
+    .bar{
+      height:10px;
+      border-radius: var(--radius-pill);
+      background: rgba(21,25,35,0.08);
+      overflow:hidden;
+      margin-top:12px;
+    }
+    .fill{
+      height:100%;
+      width:100%;
+      border-radius: var(--radius-pill);
+      background: linear-gradient(90deg, var(--primary), rgba(var(--accent-rgb),0.85));
+    }
+    .row{
+      margin-top:10px;
+      display:flex;
+      justify-content:space-between;
+      color: var(--text-2);
+      font-weight:900;
+      font-size:12px;
+      gap:10px;
+    }
+    .badge{
+      height:26px;
+      padding:0 10px;
+      border-radius: var(--radius-pill);
+      display:inline-flex;
+      align-items:center;
+      font-size:11px;
+      font-weight:950;
+      letter-spacing:0.2px;
+      background: rgba(34,197,94,0.14);
+      color:#15803D;
+      border: 1px solid rgba(34,197,94,0.22);
+      white-space:nowrap;
+    }
+    .cert{
+      margin-top:12px;
+      border-radius: 18px;
+      border:1px solid rgba(232,234,242,0.95);
+      background: linear-gradient(135deg, rgba(var(--primary-rgb),0.14), rgba(var(--accent-rgb),0.10));
+      padding:14px;
+      position:relative;
+      overflow:hidden;
+    }
+    .cert:after{
+      content:"";
+      position:absolute; inset:-60px;
+      background: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.55), transparent 60%);
+      transform: rotate(18deg);
+    }
+    .certInner{ position:relative; z-index:1; }
+    .certTitle{
+      font-weight:980;
+      color: var(--text-1);
+      font-size:14px;
+    }
+    .certName{
+      margin-top:8px;
+      font-weight:980;
+      color: var(--text-1);
+      font-size:18px;
+      letter-spacing:-0.2px;
+    }
+    .certSmall{
+      margin-top:6px;
+      font-weight:850;
+      color: var(--text-2);
+      font-size:12px;
+    }
+    .btnRow{
+      display:flex;
+      gap:12px;
+      margin-top:12px;
+    }
+    .btn{
+      height:44px;
+      border-radius: 999px;
+      flex:1;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:980;
+      font-size:13px;
+      border:1px solid rgba(232,234,242,0.95);
+      background: rgba(255,255,255,0.95);
+      color: var(--text-1);
+      box-shadow: 0 14px 28px rgba(21,25,35,0.06);
+      white-space:nowrap;
+    }
+    .btn.primary{
+      background: var(--primary);
+      color:white;
+      border-color: rgba(var(--primary-rgb),0.55);
+      box-shadow: 0 16px 34px rgba(var(--primary-rgb),0.22);
+    }
+    .miniChart{
+      border-radius: 26px;
+      background: rgba(255,255,255,0.95);
+      border:1px solid rgba(232,234,242,0.95);
+      box-shadow: 0 14px 28px rgba(21,25,35,0.05);
+      padding:14px;
+    }
+    .miniChart .h{
+      font-size:12px;
+      font-weight:980;
+      color: var(--text-1);
+    }
+    .days{
+      display:flex;
+      justify-content:space-between;
+      font-size:10px;
+      color: var(--text-3);
+      margin-top:8px;
+      font-weight:900;
+    }
+  </style>
+</head>
+<body>
+  <div class="phone" aria-label="Mobile frame">
+    <div class="screen">
+      <div class="layout">
+        <aside class="rail" aria-label="Left navigation">
+          <img class="logo" src="../isotiponuevoCXF-SVG.svg" alt="VideoLecture" />
+          <div class="railBtn" title="Home">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8v10a2 2 0 0 1-2 2h-4v-6H9v6H5a2 2 0 0 1-2-2V11z"></path></svg>
+          </div>
+          <div class="railBtn active" title="My Courses">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7l9-4 9 4-9 4-9-4z"></path><path d="M3 10v7l9 4 9-4v-7"></path></svg>
+          </div>
+          <div class="railBtn" title="Search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3-3"></path></svg>
+          </div>
+          <div class="spacer"></div>
+          <div class="railBtn" title="Profile">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+          </div>
+        </aside>
+
+        <main class="page">
+          <div class="header">
+            <div class="top">
+              <div class="iconBtn" aria-label="Back">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"></path></svg>
+              </div>
+              <div class="h1">Progress &amp;<br/>Completion</div>
+              <div class="iconBtn" aria-label="Share">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M15 8l-3-3-3 3"></path><path d="M12 5v10"></path><path d="M20 21H4"></path>
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div class="scroll" aria-label="Progress content scroll">
+            <div class="card">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+              <div>
+                <div class="title">T‑shirt Design Essentials</div>
+                <div class="sub">You’ve completed all lessons</div>
+              </div>
+              <span class="badge">COMPLETED</span>
+            </div>
+            <div class="bar"><div class="fill"></div></div>
+            <div class="row"><span>8 / 8 lessons</span><span>100%</span></div>
+
+            <div class="cert">
+              <div class="certInner">
+                <div class="certTitle">Certificate of completion</div>
+                <div class="certName">Fortun Paws</div>
+                <div class="certSmall">Issued Jan 2026 • Instructor verified</div>
+              </div>
+            </div>
+
+            <div class="btnRow">
+              <div class="btn">Leave rating</div>
+              <div class="btn primary">Download</div>
+            </div>
+          </div>
+
+          <div class="miniChart">
+            <div class="h">Your time on the course</div>
+            <svg viewBox="0 0 320 80" width="100%" height="70" fill="none" style="margin-top:10px;">
+              <path d="M8 62 C 48 62, 60 25, 90 25 C 120 25, 140 52, 170 52 C 200 52, 220 18, 250 18 C 280 18, 292 40, 312 40"
+                    stroke="rgba(var(--primary-rgb),0.85)" stroke-width="4" stroke-linecap="round"/>
+              <circle cx="90" cy="25" r="5" fill="rgba(var(--primary-rgb),0.95)"/>
+              <circle cx="250" cy="18" r="5" fill="rgba(var(--primary-rgb),0.95)"/>
+            </svg>
+            <div class="days"><span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span></div>
+          </div>
+          </div>
+        </main>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
