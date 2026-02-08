@@ -212,6 +212,7 @@ export default function SettingsPage() {
 
   // Time display
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [isHydrated, setIsHydrated] = useState(false);
 
   const isCreator = session?.user?.role === "ADMIN" || session?.user?.role === "CREATOR";
 
@@ -223,6 +224,11 @@ export default function SettingsPage() {
   useEffect(() => {
     setActiveTab(resolveTab(tabParam));
   }, [tabParam]);
+
+  // Prevent SSR/CSR clock hydration mismatch (seconds tick)
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
 
   // Clock update
   useEffect(() => {
@@ -608,8 +614,12 @@ export default function SettingsPage() {
                     <p className="text-body-sm text-text-2 mb-3">{tr.settings.timezoneDescription}</p>
                     <div className="mb-4 p-3 rounded-xl bg-muted border border-border">
                       <div className="text-caption text-text-3 mb-1">{tr.settings.currentTime}</div>
-                      <div className="text-h3 font-bold text-text-1 font-mono">{getCurrentTimeInTimezone()}</div>
-                      <div className="text-body-sm text-text-2 mt-1">{getCurrentDateInTimezone()}</div>
+                      <div className="text-h3 font-bold text-text-1 font-mono" suppressHydrationWarning>
+                        {isHydrated ? getCurrentTimeInTimezone() : "—"}
+                      </div>
+                      <div className="text-body-sm text-text-2 mt-1" suppressHydrationWarning>
+                        {isHydrated ? getCurrentDateInTimezone() : "—"}
+                      </div>
                     </div>
                     <Label htmlFor="mobile-timezone">{tr.settings.selectTimezone}</Label>
                     <select id="mobile-timezone" value={timezone} onChange={(e) => handleTimezoneChange(e.target.value)} className="mt-2 w-full h-11 px-4 rounded-xl border border-border bg-surface text-body-sm text-text-1 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors">
@@ -893,8 +903,12 @@ export default function SettingsPage() {
                     </div>
                     <div className="p-4 rounded-xl bg-muted border border-border">
                       <div className="text-caption text-text-3 mb-1">{tr.settings.currentTime}</div>
-                      <div className="text-h3 font-bold text-text-1 font-mono">{getCurrentTimeInTimezone()}</div>
-                      <div className="text-body-sm text-text-2 mt-1">{getCurrentDateInTimezone()}</div>
+                      <div className="text-h3 font-bold text-text-1 font-mono" suppressHydrationWarning>
+                        {isHydrated ? getCurrentTimeInTimezone() : "—"}
+                      </div>
+                      <div className="text-body-sm text-text-2 mt-1" suppressHydrationWarning>
+                        {isHydrated ? getCurrentDateInTimezone() : "—"}
+                      </div>
                     </div>
                   </div>
                 </Card>
