@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { lessons as lessonsApi, apiClient, uploads as uploadsApi } from "@/lib/api-client";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -58,7 +58,8 @@ export default function LessonEditPage() {
   const { id: courseId, lessonId } = useParams<{ id: string; lessonId: string }>();
   const navigate = useNavigate();
 
-  const { data, isLoading } = useQuery({
+  const queryClient = useQueryClient();
+  const { data, isLoading, dataUpdatedAt } = useQuery({
     queryKey: ["lesson", lessonId],
     queryFn: () => lessonsApi.get(lessonId!),
     enabled: !!lessonId,
@@ -104,10 +105,15 @@ export default function LessonEditPage() {
 
   return (
     <LessonEditor
+      key={dataUpdatedAt}
       lesson={lesson}
       courseName={courseName}
       courseId={courseId || ""}
       moduleName={moduleName}
+      onNavigateBack={() => {
+        // Invalidate course query so EditCoursePage gets fresh data
+        queryClient.invalidateQueries({ queryKey: ["course", courseId] });
+      }}
     />
   );
 }
@@ -119,11 +125,13 @@ function LessonEditor({
   courseName,
   courseId,
   moduleName,
+  onNavigateBack,
 }: {
   lesson: LessonData;
   courseName: string;
   courseId: string;
   moduleName: string;
+  onNavigateBack?: () => void;
 }) {
   const navigate = useNavigate();
   const [lesson, setLesson] = useState(initialLesson);
@@ -164,6 +172,37 @@ function LessonEditor({
     return () => clearInterval(timer);
   }, []);
 
+  // ─── Auto-detect video duration ───
+  const detectDuration = useCallback(
+    async (source: File | string) => {
+      try {
+        const video = document.createElement("video");
+        video.preload = "metadata";
+        const durationPromise = new Promise<number>((resolve) => {
+          video.onloadedmetadata = () => {
+            const secs = Math.round(video.duration);
+            if (source instanceof File) URL.revokeObjectURL(video.src);
+            resolve(isFinite(secs) && secs > 0 ? secs : 0);
+          };
+          video.onerror = () => resolve(0);
+          setTimeout(() => resolve(0), 10000); // timeout fallback
+        });
+        video.src = source instanceof File ? URL.createObjectURL(source) : source;
+        const seconds = await durationPromise;
+        if (seconds > 0) {
+          // Save duration to backend
+          const result = await apiClient.lessons.update(lesson.id, { durationSeconds: seconds } as any);
+          const updated: any = (result as any).lesson || result;
+          setLesson((l) => ({ ...l, ...updated }));
+          setLastSaved(new Date());
+        }
+      } catch {
+        // Non-critical: don't break the upload flow
+      }
+    },
+    [lesson.id]
+  );
+
   const saveField = useCallback(
     async (field: string, value: string | number | boolean) => {
       setSaving(true);
@@ -173,6 +212,10 @@ function LessonEditor({
         setLesson((l) => ({ ...l, ...updated }));
         setLastSaved(new Date());
         toast({ title: "Saved", variant: "success" });
+        // Auto-detect duration when a video URL is set
+        if (field === "videoUrl" && typeof value === "string" && value) {
+          detectDuration(value);
+        }
       } catch {
         toast({ title: "Failed to save", variant: "error" });
       } finally {
@@ -180,7 +223,7 @@ function LessonEditor({
         setEditingField(null);
       }
     },
-    [lesson.id]
+    [lesson.id, detectDuration]
   );
 
   const addResource = async (type: "link" | "file") => {
@@ -236,6 +279,8 @@ function LessonEditor({
       setUploadingVideo(true);
       setVideoUploadProgress(10);
       try {
+        // Auto-detect duration from the local file (no CORS issue)
+        const durationDetect = detectDuration(file);
         setVideoUploadProgress(30);
         const fileUrl = await uploadsApi.uploadFile(file, "video");
         setVideoUploadProgress(80);
@@ -245,6 +290,8 @@ function LessonEditor({
         setVideoUploadProgress(100);
         setLastSaved(new Date());
         toast({ title: "Video uploaded", variant: "success" });
+        // Wait for duration detection (runs in parallel)
+        await durationDetect;
       } catch (err: any) {
         toast({ title: "Upload failed", description: err.message || "Try again", variant: "error" });
       } finally {
@@ -329,6 +376,7 @@ function LessonEditor({
         <div className="flex items-center gap-3 min-w-0">
           <Link
             to={`/manage-courses/${courseId}/edit`}
+            onClick={() => onNavigateBack?.()}
             className="w-10 h-10 rounded-[16px] border border-border/95 bg-white/95 grid place-items-center hover:bg-muted transition-colors flex-shrink-0"
           >
             <ArrowLeft className="w-4 h-4 text-text-1" />
@@ -368,6 +416,7 @@ function LessonEditor({
                   return;
                 }
                 toast({ title: "Lesson is ready", description: "All changes have been saved.", variant: "success" });
+                onNavigateBack?.();
                 navigate(`/manage-courses/${courseId}/edit`);
               } finally {
                 setIsSavingAll(false);
@@ -701,6 +750,7 @@ function LessonEditor({
             <button
               onClick={() => {
                 toast({ title: "All changes saved", variant: "success" });
+                onNavigateBack?.();
                 navigate(`/manage-courses/${courseId}/edit`);
               }}
               className="flex-1 h-10 rounded-[16px] border border-border/95 bg-white/95 text-text-1 font-black text-[13px] inline-flex items-center justify-center gap-2 shadow-[0_14px_28px_rgba(21,25,35,0.06)]"
@@ -713,6 +763,7 @@ function LessonEditor({
                 setIsSavingAll(true);
                 try {
                   toast({ title: "Lesson saved successfully", variant: "success" });
+                  onNavigateBack?.();
                   navigate(`/manage-courses/${courseId}/edit`);
                 } finally {
                   setIsSavingAll(false);

@@ -10,7 +10,12 @@ const auth_js_1 = require("../middleware/auth.js");
 const crypto_1 = __importDefault(require("crypto"));
 const router = (0, express_1.Router)();
 // S3 client — Lambda runtime provides @aws-sdk; no need to bundle
-const s3 = new client_s3_1.S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
+// Disable automatic checksums so presigned URLs work with simple browser PUT
+const s3 = new client_s3_1.S3Client({
+    region: process.env.AWS_REGION || 'us-east-1',
+    requestChecksumCalculation: 'WHEN_REQUIRED',
+    responseChecksumValidation: 'WHEN_REQUIRED',
+});
 const BUCKET = process.env.S3_BUCKET || 'cxflowio';
 const CDN_BASE = process.env.CDN_BASE_URL || 'https://cxflowio.s3.us-east-1.amazonaws.com';
 // Allowed upload types

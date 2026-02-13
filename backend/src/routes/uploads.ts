@@ -7,7 +7,12 @@ import crypto from 'crypto';
 const router = Router();
 
 // S3 client — Lambda runtime provides @aws-sdk; no need to bundle
-const s3 = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
+// Disable automatic checksums so presigned URLs work with simple browser PUT
+const s3 = new S3Client({
+  region: process.env.AWS_REGION || 'us-east-1',
+  requestChecksumCalculation: 'WHEN_REQUIRED' as any,
+  responseChecksumValidation: 'WHEN_REQUIRED' as any,
+});
 const BUCKET = process.env.S3_BUCKET || 'cxflowio';
 const CDN_BASE = process.env.CDN_BASE_URL || 'https://cxflowio.s3.us-east-1.amazonaws.com';
 

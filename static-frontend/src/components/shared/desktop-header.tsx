@@ -28,7 +28,7 @@ export function DesktopHeader({ user, variant = "learner", onSearchClick }: Desk
     queryKey: ["notifications-unread-count"],
     queryFn: () => notificationsApi.unreadCount(),
     enabled: !!authUser,
-    refetchInterval: 60000, // Poll every 60 seconds
+    refetchInterval: 30000, // Poll every 30 seconds
     refetchOnWindowFocus: true,
   });
 

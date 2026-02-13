@@ -83,31 +83,31 @@ export default function CoursesPage() {
           </div>
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-wrap items-center gap-2">
+        {/* Filters - equal width, always fits one line */}
+        <div className="flex items-center gap-1.5">
           <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}
-            className="h-9 px-3 rounded-xl border border-border bg-white text-[13px] font-medium text-text-1 focus:outline-none focus:ring-2 focus:ring-primary/20">
-            <option value="all">All Categories</option>
+            className="h-8 px-2 rounded-lg border border-border bg-white text-[12px] font-medium text-text-1 focus:outline-none focus:ring-2 focus:ring-primary/20 flex-1 min-w-0">
+            <option value="all">Category</option>
             {categories.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
           </select>
           <select value={levelFilter} onChange={(e) => setLevelFilter(e.target.value)}
-            className="h-9 px-3 rounded-xl border border-border bg-white text-[13px] font-medium text-text-1 focus:outline-none focus:ring-2 focus:ring-primary/20">
-            <option value="all">All Levels</option>
+            className="h-8 px-2 rounded-lg border border-border bg-white text-[12px] font-medium text-text-1 focus:outline-none focus:ring-2 focus:ring-primary/20 flex-1 min-w-0">
+            <option value="all">Level</option>
             <option value="BEGINNER">Beginner</option>
             <option value="INTERMEDIATE">Intermediate</option>
             <option value="ADVANCED">Advanced</option>
             <option value="ALL_LEVELS">All Levels</option>
           </select>
           <select value={priceFilter} onChange={(e) => setPriceFilter(e.target.value)}
-            className="h-9 px-3 rounded-xl border border-border bg-white text-[13px] font-medium text-text-1 focus:outline-none focus:ring-2 focus:ring-primary/20">
-            <option value="all">Any Price</option>
+            className="h-8 px-2 rounded-lg border border-border bg-white text-[12px] font-medium text-text-1 focus:outline-none focus:ring-2 focus:ring-primary/20 flex-1 min-w-0">
+            <option value="all">Price</option>
             <option value="free">Free</option>
             <option value="paid">Paid</option>
           </select>
           {hasFilters && (
             <button onClick={() => { setSearchQuery(""); setCategoryFilter("all"); setLevelFilter("all"); setPriceFilter("all"); }}
-              className="h-9 px-3 rounded-xl border border-border bg-white text-[13px] font-medium text-primary hover:bg-primary/5 transition-colors">
-              Clear filters
+              className="h-8 px-2 rounded-lg border border-border bg-white text-[12px] font-medium text-primary hover:bg-primary/5 transition-colors flex-shrink-0">
+              Clear
             </button>
           )}
         </div>

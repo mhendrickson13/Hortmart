@@ -23,10 +23,11 @@ interface NotesSectionProps {
 }
 
 export function NotesSection({ lessonId, currentTime, onSeek }: NotesSectionProps) {
-  const { user, token, isLoading: sessionLoading, isAuthenticated } = useAuth();
+  const { user } = useAuth();
   const [notes, setNotes] = useState<Note[]>([]);
   const [newNote, setNewNote] = useState("");
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
@@ -41,11 +42,13 @@ export function NotesSection({ lessonId, currentTime, onSeek }: NotesSectionProp
   }, [lessonId, user]);
 
   const fetchNotes = async () => {
+    setFetchError(false);
     try {
       const data = await lessons.getNotes(lessonId);
       setNotes(data.notes);
     } catch (error) {
       console.error("Failed to fetch notes:", error);
+      setFetchError(true);
     } finally {
       setLoading(false);
     }
@@ -128,6 +131,16 @@ export function NotesSection({ lessonId, currentTime, onSeek }: NotesSectionProp
       <Card className="p-6 text-center">
         <Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" />
         <p className="text-body-sm text-text-2 mt-2">Loading notes...</p>
+      </Card>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <Card className="p-6 text-center">
+        <StickyNote className="w-10 h-10 text-text-3 mx-auto mb-2" />
+        <p className="text-body-sm text-text-2 mb-3">Failed to load notes</p>
+        <Button size="sm" variant="secondary" onClick={fetchNotes}>Try again</Button>
       </Card>
     );
   }

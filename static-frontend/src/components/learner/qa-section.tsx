@@ -45,6 +45,7 @@ export function QASection({ lessonId, courseCreatorId }: QASectionProps) {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [newQuestion, setNewQuestion] = useState("");
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [expandedQuestions, setExpandedQuestions] = useState<Set<string>>(new Set());
   const [answerText, setAnswerText] = useState<Record<string, string>>({});
@@ -55,11 +56,13 @@ export function QASection({ lessonId, courseCreatorId }: QASectionProps) {
   }, [lessonId]);
 
   const fetchQuestions = async () => {
+    setFetchError(false);
     try {
       const data = await lessons.getQuestions(lessonId);
       setQuestions(data.questions);
     } catch (error) {
       console.error("Failed to fetch questions:", error);
+      setFetchError(true);
     } finally {
       setLoading(false);
     }
@@ -168,9 +171,24 @@ export function QASection({ lessonId, courseCreatorId }: QASectionProps) {
     );
   }
 
+  if (fetchError) {
+    return (
+      <Card className="p-6 text-center">
+        <MessageCircle className="w-10 h-10 text-text-3 mx-auto mb-2" />
+        <p className="text-body-sm text-text-2 mb-3">Failed to load questions</p>
+        <Button size="sm" variant="secondary" onClick={fetchQuestions}>Try again</Button>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {/* Ask a Question */}
+      {!user && (
+        <Card className="p-4 text-center">
+          <p className="text-body-sm text-text-2">Sign in to ask questions about this lesson.</p>
+        </Card>
+      )}
       {user && (
         <Card className="p-4">
           <div className="flex gap-3">

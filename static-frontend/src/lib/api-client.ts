@@ -284,6 +284,20 @@ export const uploads = {
     // 3. Return the public URL
     return fileUrl;
   },
+
+};
+
+// ==================== Favourites / Bookmarks ====================
+
+export const favourites = {
+  list: (token?: string) =>
+    request<{ favourites: any[]; bookmarks: any[] }>('/favourites/list', { token }),
+  status: (courseId: string, token?: string) =>
+    request<{ isFavourite: boolean; isBookmarked: boolean }>(`/favourites/${courseId}/status`, { token }),
+  toggleFavourite: (courseId: string, token?: string) =>
+    request<{ isFavourite: boolean }>(`/favourites/${courseId}/favourite`, { method: 'POST', token }),
+  toggleBookmark: (courseId: string, token?: string) =>
+    request<{ isBookmarked: boolean }>(`/favourites/${courseId}/bookmark`, { method: 'POST', token }),
 };
 
 // ==================== Notifications ====================

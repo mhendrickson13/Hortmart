@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { courses as coursesApi, apiClient, uploads as uploadsApi } from "@/lib/api-client";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -61,7 +61,7 @@ interface EditorLesson {
 export default function EditCoursePage() {
   const { id } = useParams<{ id: string }>();
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, dataUpdatedAt } = useQuery({
     queryKey: ["course", id],
     queryFn: () => coursesApi.get(id!),
     enabled: !!id,
@@ -115,7 +115,7 @@ export default function EditCoursePage() {
     })),
   };
 
-  return <CourseEditor course={editorCourse} />;
+  return <CourseEditor key={dataUpdatedAt} course={editorCourse} />;
 }
 
 // ── Course Editor ──

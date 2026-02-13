@@ -1,12 +1,25 @@
 import { useQuery } from "@tanstack/react-query";
 import { users as usersApi, analytics as analyticsApi } from "@/lib/api-client";
+import type { User, LearnerStats, CreatorStats } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "react-router-dom";
-import { Settings, BookOpen, Award, Clock, Users, Star, TrendingUp, Layers, Flame } from "lucide-react";
+import {
+  Settings,
+  BookOpen,
+  Award,
+  Clock,
+  Users,
+  Star,
+  TrendingUp,
+  Layers,
+  Calendar,
+  Mail,
+  Shield,
+} from "lucide-react";
 import { getInitials, formatCurrency } from "@/lib/utils";
 
 export default function ProfilePage() {
@@ -34,133 +47,157 @@ export default function ProfilePage() {
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-32 rounded-2xl" />
+        <Skeleton className="h-40 rounded-2xl" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 rounded-2xl" />
+          ))}
+        </div>
         <Skeleton className="h-48 rounded-2xl" />
       </div>
     );
   }
 
-  const profile: any = profileData?.user || user;
-  const joinDate = profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" }) : "";
+  const profile = (profileData?.user ?? user) as User | null;
+  const joinDate = profile?.createdAt
+    ? new Date(profile.createdAt).toLocaleDateString("en-US", {
+        month: "long",
+        year: "numeric",
+      })
+    : "";
 
   return (
     <>
       {/* Profile Header */}
       <Card className="p-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-          <Avatar className="w-20 h-20 shadow-soft-1">
-            <AvatarImage src={profile?.image || undefined} />
-            <AvatarFallback className="text-xl">{getInitials(profile?.name || "U")}</AvatarFallback>
+          <Avatar className="w-20 h-20 shadow-soft-1 ring-2 ring-border">
+            <AvatarImage src={profile?.image ?? undefined} />
+            <AvatarFallback className="text-xl font-bold">
+              {getInitials(profile?.name || "U")}
+            </AvatarFallback>
           </Avatar>
+
           <div className="flex-1 min-w-0">
-            <h1 className="text-h2 font-bold text-text-1">{profile?.name || "User"}</h1>
+            <h1 className="text-h2 font-bold text-text-1">
+              {profile?.name || "User"}
+            </h1>
             <p className="text-body-sm text-text-2">{profile?.email}</p>
-            <div className="flex items-center gap-3 mt-1">
-              <span className="text-caption text-text-3 capitalize">{profile?.role?.toLowerCase()}</span>
-              {joinDate && <span className="text-caption text-text-3">Joined {joinDate}</span>}
+            <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+              <span className="inline-flex items-center gap-1 text-caption text-text-3">
+                <Shield className="w-3 h-3" />
+                <span className="capitalize">
+                  {profile?.role?.toLowerCase()}
+                </span>
+              </span>
+              {joinDate && (
+                <span className="inline-flex items-center gap-1 text-caption text-text-3">
+                  <Calendar className="w-3 h-3" />
+                  Joined {joinDate}
+                </span>
+              )}
             </div>
           </div>
+
           <Button asChild variant="secondary" size="sm">
-            <Link to="/settings"><Settings className="w-4 h-4 mr-1" />Settings</Link>
+            <Link to="/settings">
+              <Settings className="w-4 h-4 mr-1.5" />
+              Settings
+            </Link>
           </Button>
         </div>
-        {profile?.bio && <p className="mt-4 text-body-sm text-text-2 leading-relaxed">{profile.bio}</p>}
+
+        {profile?.bio && (
+          <p className="mt-4 text-body-sm text-text-2 leading-relaxed border-t border-border pt-4">
+            {profile.bio}
+          </p>
+        )}
       </Card>
 
       {/* Creator Stats */}
       {isCreator && creatorStats && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <Card className="p-4 text-center">
-            <Layers className="w-5 h-5 text-primary mx-auto mb-2" />
-            <div className="text-h3 font-bold text-text-1">{creatorStats.totalCourses}</div>
-            <div className="text-caption text-text-3">Courses</div>
-          </Card>
-          <Card className="p-4 text-center">
-            <Users className="w-5 h-5 text-accent mx-auto mb-2" />
-            <div className="text-h3 font-bold text-text-1">{creatorStats.totalEnrollments}</div>
-            <div className="text-caption text-text-3">Students</div>
-          </Card>
-          <Card className="p-4 text-center">
-            <TrendingUp className="w-5 h-5 text-success mx-auto mb-2" />
-            <div className="text-h3 font-bold text-text-1">{formatCurrency(creatorStats.totalRevenue)}</div>
-            <div className="text-caption text-text-3">Revenue</div>
-          </Card>
-          <Card className="p-4 text-center">
-            <Star className="w-5 h-5 text-warning mx-auto mb-2" />
-            <div className="text-h3 font-bold text-text-1">{creatorStats.avgRating}</div>
-            <div className="text-caption text-text-3">Avg Rating ({creatorStats.totalReviews})</div>
-          </Card>
+          <StatCard
+            icon={Layers}
+            iconColor="text-primary"
+            value={creatorStats.totalCourses}
+            label="Courses"
+          />
+          <StatCard
+            icon={Users}
+            iconColor="text-accent"
+            value={creatorStats.totalEnrollments}
+            label="Students"
+          />
+          <StatCard
+            icon={TrendingUp}
+            iconColor="text-success"
+            value={formatCurrency(creatorStats.totalRevenue)}
+            label="Revenue"
+          />
+          <StatCard
+            icon={Star}
+            iconColor="text-warning"
+            value={creatorStats.avgRating}
+            label={`Avg Rating (${creatorStats.totalReviews})`}
+          />
         </div>
       )}
 
       {/* Learner Stats */}
       {!isCreator && learnerStats && (
-        <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <Card className="p-4 text-center">
-              <BookOpen className="w-5 h-5 text-primary mx-auto mb-2" />
-              <div className="text-h3 font-bold text-text-1">{learnerStats.totalCourses}</div>
-              <div className="text-caption text-text-3">Enrolled</div>
-            </Card>
-            <Card className="p-4 text-center">
-              <Award className="w-5 h-5 text-success mx-auto mb-2" />
-              <div className="text-h3 font-bold text-text-1">{learnerStats.completedCourses}</div>
-              <div className="text-caption text-text-3">Completed</div>
-            </Card>
-            <Card className="p-4 text-center">
-              <Clock className="w-5 h-5 text-warning mx-auto mb-2" />
-              <div className="text-h3 font-bold text-text-1">{(learnerStats.totalWatchHours || 0).toFixed(1)}h</div>
-              <div className="text-caption text-text-3">Watch Time</div>
-            </Card>
-            <Card className="p-4 text-center">
-              <BookOpen className="w-5 h-5 text-accent mx-auto mb-2" />
-              <div className="text-h3 font-bold text-text-1">{learnerStats.totalLessonsCompleted}</div>
-              <div className="text-caption text-text-3">Lessons Done</div>
-            </Card>
-          </div>
-
-          {/* Learning Streak (visual placeholder, real data would need backend) */}
-          <Card className="p-5">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-warning/10 flex items-center justify-center"><Flame className="w-5 h-5 text-warning" /></div>
-              <div>
-                <h3 className="text-body font-bold text-text-1">Learning Streak</h3>
-                <p className="text-caption text-text-3">Keep learning every day!</p>
-              </div>
-            </div>
-            <div className="flex gap-1">
-              {Array.from({ length: 7 }).map((_, i) => (
-                <div key={i} className={`flex-1 h-8 rounded-lg ${i < 3 ? "bg-success/20" : "bg-border/40"}`} />
-              ))}
-            </div>
-            <div className="flex justify-between mt-2 text-[10px] font-bold text-text-3">
-              <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
-            </div>
-          </Card>
-        </>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <StatCard
+            icon={BookOpen}
+            iconColor="text-primary"
+            value={learnerStats.totalCourses}
+            label="Enrolled"
+          />
+          <StatCard
+            icon={Award}
+            iconColor="text-success"
+            value={learnerStats.completedCourses}
+            label="Completed"
+          />
+          <StatCard
+            icon={Clock}
+            iconColor="text-warning"
+            value={`${(learnerStats.totalWatchHours || 0).toFixed(1)}h`}
+            label="Watch Time"
+          />
+          <StatCard
+            icon={BookOpen}
+            iconColor="text-accent"
+            value={learnerStats.totalLessonsCompleted}
+            label="Lessons Done"
+          />
+        </div>
       )}
 
-      {/* Account Info */}
+      {/* Account Information */}
       <Card className="p-5">
-        <h3 className="text-body font-bold text-text-1 mb-3">Account Information</h3>
-        <div className="space-y-2">
-          <div className="flex items-center justify-between py-2 border-b border-border/50">
-            <span className="text-body-sm text-text-2">Email</span>
-            <span className="text-body-sm font-medium text-text-1">{profile?.email}</span>
-          </div>
-          <div className="flex items-center justify-between py-2 border-b border-border/50">
-            <span className="text-body-sm text-text-2">Role</span>
-            <span className="text-body-sm font-medium text-text-1 capitalize">{profile?.role?.toLowerCase()}</span>
-          </div>
-          <div className="flex items-center justify-between py-2 border-b border-border/50">
-            <span className="text-body-sm text-text-2">Enrolled Courses</span>
-            <span className="text-body-sm font-medium text-text-1">{profile?._count?.enrollments ?? 0}</span>
-          </div>
+        <h3 className="text-body font-bold text-text-1 mb-3">
+          Account Information
+        </h3>
+        <div className="space-y-0.5">
+          <InfoRow label="Email" value={profile?.email ?? ""} icon={Mail} />
+          <InfoRow
+            label="Role"
+            value={profile?.role?.toLowerCase() ?? ""}
+            capitalize
+            icon={Shield}
+          />
+          <InfoRow
+            label="Enrolled Courses"
+            value={String(profile?._count?.enrollments ?? 0)}
+            icon={BookOpen}
+          />
           {isCreator && (
-            <div className="flex items-center justify-between py-2 border-b border-border/50">
-              <span className="text-body-sm text-text-2">Created Courses</span>
-              <span className="text-body-sm font-medium text-text-1">{profile?._count?.courses ?? 0}</span>
-            </div>
+            <InfoRow
+              label="Created Courses"
+              value={String(profile?._count?.courses ?? 0)}
+              icon={Layers}
+            />
           )}
         </div>
       </Card>
@@ -168,12 +205,66 @@ export default function ProfilePage() {
       {/* Quick Actions */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Button asChild variant="secondary" className="h-12 justify-start">
-          <Link to="/my-courses"><BookOpen className="w-4 h-4 mr-2" />My Courses</Link>
+          <Link to="/my-courses">
+            <BookOpen className="w-4 h-4 mr-2" />
+            My Courses
+          </Link>
         </Button>
         <Button asChild variant="secondary" className="h-12 justify-start">
-          <Link to="/settings"><Settings className="w-4 h-4 mr-2" />Account Settings</Link>
+          <Link to="/settings">
+            <Settings className="w-4 h-4 mr-2" />
+            Account Settings
+          </Link>
         </Button>
       </div>
     </>
+  );
+}
+
+/* ──────────────────── Sub-components ──────────────────── */
+
+function StatCard({
+  icon: Icon,
+  iconColor,
+  value,
+  label,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  iconColor: string;
+  value: string | number;
+  label: string;
+}) {
+  return (
+    <Card className="p-4 text-center">
+      <Icon className={`w-5 h-5 ${iconColor} mx-auto mb-2`} />
+      <div className="text-h3 font-bold text-text-1">{value}</div>
+      <div className="text-caption text-text-3">{label}</div>
+    </Card>
+  );
+}
+
+function InfoRow({
+  label,
+  value,
+  icon: Icon,
+  capitalize = false,
+}: {
+  label: string;
+  value: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  capitalize?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between py-2.5 border-b border-border/50 last:border-b-0">
+      <span className="flex items-center gap-2 text-body-sm text-text-2">
+        {Icon && <Icon className="w-3.5 h-3.5 text-text-3" />}
+        {label}
+      </span>
+      <span
+        className={`text-body-sm font-medium text-text-1 ${capitalize ? "capitalize" : ""}`}
+      >
+        {value}
+      </span>
+    </div>
   );
 }

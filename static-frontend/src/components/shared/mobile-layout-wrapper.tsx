@@ -35,7 +35,7 @@ export function MobileLayoutWrapper({
     queryKey: ["notifications-unread-count"],
     queryFn: () => notificationsApi.unreadCount(),
     enabled: !!authUser,
-    refetchInterval: 60000,
+    refetchInterval: 30000,
     refetchOnWindowFocus: true,
   });
 

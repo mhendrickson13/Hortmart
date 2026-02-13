@@ -17,6 +17,7 @@ import reviewsRoutes from './routes/reviews.js';
 import analyticsRoutes from './routes/analytics.js';
 import uploadsRoutes from './routes/uploads.js';
 import notificationsRoutes from './routes/notifications.js';
+import favouritesRoutes from './routes/favourites.js';
 
 export const app = express();
 
@@ -220,6 +221,14 @@ app.post('/e/migrate', async (req, res) => {
         INDEX notifications_userId_idx(userId),
         INDEX notifications_userId_read_idx(userId, isRead),
         PRIMARY KEY (id))`,
+      `CREATE TABLE IF NOT EXISTS user_course_saves (
+        id VARCHAR(30) NOT NULL, userId VARCHAR(30) NOT NULL,
+        courseId VARCHAR(30) NOT NULL,
+        type VARCHAR(20) NOT NULL,
+        createdAt DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+        UNIQUE INDEX ucs_user_course_type(userId, courseId, type),
+        INDEX ucs_userId_idx(userId), INDEX ucs_courseId_idx(courseId),
+        PRIMARY KEY (id))`,
     ];
 
     for (const sql of tableStatements) {
@@ -229,7 +238,7 @@ app.post('/e/migrate', async (req, res) => {
     console.log('[MIGRATE] Tables created successfully');
     res.json({
       message: 'Migration complete - all tables created',
-      tables: ['users', 'courses', 'modules', 'lessons', 'resources', 'enrollments', 'lesson_progress', 'questions', 'answers', 'notes', 'reviews', 'notifications'],
+      tables: ['users', 'courses', 'modules', 'lessons', 'resources', 'enrollments', 'lesson_progress', 'questions', 'answers', 'notes', 'reviews', 'notifications', 'user_course_saves'],
     });
   } catch (error) {
     console.error('[MIGRATE] Error:', error);
@@ -301,6 +310,7 @@ app.use('/e/reviews', reviewsRoutes);
 app.use('/e/analytics', analyticsRoutes);
 app.use('/e/uploads', uploadsRoutes);
 app.use('/e/notifications', notificationsRoutes);
+app.use('/e/favourites', favouritesRoutes);
 
 // Error handling
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {

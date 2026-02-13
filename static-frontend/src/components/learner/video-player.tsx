@@ -285,21 +285,19 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
     }, 3000);
   };
 
-  // If no video URL, show placeholder
+  // If no video URL, show placeholder with message
   if (!src) {
     return (
       <div
         className={cn(
-          "relative aspect-video rounded-3xl bg-gradient-to-br from-primary/20 to-accent/15 border border-border/90 overflow-hidden flex items-center justify-center",
+          "relative aspect-video rounded-3xl bg-gradient-to-br from-neutral-100 to-neutral-50 border border-border/90 overflow-hidden flex flex-col items-center justify-center gap-3",
           className
         )}
       >
-        <button
-          onClick={togglePlay}
-          className="w-20 h-20 rounded-full bg-white/70 backdrop-blur-sm border border-white/85 flex items-center justify-center shadow-soft-2 hover:bg-white/90 transition-colors"
-        >
-          <Play className="w-8 h-8 text-text-1 ml-1" fill="currentColor" />
-        </button>
+        <div className="w-16 h-16 rounded-full bg-neutral-200/60 flex items-center justify-center">
+          <Play className="w-7 h-7 text-neutral-400 ml-0.5" />
+        </div>
+        <p className="text-body-sm font-medium text-text-3">No video available for this lesson</p>
       </div>
     );
   }

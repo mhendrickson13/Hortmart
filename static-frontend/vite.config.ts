@@ -4,7 +4,16 @@ import path from 'path';
 
 export default defineConfig({
   base: '/',
-  plugins: [react()],
+  plugins: [
+    react(),
+    // Remove crossorigin attribute from HTML tags to avoid CORS issues with CloudFront/S3
+    {
+      name: 'remove-crossorigin',
+      transformIndexHtml(html) {
+        return html.replace(/ crossorigin/g, '');
+      },
+    },
+  ],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

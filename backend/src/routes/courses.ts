@@ -494,6 +494,7 @@ router.get('/:id/progress', authenticate, async (req: AuthRequest, res: Response
           progress: progress ? {
             id: progress.id, lessonId: progress.lessonId, enrollmentId: progress.enrollmentId,
             progressPercent: progress.progressPercent,
+            lastWatchedTimestamp: progress.lastWatchedTimestamp || 0,
             completedAt: progress.completedAt ? (progress.completedAt instanceof Date ? progress.completedAt.toISOString() : progress.completedAt) : null,
             lastWatchedAt: progress.lastWatchedAt ? (progress.lastWatchedAt instanceof Date ? progress.lastWatchedAt.toISOString() : progress.lastWatchedAt) : null,
           } : null,
@@ -539,8 +540,9 @@ router.get('/:id/progress', authenticate, async (req: AuthRequest, res: Response
     );
 
     res.json({
-      id: course?.id, title: course?.title, creator,
-      modules, currentLessonId, initialTime,
+      id: course?.id, title: course?.title, description: course?.description,
+      level: course?.level || 'ALL_LEVELS', language: course?.language || 'English',
+      creator, modules, currentLessonId, initialTime,
       enrollmentId: enrollment.id,
       otherStudents,
       totalOtherStudents: Number(totalOtherRow?.cnt ?? 0),

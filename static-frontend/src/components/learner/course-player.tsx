@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { VideoPlayer, VideoPlayerRef } from "@/components/learner/video-player";
@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { lessons as lessonsApi } from "@/lib/api-client";
+import { lessons as lessonsApi, favourites as favouritesApi } from "@/lib/api-client";
 import {
   ChevronLeft,
   Star,
@@ -103,20 +103,38 @@ export function CoursePlayer({
   const isFirstLoadRef = useRef(true);
   const autoAdvanceTimerRef = useRef<NodeJS.Timeout>();
 
-  const handleFavorite = () => {
-    setIsFavorited(!isFavorited);
-    toast({ 
-      title: isFavorited ? "Removed from favorites" : "Added to favorites", 
-      variant: "success" 
-    });
+  // Load favourite/bookmark status from API
+  useEffect(() => {
+    favouritesApi.status(course.id).then(status => {
+      setIsFavorited(status.isFavourite);
+      setIsBookmarked(status.isBookmarked);
+    }).catch(() => {});
+  }, [course.id]);
+
+  const handleFavorite = async () => {
+    const prev = isFavorited;
+    setIsFavorited(!prev);
+    try {
+      const result = await favouritesApi.toggleFavourite(course.id);
+      setIsFavorited(result.isFavourite);
+      toast({ title: result.isFavourite ? "Added to favorites" : "Removed from favorites", variant: "success" });
+    } catch {
+      setIsFavorited(prev);
+      toast({ title: "Failed to update", variant: "error" });
+    }
   };
 
-  const handleBookmark = () => {
-    setIsBookmarked(!isBookmarked);
-    toast({ 
-      title: isBookmarked ? "Bookmark removed" : "Lesson bookmarked", 
-      variant: "success" 
-    });
+  const handleBookmark = async () => {
+    const prev = isBookmarked;
+    setIsBookmarked(!prev);
+    try {
+      const result = await favouritesApi.toggleBookmark(course.id);
+      setIsBookmarked(result.isBookmarked);
+      toast({ title: result.isBookmarked ? "Bookmarked" : "Bookmark removed", variant: "success" });
+    } catch {
+      setIsBookmarked(prev);
+      toast({ title: "Failed to update", variant: "error" });
+    }
   };
 
   const currentLesson = allLessons.find((l) => l.id === currentLessonId);
