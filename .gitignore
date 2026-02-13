@@ -1,3 +1,11 @@
 # videolecture build and dependencies
-videolecture/.next
-videolecture/node_modules
+frontend/.next
+frontend/node_modules
+
+# static-frontend build and dependencies
+static-frontend/dist
+static-frontend/node_modules
+
+# lambda build artifacts
+backend/lambda-deploy/node_modules
+backend/lambda-package/node_modules

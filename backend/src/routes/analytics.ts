@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { prisma } from '../index.js';
+import { prisma } from '../app.js';
 import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth.js';
 
 const router = Router();
@@ -245,6 +245,45 @@ router.get('/', authenticate, requireAdmin, async (req: AuthRequest, res: Respon
   } catch (error) {
     console.error('Get analytics error:', error);
     res.status(500).json({ error: 'Failed to get analytics' });
+  }
+});
+
+// GET /analytics/creator-stats - Get current creator's stats
+router.get('/creator-stats', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+
+    const [totalCourses, publishedCourses, coursesWithEnrollments, reviewsData] = await Promise.all([
+      prisma.course.count({ where: { creatorId: userId } }),
+      prisma.course.count({ where: { creatorId: userId, status: 'PUBLISHED' } }),
+      prisma.course.findMany({
+        where: { creatorId: userId },
+        select: { price: true, _count: { select: { enrollments: true } } },
+      }),
+      prisma.review.findMany({
+        where: { course: { creatorId: userId } },
+        select: { rating: true },
+      }),
+    ]);
+
+    const totalEnrollments = coursesWithEnrollments.reduce((sum, c) => sum + c._count.enrollments, 0);
+    const totalRevenue = coursesWithEnrollments.reduce((sum, c) => sum + c.price * c._count.enrollments, 0);
+    const totalReviews = reviewsData.length;
+    const avgRating = totalReviews > 0
+      ? (reviewsData.reduce((sum, r) => sum + r.rating, 0) / totalReviews).toFixed(1)
+      : '0.0';
+
+    res.json({
+      totalCourses,
+      publishedCourses,
+      totalEnrollments,
+      totalRevenue: Math.round(totalRevenue * 100) / 100,
+      totalReviews,
+      avgRating,
+    });
+  } catch (error) {
+    console.error('Get creator stats error:', error);
+    res.status(500).json({ error: 'Failed to get creator stats' });
   }
 });
 
