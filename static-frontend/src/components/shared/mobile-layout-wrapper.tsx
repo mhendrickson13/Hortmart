@@ -1,9 +1,12 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { MobileHeader } from "./mobile-header";
 import { MobileNav } from "./mobile-nav";
 import { MobileBottomNav } from "./mobile-bottom-nav";
 import { MobileSearchSheet } from "./mobile-search-sheet";
 import { MobileNotificationsSheet } from "./mobile-notifications-sheet";
+import { notifications as notificationsApi } from "@/lib/api-client";
+import { useAuth } from "@/lib/auth-context";
 
 interface MobileLayoutWrapperProps {
   children: React.ReactNode;
@@ -25,6 +28,18 @@ export function MobileLayoutWrapper({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const { user: authUser } = useAuth();
+
+  // Fetch real unread count
+  const { data: unreadData } = useQuery({
+    queryKey: ["notifications-unread-count"],
+    queryFn: () => notificationsApi.unreadCount(),
+    enabled: !!authUser,
+    refetchInterval: 60000,
+    refetchOnWindowFocus: true,
+  });
+
+  const unreadCount = unreadData?.count ?? 0;
 
   return (
     <div className="lg:hidden min-h-screen flex flex-col">
@@ -36,7 +51,7 @@ export function MobileLayoutWrapper({
         onSearchOpen={() => setIsSearchOpen(true)}
         onNotificationsOpen={() => setIsNotificationsOpen(true)}
         showSearch={false}
-        notificationCount={3}
+        notificationCount={unreadCount}
       />
       
       {/* Mobile Navigation Drawer */}

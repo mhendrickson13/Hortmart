@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { prisma } from '../app.js';
+import { queryOne } from '../db.js';
 
 export interface AuthRequest extends Request {
   user?: {
@@ -23,10 +23,10 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
     const token = authHeader.substring(7);
     const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
 
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      select: { id: true, email: true, role: true },
-    });
+    const user = await queryOne<any>(
+      'SELECT id, email, role FROM users WHERE id = ?',
+      [decoded.userId]
+    );
 
     if (!user) {
       return res.status(401).json({ error: 'User not found' });
@@ -47,10 +47,10 @@ export const optionalAuth = async (req: AuthRequest, res: Response, next: NextFu
       const token = authHeader.substring(7);
       const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
 
-      const user = await prisma.user.findUnique({
-        where: { id: decoded.userId },
-        select: { id: true, email: true, role: true },
-      });
+      const user = await queryOne<any>(
+        'SELECT id, email, role FROM users WHERE id = ?',
+        [decoded.userId]
+      );
 
       if (user) {
         req.user = user;

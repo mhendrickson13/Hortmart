@@ -54,6 +54,16 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
+    // Auto-logout on 401 Unauthorized (expired/invalid token)
+    if (response.status === 401 && resolvedToken) {
+      // Only clear auth state if we actually had a token (avoid clearing during login)
+      localStorage.removeItem('cxflow_token');
+      localStorage.removeItem('cxflow_user');
+      // Redirect to login if not already there
+      if (!window.location.pathname.includes('/login') && !window.location.pathname.includes('/register')) {
+        window.location.href = '/login';
+      }
+    }
     throw new ApiError(data?.error || 'Request failed', response.status, data);
   }
 
@@ -276,6 +286,23 @@ export const uploads = {
   },
 };
 
+// ==================== Notifications ====================
+
+export const notifications = {
+  list: (params?: { limit?: number }, token?: string) => {
+    const query = params ? new URLSearchParams(params as Record<string, string>).toString() : '';
+    return request<{ notifications: Notification[]; unreadCount: number }>(`/notifications?${query}`, { token });
+  },
+  unreadCount: (token?: string) =>
+    request<{ count: number }>('/notifications/unread-count', { token }),
+  markAllRead: (token?: string) =>
+    request<{ message: string }>('/notifications/read-all', { method: 'PATCH', token }),
+  markRead: (id: string, token?: string) =>
+    request<{ message: string }>(`/notifications/${id}/read`, { method: 'PATCH', token }),
+  delete: (id: string, token?: string) =>
+    request<{ message: string }>(`/notifications/${id}`, { method: 'DELETE', token }),
+};
+
 // ==================== Analytics ====================
 
 export const analytics = {
@@ -395,6 +422,11 @@ export interface DashboardAnalytics {
   progressBuckets?: Record<string, number>;
 }
 
+export interface Notification {
+  id: string; userId: string; type: 'course' | 'review' | 'achievement' | 'system';
+  title: string; description: string | null; link: string | null;
+  isRead: boolean; createdAt: string;
+}
 export interface CreatorStats { totalCourses: number; publishedCourses: number; totalEnrollments: number; totalRevenue: number; totalReviews: number; avgRating: string; }
 export interface LearnerStats { totalCourses: number; completedCourses: number; inProgressCourses: number; totalLessonsCompleted: number; totalWatchHours: number; enrollments: EnrollmentWithProgress[]; }
 export interface Pagination { page: number; limit: number; total: number; totalPages: number; }
@@ -402,5 +434,5 @@ export interface CreateCourseData { title: string; subtitle?: string; descriptio
 export interface CreateLessonData { title: string; description?: string; videoUrl?: string; durationSeconds?: number; position?: number; isLocked?: boolean; isFreePreview?: boolean; moduleId: string; }
 export interface CreateResourceData { title: string; type: string; url: string; fileSize?: number; }
 
-export const apiClient = { auth, users, courses, modules, lessons, questions, answers, notes, resources, reviews, analytics, uploads };
+export const apiClient = { auth, users, courses, modules, lessons, questions, answers, notes, resources, reviews, analytics, uploads, notifications };
 export default apiClient;

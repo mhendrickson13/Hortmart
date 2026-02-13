@@ -14,7 +14,6 @@ import {
   FileText,
   ExternalLink,
   Link2,
-  ToggleLeft,
   ToggleRight,
   Save,
   Send,
@@ -133,6 +132,12 @@ function LessonEditor({
   const [editingField, setEditingField] = useState<string | null>(null);
   const [, setTick] = useState(0);
 
+  // Sync state when initialLesson changes (e.g. query refetch)
+  useEffect(() => {
+    setLesson(initialLesson);
+    setResources(initialLesson.resources);
+  }, [initialLesson.id]);
+
   // Resources
   const [resources, setResources] = useState<ResourceData[]>(initialLesson.resources);
   const [showAddLink, setShowAddLink] = useState(false);
@@ -152,9 +157,6 @@ function LessonEditor({
   const [uploadingResource, setUploadingResource] = useState(false);
   const resourceInputRef = useRef<HTMLInputElement>(null);
 
-  // Toggles
-  const [enableQA, setEnableQA] = useState(true);
-  const [allowNotes, setAllowNotes] = useState(true);
   const [isSavingAll, setIsSavingAll] = useState(false);
 
   useEffect(() => {
@@ -670,34 +672,27 @@ function LessonEditor({
             </div>
           </div>
 
-          {/* Lesson Behavior */}
-          <h2 className="mt-1.5 text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">Lesson behavior</h2>
+          {/* Lesson Features */}
+          <h2 className="mt-1.5 text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">Lesson features</h2>
 
           <div className="rounded-[22px] border border-border/95 bg-white/95 p-3 space-y-2.5">
-            {/* Enable Q&A toggle */}
-            <div className="flex items-center justify-between gap-3 p-3 rounded-[18px] border border-border/95 bg-white/95">
-              <div>
-                <div className="font-black text-text-1 text-[13px]">Enable Q&A</div>
-                <div className="mt-1 text-[12px] font-extrabold text-text-3">
-                  Let learners ask questions on this lesson.
-                </div>
+            <div className="flex items-center gap-3 p-3 rounded-[18px] border border-border/95 bg-white/95">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 grid place-items-center text-primary flex-shrink-0">
+                <ToggleRight className="w-4 h-4" />
               </div>
-              <button onClick={() => { setEnableQA(!enableQA); toast({ title: enableQA ? "Q&A disabled" : "Q&A enabled", variant: "success" }); }} className="flex-shrink-0">
-                {enableQA ? <ToggleRight className="w-10 h-6 text-primary" /> : <ToggleLeft className="w-10 h-6 text-text-3" />}
-              </button>
+              <div>
+                <div className="font-black text-text-1 text-[13px]">Q&A enabled</div>
+                <div className="mt-0.5 text-[12px] font-extrabold text-text-3">Learners can ask questions on this lesson.</div>
+              </div>
             </div>
-
-            {/* Allow Notes toggle */}
-            <div className="flex items-center justify-between gap-3 p-3 rounded-[18px] border border-border/95 bg-white/95">
-              <div>
-                <div className="font-black text-text-1 text-[13px]">Allow notes</div>
-                <div className="mt-1 text-[12px] font-extrabold text-text-3">
-                  Let learners take timestamped notes.
-                </div>
+            <div className="flex items-center gap-3 p-3 rounded-[18px] border border-border/95 bg-white/95">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 grid place-items-center text-primary flex-shrink-0">
+                <ToggleRight className="w-4 h-4" />
               </div>
-              <button onClick={() => { setAllowNotes(!allowNotes); toast({ title: allowNotes ? "Notes disabled" : "Notes enabled", variant: "success" }); }} className="flex-shrink-0">
-                {allowNotes ? <ToggleRight className="w-10 h-6 text-primary" /> : <ToggleLeft className="w-10 h-6 text-text-3" />}
-              </button>
+              <div>
+                <div className="font-black text-text-1 text-[13px]">Notes enabled</div>
+                <div className="mt-0.5 text-[12px] font-extrabold text-text-3">Learners can take timestamped notes.</div>
+              </div>
             </div>
           </div>
 

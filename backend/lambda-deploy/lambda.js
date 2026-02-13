@@ -8,10 +8,10 @@ exports.handler = void 0;
  * AWS Lambda Handler for CXFlow LMS Backend
  *
  * Database strategy:
- * - Normal API requests: Prisma connects to RDS directly with a standard MySQL user
- * - Setup endpoint: Uses mysql2 + IAM auth to create database and user on RDS Proxy
+ * - All API requests use mysql2/promise directly (no ORM)
+ * - Connection pool is reused across Lambda invocations
  *
- * Lambda handler: "dist/lambda.handler"
+ * Lambda handler: "lambda.handler"
  */
 const serverless_express_1 = __importDefault(require("@vendia/serverless-express"));
 const app_js_1 = require("./app.js");

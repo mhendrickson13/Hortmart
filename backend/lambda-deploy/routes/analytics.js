@@ -1,202 +1,150 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
-const app_js_1 = require("../app.js");
+const db_js_1 = require("../db.js");
 const auth_js_1 = require("../middleware/auth.js");
 const router = (0, express_1.Router)();
 // GET /analytics - Dashboard analytics (Admin only)
 router.get('/', auth_js_1.authenticate, auth_js_1.requireAdmin, async (req, res) => {
     try {
-        const now = new Date();
-        const thirtyDaysAgo = new Date(now);
+        const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        // Get overview stats
-        const [totalUsers, totalCourses, totalEnrollments, allCourses, recentUsers, recentEnrollments, usersByRole, coursesByCategory,] = await Promise.all([
-            app_js_1.prisma.user.count(),
-            app_js_1.prisma.course.count(),
-            app_js_1.prisma.enrollment.count(),
-            app_js_1.prisma.course.findMany({
-                select: { price: true, enrollments: { select: { id: true } } },
-            }),
-            app_js_1.prisma.user.findMany({
-                where: { createdAt: { gte: thirtyDaysAgo } },
-                select: { createdAt: true },
-            }),
-            app_js_1.prisma.enrollment.findMany({
-                where: { enrolledAt: { gte: thirtyDaysAgo } },
-                select: { enrolledAt: true, course: { select: { price: true } } },
-            }),
-            app_js_1.prisma.user.groupBy({
-                by: ['role'],
-                _count: { id: true },
-            }),
-            app_js_1.prisma.course.groupBy({
-                by: ['category'],
-                _count: { id: true },
-                where: { category: { not: null } },
-            }),
+        const thirtyDaysStr = thirtyDaysAgo.toISOString().replace('T', ' ').replace('Z', '');
+        // Overview counts
+        const [usersRow, coursesRow, enrollmentsRow] = await Promise.all([
+            (0, db_js_1.queryOne)('SELECT COUNT(*) as cnt FROM users'),
+            (0, db_js_1.queryOne)('SELECT COUNT(*) as cnt FROM courses'),
+            (0, db_js_1.queryOne)('SELECT COUNT(*) as cnt FROM enrollments'),
         ]);
-        // Calculate total revenue
-        const totalRevenue = allCourses.reduce((acc, course) => acc + course.price * course.enrollments.length, 0);
-        // Active users (users with progress in last 30 days)
-        const activeUsers = await app_js_1.prisma.lessonProgress.findMany({
-            where: { lastWatchedAt: { gte: thirtyDaysAgo } },
-            select: { enrollment: { select: { userId: true } } },
-            distinct: ['enrollmentId'],
-        });
-        // Calculate completion rates
-        const enrollmentsWithProgress = await app_js_1.prisma.enrollment.findMany({
-            include: {
-                lessonProgress: true,
-                course: {
-                    include: {
-                        modules: {
-                            include: {
-                                lessons: { select: { id: true } },
-                            },
-                        },
-                    },
-                },
-            },
-        });
+        const totalUsers = Number(usersRow?.cnt ?? 0);
+        const totalCourses = Number(coursesRow?.cnt ?? 0);
+        const totalEnrollments = Number(enrollmentsRow?.cnt ?? 0);
+        // Total revenue
+        const revenueRow = await (0, db_js_1.queryOne)(`SELECT SUM(c.price * sub.cnt) as revenue
+       FROM courses c JOIN (SELECT courseId, COUNT(*) as cnt FROM enrollments GROUP BY courseId) sub ON c.id = sub.courseId`);
+        const totalRevenue = Number(revenueRow?.revenue ?? 0);
+        // Active users (with progress in last 30 days)
+        const activeRow = await (0, db_js_1.queryOne)(`SELECT COUNT(DISTINCT en.userId) as cnt
+       FROM lesson_progress lp JOIN enrollments en ON lp.enrollmentId = en.id
+       WHERE lp.lastWatchedAt >= ?`, [thirtyDaysStr]);
+        const activeUsers = Number(activeRow?.cnt ?? 0);
+        // Completion rate
+        const enrollmentsForCompletion = await (0, db_js_1.query)(`SELECT en.id as enrollmentId, en.courseId FROM enrollments en`);
         let completedCount = 0;
-        enrollmentsWithProgress.forEach((enrollment) => {
-            const totalLessons = enrollment.course.modules.reduce((a, m) => a + m.lessons.length, 0);
-            const completedLessons = enrollment.lessonProgress.filter((lp) => lp.completedAt).length;
-            if (totalLessons > 0 && completedLessons === totalLessons) {
-                completedCount++;
+        if (enrollmentsForCompletion.length > 0) {
+            const courseIds = [...new Set(enrollmentsForCompletion.map(e => e.courseId))];
+            const cp = (0, db_js_1.inPlaceholders)(courseIds);
+            const lessonCounts = await (0, db_js_1.query)(`SELECT m.courseId, COUNT(l.id) as cnt FROM modules m JOIN lessons l ON l.moduleId = m.id WHERE m.courseId IN (${cp}) GROUP BY m.courseId`, courseIds);
+            const totalLessonsMap = new Map(lessonCounts.map(r => [r.courseId, Number(r.cnt)]));
+            const eIds = enrollmentsForCompletion.map(e => e.enrollmentId);
+            const ep = (0, db_js_1.inPlaceholders)(eIds);
+            const completedLessonCounts = await (0, db_js_1.query)(`SELECT enrollmentId, COUNT(*) as cnt FROM lesson_progress WHERE enrollmentId IN (${ep}) AND completedAt IS NOT NULL GROUP BY enrollmentId`, eIds);
+            const completedMap = new Map(completedLessonCounts.map(r => [r.enrollmentId, Number(r.cnt)]));
+            for (const enr of enrollmentsForCompletion) {
+                const tl = totalLessonsMap.get(enr.courseId) ?? 0;
+                const cl = completedMap.get(enr.enrollmentId) ?? 0;
+                if (tl > 0 && cl >= tl)
+                    completedCount++;
             }
-        });
-        const completionRate = totalEnrollments > 0
-            ? (completedCount / totalEnrollments) * 100
-            : 0;
-        // User trends (by month)
-        const userTrends = recentUsers.reduce((acc, user) => {
-            const date = user.createdAt.toISOString().split('T')[0];
-            acc[date] = (acc[date] || 0) + 1;
-            return acc;
-        }, {});
-        const userTrendsArray = Object.entries(userTrends)
-            .map(([date, count]) => ({ date, count }))
-            .sort((a, b) => a.date.localeCompare(b.date));
-        // Enrollment trends
-        const enrollmentTrends = recentEnrollments.reduce((acc, enrollment) => {
-            const date = enrollment.enrolledAt.toISOString().split('T')[0];
-            acc[date] = (acc[date] || 0) + 1;
-            return acc;
-        }, {});
-        const enrollmentTrendsArray = Object.entries(enrollmentTrends)
-            .map(([date, count]) => ({ date, count }))
-            .sort((a, b) => a.date.localeCompare(b.date));
-        // Revenue trends
-        const revenueTrends = recentEnrollments.reduce((acc, enrollment) => {
-            const date = enrollment.enrolledAt.toISOString().split('T')[0];
-            acc[date] = (acc[date] || 0) + enrollment.course.price;
-            return acc;
-        }, {});
-        const revenueTrendsArray = Object.entries(revenueTrends)
-            .map(([date, amount]) => ({ date, amount }))
-            .sort((a, b) => a.date.localeCompare(b.date));
+        }
+        const completionRate = totalEnrollments > 0 ? (completedCount / totalEnrollments) * 100 : 0;
+        // User trends (last 30 days)
+        const recentUsers = await (0, db_js_1.query)('SELECT createdAt FROM users WHERE createdAt >= ?', [thirtyDaysStr]);
+        const userTrends = {};
+        for (const u of recentUsers) {
+            const d = (u.createdAt instanceof Date ? u.createdAt.toISOString() : String(u.createdAt)).split('T')[0];
+            userTrends[d] = (userTrends[d] || 0) + 1;
+        }
+        const userTrendsArray = Object.entries(userTrends).map(([date, count]) => ({ date, count })).sort((a, b) => a.date.localeCompare(b.date));
+        // Enrollment trends (last 30 days)
+        const recentEnrollments = await (0, db_js_1.query)(`SELECT e.enrolledAt, c.price FROM enrollments e JOIN courses c ON e.courseId = c.id WHERE e.enrolledAt >= ?`, [thirtyDaysStr]);
+        const enrollmentTrends = {};
+        const revenueTrends = {};
+        for (const e of recentEnrollments) {
+            const d = (e.enrolledAt instanceof Date ? e.enrolledAt.toISOString() : String(e.enrolledAt)).split('T')[0];
+            enrollmentTrends[d] = (enrollmentTrends[d] || 0) + 1;
+            revenueTrends[d] = (revenueTrends[d] || 0) + (e.price || 0);
+        }
+        const enrollmentTrendsArray = Object.entries(enrollmentTrends).map(([date, count]) => ({ date, count })).sort((a, b) => a.date.localeCompare(b.date));
+        const revenueTrendsArray = Object.entries(revenueTrends).map(([date, amount]) => ({ date, amount })).sort((a, b) => a.date.localeCompare(b.date));
         // Top courses
-        const topCourses = await app_js_1.prisma.course.findMany({
-            include: {
-                _count: { select: { enrollments: true } },
-                reviews: { select: { rating: true } },
-                enrollments: { select: { id: true } },
-            },
-            orderBy: { enrollments: { _count: 'desc' } },
-            take: 10,
-        });
-        const topCoursesWithStats = topCourses.map((course) => ({
-            id: course.id,
-            title: course.title,
-            enrollments: course._count.enrollments,
-            revenue: course.price * course.enrollments.length,
-            rating: course.reviews.length > 0
-                ? Math.round((course.reviews.reduce((a, r) => a + r.rating, 0) / course.reviews.length) * 10) / 10
-                : null,
+        const topCourses = await (0, db_js_1.query)(`SELECT c.id, c.title, c.price, COUNT(e.id) as enrollCount
+       FROM courses c LEFT JOIN enrollments e ON e.courseId = c.id
+       GROUP BY c.id ORDER BY enrollCount DESC LIMIT 10`);
+        const topCoursesIds = topCourses.map(c => c.id);
+        let ratingsByCourse = new Map();
+        if (topCoursesIds.length > 0) {
+            const rp = (0, db_js_1.inPlaceholders)(topCoursesIds);
+            const ratings = await (0, db_js_1.query)(`SELECT courseId, AVG(rating) as avg, COUNT(*) as cnt FROM reviews WHERE courseId IN (${rp}) GROUP BY courseId`, topCoursesIds);
+            for (const r of ratings)
+                ratingsByCourse.set(r.courseId, { sum: Number(r.avg), cnt: Number(r.cnt) });
+        }
+        const topCoursesWithStats = topCourses.map(c => ({
+            id: c.id, title: c.title,
+            enrollments: Number(c.enrollCount),
+            revenue: c.price * Number(c.enrollCount),
+            rating: ratingsByCourse.has(c.id) ? Math.round(ratingsByCourse.get(c.id).sum * 10) / 10 : null,
         }));
-        // User distribution
-        const userDistribution = usersByRole.reduce((acc, item) => {
-            acc[item.role] = item._count.id;
-            return acc;
-        }, {});
+        // User distribution by role
+        const roleRows = await (0, db_js_1.query)('SELECT role, COUNT(*) as cnt FROM users GROUP BY role');
+        const userDistribution = {};
+        for (const r of roleRows)
+            userDistribution[r.role] = Number(r.cnt);
         // Category distribution
-        const categoryDistribution = coursesByCategory
-            .filter((item) => item.category)
-            .map((item) => ({
-            category: item.category,
-            count: item._count.id,
-        }));
+        const catRows = await (0, db_js_1.query)('SELECT category, COUNT(*) as cnt FROM courses WHERE category IS NOT NULL GROUP BY category');
+        const categoryDistribution = catRows.map(r => ({ category: r.category, count: Number(r.cnt) }));
         // Progress distribution buckets
-        const progressBuckets = {
-            '0-25': 0,
-            '25-50': 0,
-            '50-75': 0,
-            '75-100': 0,
-            'completed': 0,
-        };
-        enrollmentsWithProgress.forEach((enrollment) => {
-            const totalLessonsInCourse = enrollment.course.modules.reduce((a, m) => a + m.lessons.length, 0);
-            if (totalLessonsInCourse === 0)
-                return;
-            const completedLessonsCount = enrollment.lessonProgress.filter((lp) => lp.completedAt).length;
-            const progressPct = (completedLessonsCount / totalLessonsInCourse) * 100;
-            if (progressPct >= 100) {
-                progressBuckets['completed']++;
+        const progressBuckets = { '0-25': 0, '25-50': 0, '50-75': 0, '75-100': 0, 'completed': 0 };
+        // Use the already-computed enrollment data
+        if (enrollmentsForCompletion.length > 0) {
+            const courseIds = [...new Set(enrollmentsForCompletion.map(e => e.courseId))];
+            const cp2 = (0, db_js_1.inPlaceholders)(courseIds);
+            const lessonCounts2 = await (0, db_js_1.query)(`SELECT m.courseId, COUNT(l.id) as cnt FROM modules m JOIN lessons l ON l.moduleId = m.id WHERE m.courseId IN (${cp2}) GROUP BY m.courseId`, courseIds);
+            const totalLessonsMap2 = new Map(lessonCounts2.map(r => [r.courseId, Number(r.cnt)]));
+            const eIds2 = enrollmentsForCompletion.map(e => e.enrollmentId);
+            const ep2 = (0, db_js_1.inPlaceholders)(eIds2);
+            const completedCounts2 = await (0, db_js_1.query)(`SELECT enrollmentId, COUNT(*) as cnt FROM lesson_progress WHERE enrollmentId IN (${ep2}) AND completedAt IS NOT NULL GROUP BY enrollmentId`, eIds2);
+            const completedMap2 = new Map(completedCounts2.map(r => [r.enrollmentId, Number(r.cnt)]));
+            for (const enr of enrollmentsForCompletion) {
+                const tl = totalLessonsMap2.get(enr.courseId) ?? 0;
+                if (tl === 0)
+                    continue;
+                const cl = completedMap2.get(enr.enrollmentId) ?? 0;
+                const pct = (cl / tl) * 100;
+                if (pct >= 100)
+                    progressBuckets['completed']++;
+                else if (pct >= 75)
+                    progressBuckets['75-100']++;
+                else if (pct >= 50)
+                    progressBuckets['50-75']++;
+                else if (pct >= 25)
+                    progressBuckets['25-50']++;
+                else
+                    progressBuckets['0-25']++;
             }
-            else if (progressPct >= 75) {
-                progressBuckets['75-100']++;
-            }
-            else if (progressPct >= 50) {
-                progressBuckets['50-75']++;
-            }
-            else if (progressPct >= 25) {
-                progressBuckets['25-50']++;
-            }
-            else {
-                progressBuckets['0-25']++;
-            }
-        });
-        // Top learners by progress
-        const topLearners = await app_js_1.prisma.enrollment.findMany({
-            include: {
-                user: { select: { id: true, name: true, email: true } },
-                course: { select: { title: true } },
-                lessonProgress: {
-                    orderBy: { lastWatchedAt: 'desc' },
-                    take: 1,
-                },
-            },
-            orderBy: { enrolledAt: 'desc' },
-            take: 10,
-        });
-        const topLearnersData = topLearners.map((enrollment) => ({
-            email: enrollment.user.email,
-            name: enrollment.user.name,
-            lastActive: enrollment.lessonProgress[0]?.lastWatchedAt?.toISOString() || null,
-            course: enrollment.course.title,
-            progress: 0, // Would need full progress calculation
+        }
+        // Top learners
+        const topLearners = await (0, db_js_1.query)(`SELECT e.id as enrollmentId, u.email, u.name, c.title as course,
+              (SELECT MAX(lp2.lastWatchedAt) FROM lesson_progress lp2 WHERE lp2.enrollmentId = e.id) as lastActive
+       FROM enrollments e
+       JOIN users u ON e.userId = u.id
+       JOIN courses c ON e.courseId = c.id
+       ORDER BY e.enrolledAt DESC LIMIT 10`);
+        const topLearnersData = topLearners.map(e => ({
+            email: e.email, name: e.name,
+            lastActive: e.lastActive ? (e.lastActive instanceof Date ? e.lastActive.toISOString() : e.lastActive) : null,
+            course: e.course, progress: 0,
         }));
         res.json({
             analytics: {
                 overview: {
-                    totalUsers,
-                    totalCourses,
-                    totalEnrollments,
+                    totalUsers, totalCourses, totalEnrollments,
                     totalRevenue: Math.round(totalRevenue * 100) / 100,
-                    activeUsers: activeUsers.length,
-                    completionRate: Math.round(completionRate * 10) / 10,
+                    activeUsers, completionRate: Math.round(completionRate * 10) / 10,
                 },
-                trends: {
-                    users: userTrendsArray,
-                    enrollments: enrollmentTrendsArray,
-                    revenue: revenueTrendsArray,
-                },
+                trends: { users: userTrendsArray, enrollments: enrollmentTrendsArray, revenue: revenueTrendsArray },
                 topCourses: topCoursesWithStats,
-                userDistribution,
-                categoryDistribution,
-                progressBuckets,
+                userDistribution, categoryDistribution, progressBuckets,
                 topLearners: topLearnersData,
             },
         });
@@ -206,31 +154,27 @@ router.get('/', auth_js_1.authenticate, auth_js_1.requireAdmin, async (req, res)
         res.status(500).json({ error: 'Failed to get analytics' });
     }
 });
-// GET /analytics/creator-stats - Get current creator's stats
+// GET /analytics/creator-stats
 router.get('/creator-stats', auth_js_1.authenticate, async (req, res) => {
     try {
         const userId = req.user.id;
-        const [totalCourses, publishedCourses, coursesWithEnrollments, reviewsData] = await Promise.all([
-            app_js_1.prisma.course.count({ where: { creatorId: userId } }),
-            app_js_1.prisma.course.count({ where: { creatorId: userId, status: 'PUBLISHED' } }),
-            app_js_1.prisma.course.findMany({
-                where: { creatorId: userId },
-                select: { price: true, _count: { select: { enrollments: true } } },
-            }),
-            app_js_1.prisma.review.findMany({
-                where: { course: { creatorId: userId } },
-                select: { rating: true },
-            }),
+        const [totalRow, publishedRow, enrollData, reviewsData] = await Promise.all([
+            (0, db_js_1.queryOne)('SELECT COUNT(*) as cnt FROM courses WHERE creatorId = ?', [userId]),
+            (0, db_js_1.queryOne)('SELECT COUNT(*) as cnt FROM courses WHERE creatorId = ? AND status = ?', [userId, 'PUBLISHED']),
+            (0, db_js_1.query)(`SELECT c.price, COUNT(e.id) as enrollCount
+         FROM courses c LEFT JOIN enrollments e ON e.courseId = c.id
+         WHERE c.creatorId = ? GROUP BY c.id`, [userId]),
+            (0, db_js_1.query)('SELECT r.rating FROM reviews r JOIN courses c ON r.courseId = c.id WHERE c.creatorId = ?', [userId]),
         ]);
-        const totalEnrollments = coursesWithEnrollments.reduce((sum, c) => sum + c._count.enrollments, 0);
-        const totalRevenue = coursesWithEnrollments.reduce((sum, c) => sum + c.price * c._count.enrollments, 0);
+        const totalEnrollments = enrollData.reduce((s, c) => s + Number(c.enrollCount), 0);
+        const totalRevenue = enrollData.reduce((s, c) => s + c.price * Number(c.enrollCount), 0);
         const totalReviews = reviewsData.length;
         const avgRating = totalReviews > 0
-            ? (reviewsData.reduce((sum, r) => sum + r.rating, 0) / totalReviews).toFixed(1)
+            ? (reviewsData.reduce((s, r) => s + r.rating, 0) / totalReviews).toFixed(1)
             : '0.0';
         res.json({
-            totalCourses,
-            publishedCourses,
+            totalCourses: Number(totalRow?.cnt ?? 0),
+            publishedCourses: Number(publishedRow?.cnt ?? 0),
             totalEnrollments,
             totalRevenue: Math.round(totalRevenue * 100) / 100,
             totalReviews,
@@ -242,67 +186,46 @@ router.get('/creator-stats', auth_js_1.authenticate, async (req, res) => {
         res.status(500).json({ error: 'Failed to get creator stats' });
     }
 });
-// GET /analytics/learner-stats - Get current user's learning stats
+// GET /analytics/learner-stats
 router.get('/learner-stats', auth_js_1.authenticate, async (req, res) => {
     try {
         const userId = req.user.id;
-        // Get user's enrollments with progress
-        const enrollments = await app_js_1.prisma.enrollment.findMany({
-            where: { userId },
-            include: {
-                course: {
-                    include: {
-                        modules: {
-                            include: {
-                                lessons: { select: { id: true } },
-                            },
-                        },
-                    },
-                },
-                lessonProgress: true,
-            },
-        });
+        const enrollments = await (0, db_js_1.query)(`SELECT e.id, e.userId, e.courseId, e.enrolledAt, c.id as c_id, c.title, c.coverImage
+       FROM enrollments e JOIN courses c ON e.courseId = c.id
+       WHERE e.userId = ?`, [userId]);
         let totalCourses = enrollments.length;
         let completedCourses = 0;
         let inProgressCourses = 0;
         let totalLessonsCompleted = 0;
         let totalWatchTime = 0;
-        enrollments.forEach((enrollment) => {
-            const totalLessons = enrollment.course.modules.reduce((a, m) => a + m.lessons.length, 0);
-            const completedLessons = enrollment.lessonProgress.filter((lp) => lp.completedAt).length;
+        const formattedEnrollments = [];
+        for (const enr of enrollments) {
+            // Total lessons
+            const lessonCountRow = await (0, db_js_1.queryOne)('SELECT COUNT(*) as cnt FROM modules m JOIN lessons l ON l.moduleId = m.id WHERE m.courseId = ?', [enr.courseId]);
+            const totalLessonsInCourse = Number(lessonCountRow?.cnt ?? 0);
+            // Progress
+            const progressRows = await (0, db_js_1.query)('SELECT progressPercent, completedAt FROM lesson_progress WHERE enrollmentId = ?', [enr.id]);
+            const completedLessons = progressRows.filter(lp => lp.completedAt != null).length;
             totalLessonsCompleted += completedLessons;
-            // Calculate watch time (sum of progressPercent as approximate hours)
-            enrollment.lessonProgress.forEach((lp) => {
-                totalWatchTime += lp.progressPercent / 100;
-            });
-            if (totalLessons > 0 && completedLessons === totalLessons) {
+            progressRows.forEach(lp => { totalWatchTime += lp.progressPercent / 100; });
+            if (totalLessonsInCourse > 0 && completedLessons === totalLessonsInCourse) {
                 completedCourses++;
             }
             else if (completedLessons > 0) {
                 inProgressCourses++;
             }
-        });
-        // Format enrollments for response
-        const formattedEnrollments = enrollments.map((enrollment) => ({
-            id: enrollment.id,
-            userId: enrollment.userId,
-            courseId: enrollment.courseId,
-            enrolledAt: enrollment.enrolledAt.toISOString(),
-            course: {
-                id: enrollment.course.id,
-                title: enrollment.course.title,
-                thumbnail: enrollment.course.coverImage,
-            },
-            lessonProgress: enrollment.lessonProgress.map((lp) => ({
-                progressPercent: lp.progressPercent,
-                completedAt: lp.completedAt?.toISOString() || null,
-            })),
-        }));
+            formattedEnrollments.push({
+                id: enr.id, userId: enr.userId, courseId: enr.courseId,
+                enrolledAt: enr.enrolledAt instanceof Date ? enr.enrolledAt.toISOString() : enr.enrolledAt,
+                course: { id: enr.c_id, title: enr.title, thumbnail: enr.coverImage },
+                lessonProgress: progressRows.map(lp => ({
+                    progressPercent: lp.progressPercent,
+                    completedAt: lp.completedAt ? (lp.completedAt instanceof Date ? lp.completedAt.toISOString() : lp.completedAt) : null,
+                })),
+            });
+        }
         res.json({
-            totalCourses,
-            completedCourses,
-            inProgressCourses,
-            totalLessonsCompleted,
+            totalCourses, completedCourses, inProgressCourses, totalLessonsCompleted,
             totalWatchHours: Math.round(totalWatchTime),
             enrollments: formattedEnrollments,
         });

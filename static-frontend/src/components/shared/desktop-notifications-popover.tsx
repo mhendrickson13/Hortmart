@@ -1,5 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { notifications as notificationsApi } from "@/lib/api-client";
+import type { Notification } from "@/lib/api-client";
+import { useAuth } from "@/lib/auth-context";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { 
   Bell, 
@@ -14,25 +18,12 @@ import {
   Check,
 } from "lucide-react";
 
-interface Notification {
-  id: string;
-  type: "course" | "message" | "review" | "follow" | "achievement" | "system";
-  title: string;
-  description: string;
-  time: Date;
-  read: boolean;
-  link?: string;
-}
-
 interface DesktopNotificationsPopoverProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-// Notifications are loaded dynamically - starts empty
-const initialNotifications: Notification[] = [];
-
-const notificationIcons = {
+const notificationIcons: Record<string, typeof BookOpen> = {
   course: BookOpen,
   message: MessageSquare,
   review: Star,
@@ -41,7 +32,7 @@ const notificationIcons = {
   system: Bell,
 };
 
-const notificationColors = {
+const notificationColors: Record<string, string> = {
   course: "bg-primary/10 text-primary",
   message: "bg-blue-500/10 text-blue-500",
   review: "bg-yellow-500/10 text-yellow-500",
@@ -51,8 +42,43 @@ const notificationColors = {
 };
 
 export function DesktopNotificationsPopover({ isOpen, onClose }: DesktopNotificationsPopoverProps) {
-  const [notifications, setNotifications] = useState<Notification[]>(initialNotifications);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  const { data } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: () => notificationsApi.list({ limit: 30 }),
+    enabled: isOpen && !!user,
+    refetchOnWindowFocus: false,
+  });
+
+  const notifications = data?.notifications || [];
+  const unreadCount = data?.unreadCount ?? 0;
+
+  const markAllReadMutation = useMutation({
+    mutationFn: () => notificationsApi.markAllRead(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications-unread-count"] });
+    },
+  });
+
+  const markReadMutation = useMutation({
+    mutationFn: (id: string) => notificationsApi.markRead(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications-unread-count"] });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => notificationsApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications-unread-count"] });
+    },
+  });
 
   // Close when clicking outside
   useEffect(() => {
@@ -80,22 +106,6 @@ export function DesktopNotificationsPopover({ isOpen, onClose }: DesktopNotifica
     }
   }, [isOpen, onClose]);
 
-  const markAllAsRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, read: true })));
-  };
-
-  const markAsRead = (id: string) => {
-    setNotifications(notifications.map(n => 
-      n.id === id ? { ...n, read: true } : n
-    ));
-  };
-
-  const deleteNotification = (id: string) => {
-    setNotifications(notifications.filter(n => n.id !== id));
-  };
-
-  const unreadCount = notifications.filter(n => !n.read).length;
-
   if (!isOpen) return null;
 
   return (
@@ -116,7 +126,7 @@ export function DesktopNotificationsPopover({ isOpen, onClose }: DesktopNotifica
         {unreadCount > 0 && (
           <button
             type="button"
-            onClick={markAllAsRead}
+            onClick={() => markAllReadMutation.mutate()}
             className="text-caption font-medium text-primary hover:underline flex items-center gap-1"
           >
             <Check className="w-3 h-3" />
@@ -137,15 +147,15 @@ export function DesktopNotificationsPopover({ isOpen, onClose }: DesktopNotifica
           </div>
         ) : (
           <div>
-            {notifications.map((notification) => {
-              const Icon = notificationIcons[notification.type];
-              const colorClass = notificationColors[notification.type];
+            {notifications.map((notification: Notification) => {
+              const Icon = notificationIcons[notification.type] || Bell;
+              const colorClass = notificationColors[notification.type] || notificationColors.system;
               
               const NotificationContent = (
                 <div 
                   className={cn(
                     "flex gap-3 p-3 transition-all hover:bg-muted/50 group",
-                    !notification.read && "bg-primary/5"
+                    !notification.isRead && "bg-primary/5"
                   )}
                 >
                   {/* Icon */}
@@ -161,18 +171,18 @@ export function DesktopNotificationsPopover({ isOpen, onClose }: DesktopNotifica
                     <div className="flex items-start justify-between gap-2">
                       <h4 className={cn(
                         "text-caption text-text-1 line-clamp-1",
-                        !notification.read && "font-semibold"
+                        !notification.isRead && "font-semibold"
                       )}>
                         {notification.title}
                       </h4>
                       <div className="flex items-center gap-1 flex-shrink-0">
-                        {!notification.read && (
+                        {!notification.isRead && (
                           <button
                             type="button"
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              markAsRead(notification.id);
+                              markReadMutation.mutate(notification.id);
                             }}
                             className="w-6 h-6 rounded flex items-center justify-center text-text-3 hover:bg-primary/10 hover:text-primary opacity-0 group-hover:opacity-100 transition-all"
                             title="Mark as read"
@@ -185,7 +195,7 @@ export function DesktopNotificationsPopover({ isOpen, onClose }: DesktopNotifica
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            deleteNotification(notification.id);
+                            deleteMutation.mutate(notification.id);
                           }}
                           className="w-6 h-6 rounded flex items-center justify-center text-text-3 hover:bg-danger/10 hover:text-danger opacity-0 group-hover:opacity-100 transition-all"
                           title="Delete"
@@ -198,7 +208,7 @@ export function DesktopNotificationsPopover({ isOpen, onClose }: DesktopNotifica
                       {notification.description}
                     </p>
                     <p className="text-[10px] text-text-3 mt-1">
-                      {formatRelativeTime(notification.time)}
+                      {formatRelativeTime(new Date(notification.createdAt))}
                     </p>
                   </div>
                 </div>
@@ -209,7 +219,10 @@ export function DesktopNotificationsPopover({ isOpen, onClose }: DesktopNotifica
                   <Link 
                     key={notification.id} 
                     to={notification.link}
-                    onClick={onClose}
+                    onClick={() => {
+                      if (!notification.isRead) markReadMutation.mutate(notification.id);
+                      onClose();
+                    }}
                   >
                     {NotificationContent}
                   </Link>

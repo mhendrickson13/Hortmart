@@ -1,36 +1,24 @@
 import { Router, Response } from 'express';
-import { z } from 'zod';
-import { prisma } from '../app.js';
+import { query, queryOne, execute, now } from '../db.js';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
 
 const router = Router();
-
-const updateAnswerSchema = z.object({
-  content: z.string().min(1),
-});
 
 // GET /answers/:id
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-
-    const answer = await prisma.answer.findUnique({
-      where: { id },
-      include: {
-        user: {
-          select: { id: true, name: true, image: true },
-        },
-        question: {
-          select: { id: true, content: true },
-        },
-      },
-    });
+    const answer = await queryOne<any>('SELECT * FROM answers WHERE id = ?', [id]);
 
     if (!answer) {
       return res.status(404).json({ error: 'Answer not found' });
     }
 
-    res.json({ answer });
+    const user = await queryOne<any>('SELECT id, name, image FROM users WHERE id = ?', [answer.userId]);
+    const question = await queryOne<any>('SELECT id, content FROM questions WHERE id = ?', [answer.questionId]);
+
+    answer.isAccepted = !!answer.isAccepted;
+    res.json({ answer: { ...answer, user, question } });
   } catch (error) {
     console.error('Get answer error:', error);
     res.status(500).json({ error: 'Failed to get answer' });
@@ -41,8 +29,7 @@ router.get('/:id', async (req, res) => {
 router.patch('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-
-    const answer = await prisma.answer.findUnique({ where: { id } });
+    const answer = await queryOne<any>('SELECT * FROM answers WHERE id = ?', [id]);
 
     if (!answer) {
       return res.status(404).json({ error: 'Answer not found' });
@@ -51,18 +38,17 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    const data = updateAnswerSchema.parse(req.body);
+    const { content } = req.body;
+    if (!content) {
+      return res.status(400).json({ error: 'content is required' });
+    }
 
-    const updated = await prisma.answer.update({
-      where: { id },
-      data,
-    });
+    await execute('UPDATE answers SET content = ?, updatedAt = ? WHERE id = ?', [content, now(), id]);
+    const updated = await queryOne<any>('SELECT * FROM answers WHERE id = ?', [id]);
+    updated.isAccepted = !!updated.isAccepted;
 
     res.json({ answer: updated });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
-    }
     console.error('Update answer error:', error);
     res.status(500).json({ error: 'Failed to update answer' });
   }
@@ -72,8 +58,7 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res: Response) => {
 router.delete('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-
-    const answer = await prisma.answer.findUnique({ where: { id } });
+    const answer = await queryOne<any>('SELECT * FROM answers WHERE id = ?', [id]);
 
     if (!answer) {
       return res.status(404).json({ error: 'Answer not found' });
@@ -82,8 +67,7 @@ router.delete('/:id', authenticate, async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    await prisma.answer.delete({ where: { id } });
-
+    await execute('DELETE FROM answers WHERE id = ?', [id]);
     res.json({ message: 'Answer deleted successfully' });
   } catch (error) {
     console.error('Delete answer error:', error);
@@ -95,37 +79,25 @@ router.delete('/:id', authenticate, async (req: AuthRequest, res: Response) => {
 router.post('/:id/accept', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-
-    const answer = await prisma.answer.findUnique({
-      where: { id },
-      include: {
-        question: true,
-      },
-    });
+    const answer = await queryOne<any>('SELECT * FROM answers WHERE id = ?', [id]);
 
     if (!answer) {
       return res.status(404).json({ error: 'Answer not found' });
     }
 
-    // Only question author can accept
-    if (answer.question.userId !== req.user!.id) {
+    const question = await queryOne<any>('SELECT * FROM questions WHERE id = ?', [answer.questionId]);
+    if (!question || question.userId !== req.user!.id) {
       return res.status(403).json({ error: 'Only question author can accept answers' });
     }
 
-    // Unaccept any other accepted answers
-    await prisma.answer.updateMany({
-      where: {
-        questionId: answer.questionId,
-        isAccepted: true,
-      },
-      data: { isAccepted: false },
-    });
-
+    const ts = now();
+    // Unaccept any other accepted answers for this question
+    await execute('UPDATE answers SET isAccepted = false, updatedAt = ? WHERE questionId = ? AND isAccepted = true', [ts, answer.questionId]);
     // Accept this answer
-    const updated = await prisma.answer.update({
-      where: { id },
-      data: { isAccepted: true },
-    });
+    await execute('UPDATE answers SET isAccepted = true, updatedAt = ? WHERE id = ?', [ts, id]);
+
+    const updated = await queryOne<any>('SELECT * FROM answers WHERE id = ?', [id]);
+    updated.isAccepted = !!updated.isAccepted;
 
     res.json({ answer: updated });
   } catch (error) {

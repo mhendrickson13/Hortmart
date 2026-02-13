@@ -297,6 +297,8 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
     if (idx < 0) return;
     const targetIdx = direction === "up" ? idx - 1 : idx + 1;
     if (targetIdx < 0 || targetIdx >= course.modules.length) return;
+    // Save snapshot before optimistic update
+    const previousModules = [...course.modules];
     const newModules = [...course.modules];
     [newModules[idx], newModules[targetIdx]] = [newModules[targetIdx], newModules[idx]];
     const reordered = newModules.map((m, i) => ({ ...m, position: i }));
@@ -304,7 +306,8 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
     try {
       await apiClient.courses.reorderModules(course.id, reordered.map((m) => m.id));
     } catch {
-      setCourse((c) => ({ ...c, modules: course.modules }));
+      // Restore from snapshot, not stale closure
+      setCourse((c) => ({ ...c, modules: previousModules }));
       toast({ title: "Failed to reorder", variant: "error" });
     }
   };
@@ -377,6 +380,8 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
     if (idx < 0) return;
     const targetIdx = direction === "up" ? idx - 1 : idx + 1;
     if (targetIdx < 0 || targetIdx >= mod.lessons.length) return;
+    // Save snapshot before optimistic update
+    const previousLessons = [...mod.lessons];
     const newLessons = [...mod.lessons];
     [newLessons[idx], newLessons[targetIdx]] = [newLessons[targetIdx], newLessons[idx]];
     const reordered = newLessons.map((l, i) => ({ ...l, position: i }));
@@ -387,9 +392,10 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
     try {
       await apiClient.modules.reorderLessons(moduleId, reordered.map((l) => l.id));
     } catch {
+      // Restore from snapshot, not stale closure
       setCourse((c) => ({
         ...c,
-        modules: c.modules.map((m) => (m.id === moduleId ? { ...m, lessons: mod.lessons } : m)),
+        modules: c.modules.map((m) => (m.id === moduleId ? { ...m, lessons: previousLessons } : m)),
       }));
       toast({ title: "Failed to reorder", variant: "error" });
     }
@@ -417,6 +423,20 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
       toast({ title: "Course published!", variant: "success" });
     } catch {
       toast({ title: "Failed to publish course", variant: "error" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const unpublishCourse = async () => {
+    if (!window.confirm("Unpublish this course? It will no longer be visible to learners.")) return;
+    setIsLoading(true);
+    try {
+      await apiClient.courses.unpublish(course.id);
+      setCourse((c) => ({ ...c, status: "DRAFT" }));
+      toast({ title: "Course unpublished", description: "It is now in draft mode.", variant: "success" });
+    } catch {
+      toast({ title: "Failed to unpublish", variant: "error" });
     } finally {
       setIsLoading(false);
     }
@@ -455,9 +475,15 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
           <button onClick={() => window.open(`/course/${course.id}`, "_blank")} className="h-10 px-3.5 rounded-[16px] border border-border/95 bg-white/95 text-text-1 font-black text-[13px] inline-flex items-center gap-2 shadow-[0_14px_28px_rgba(21,25,35,0.06)] whitespace-nowrap">
             Preview
           </button>
-          <button onClick={publishCourse} disabled={isLoading || course.status === "PUBLISHED"} className={`h-10 px-3.5 rounded-[16px] border font-black text-[13px] inline-flex items-center gap-2 whitespace-nowrap disabled:opacity-50 ${isReadyToPublish && course.status !== "PUBLISHED" ? "border-primary/55 bg-primary text-white shadow-[0_16px_34px_rgba(47,111,237,0.22)]" : "border-border/95 bg-white/95 text-text-2"}`}>
-            {isLoading ? "Publishing..." : course.status === "PUBLISHED" ? "Published" : "Publish"}
-          </button>
+          {course.status === "PUBLISHED" ? (
+            <button onClick={unpublishCourse} disabled={isLoading} className="h-10 px-3.5 rounded-[16px] border border-red-200 bg-white text-red-600 font-black text-[13px] inline-flex items-center gap-2 whitespace-nowrap disabled:opacity-50 hover:bg-red-50 transition-colors">
+              {isLoading ? "Unpublishing..." : "Unpublish"}
+            </button>
+          ) : (
+            <button onClick={publishCourse} disabled={isLoading} className={`h-10 px-3.5 rounded-[16px] border font-black text-[13px] inline-flex items-center gap-2 whitespace-nowrap disabled:opacity-50 ${isReadyToPublish ? "border-primary/55 bg-primary text-white shadow-[0_16px_34px_rgba(47,111,237,0.22)]" : "border-border/95 bg-white/95 text-text-2"}`}>
+              {isLoading ? "Publishing..." : "Publish"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -770,9 +796,15 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
           </div>
 
           <div className="grid gap-2.5">
-            <button onClick={publishCourse} disabled={isLoading || course.status === "PUBLISHED"} className={`h-10 rounded-[16px] border font-black text-[13px] inline-flex items-center justify-center disabled:opacity-50 ${isReadyToPublish && course.status !== "PUBLISHED" ? "border-primary/55 bg-primary text-white shadow-[0_16px_34px_rgba(47,111,237,0.22)]" : "border-border/95 bg-white/95 text-text-2"}`}>
-              {course.status === "PUBLISHED" ? "Already published" : isReadyToPublish ? "Publish now" : "Complete checklist to publish"}
-            </button>
+            {course.status === "PUBLISHED" ? (
+              <button onClick={unpublishCourse} disabled={isLoading} className="h-10 rounded-[16px] border border-red-200 bg-white text-red-600 font-black text-[13px] inline-flex items-center justify-center disabled:opacity-50 hover:bg-red-50 transition-colors">
+                {isLoading ? "Unpublishing..." : "Unpublish course"}
+              </button>
+            ) : (
+              <button onClick={publishCourse} disabled={isLoading} className={`h-10 rounded-[16px] border font-black text-[13px] inline-flex items-center justify-center disabled:opacity-50 ${isReadyToPublish ? "border-primary/55 bg-primary text-white shadow-[0_16px_34px_rgba(47,111,237,0.22)]" : "border-border/95 bg-white/95 text-text-2"}`}>
+                {isReadyToPublish ? "Publish now" : "Complete checklist to publish"}
+              </button>
+            )}
           </div>
 
           <h2 className="mt-auto text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">Status</h2>

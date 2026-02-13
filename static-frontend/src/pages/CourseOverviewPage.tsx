@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ReviewsSection } from "@/components/learner/reviews-section";
+import { RatingDialog } from "@/components/learner/rating-dialog";
 import { Play, Clock, Users, Globe, BarChart3, Lock, Star, CheckCircle2, Loader2, ChevronDown, ChevronUp, Heart, Share2, Bookmark } from "lucide-react";
 import { formatDuration, formatPrice, getInitials, cn } from "@/lib/utils";
 import { toast } from "@/components/ui/toaster";
@@ -20,6 +21,7 @@ export default function CourseOverviewPage() {
   const [loading, setLoading] = useState(true);
   const [showAllModules, setShowAllModules] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
+  const [showRating, setShowRating] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -189,7 +191,16 @@ export default function CourseOverviewPage() {
             <CurriculumPanel course={course} visibleModules={visibleModules} totalModules={totalModules} totalLessons={totalLessons} hasMoreModules={hasMoreModules} showAllModules={showAllModules} onToggle={() => setShowAllModules(!showAllModules)} />
           </div>
 
-          <ReviewsSection courseId={course.id} />
+          {/* Reviews */}
+          <div className="space-y-3">
+            {isEnrolled && (
+              <Button variant="secondary" className="w-full" onClick={() => setShowRating(true)}>
+                <Star className="w-4 h-4 mr-2" />
+                Leave a Review
+              </Button>
+            )}
+            <ReviewsSection courseId={course.id} />
+          </div>
         </div>
 
         {/* Sidebar - Desktop */}
@@ -221,6 +232,16 @@ export default function CourseOverviewPage() {
           </div>
         </div>
       </div>
+
+      {/* Rating Dialog */}
+      {course && (
+        <RatingDialog
+          courseId={course.id}
+          courseName={course.title}
+          open={showRating}
+          onOpenChange={setShowRating}
+        />
+      )}
     </div>
   );
 }

@@ -1,33 +1,20 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
-const zod_1 = require("zod");
-const app_js_1 = require("../app.js");
+const db_js_1 = require("../db.js");
 const auth_js_1 = require("../middleware/auth.js");
 const router = (0, express_1.Router)();
-const updateReviewSchema = zod_1.z.object({
-    rating: zod_1.z.number().int().min(1).max(5).optional(),
-    comment: zod_1.z.string().optional(),
-});
 // GET /reviews/:id
 router.get('/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const review = await app_js_1.prisma.review.findUnique({
-            where: { id },
-            include: {
-                user: {
-                    select: { id: true, name: true, image: true },
-                },
-                course: {
-                    select: { id: true, title: true },
-                },
-            },
-        });
+        const review = await (0, db_js_1.queryOne)('SELECT * FROM reviews WHERE id = ?', [id]);
         if (!review) {
             return res.status(404).json({ error: 'Review not found' });
         }
-        res.json({ review });
+        const user = await (0, db_js_1.queryOne)('SELECT id, name, image FROM users WHERE id = ?', [review.userId]);
+        const course = await (0, db_js_1.queryOne)('SELECT id, title FROM courses WHERE id = ?', [review.courseId]);
+        res.json({ review: { ...review, user, course } });
     }
     catch (error) {
         console.error('Get review error:', error);
@@ -38,24 +25,32 @@ router.get('/:id', async (req, res) => {
 router.patch('/:id', auth_js_1.authenticate, async (req, res) => {
     try {
         const { id } = req.params;
-        const review = await app_js_1.prisma.review.findUnique({ where: { id } });
+        const review = await (0, db_js_1.queryOne)('SELECT * FROM reviews WHERE id = ?', [id]);
         if (!review) {
             return res.status(404).json({ error: 'Review not found' });
         }
         if (review.userId !== req.user.id && req.user.role !== 'ADMIN') {
             return res.status(403).json({ error: 'Access denied' });
         }
-        const data = updateReviewSchema.parse(req.body);
-        const updated = await app_js_1.prisma.review.update({
-            where: { id },
-            data,
-        });
+        const { rating, comment } = req.body;
+        const sets = [];
+        const params = [];
+        if (rating !== undefined) {
+            sets.push('rating = ?');
+            params.push(rating);
+        }
+        if (comment !== undefined) {
+            sets.push('comment = ?');
+            params.push(comment);
+        }
+        sets.push('updatedAt = ?');
+        params.push((0, db_js_1.now)());
+        params.push(id);
+        await (0, db_js_1.execute)(`UPDATE reviews SET ${sets.join(', ')} WHERE id = ?`, params);
+        const updated = await (0, db_js_1.queryOne)('SELECT * FROM reviews WHERE id = ?', [id]);
         res.json({ review: updated });
     }
     catch (error) {
-        if (error instanceof zod_1.z.ZodError) {
-            return res.status(400).json({ error: error.errors });
-        }
         console.error('Update review error:', error);
         res.status(500).json({ error: 'Failed to update review' });
     }
@@ -64,14 +59,14 @@ router.patch('/:id', auth_js_1.authenticate, async (req, res) => {
 router.delete('/:id', auth_js_1.authenticate, async (req, res) => {
     try {
         const { id } = req.params;
-        const review = await app_js_1.prisma.review.findUnique({ where: { id } });
+        const review = await (0, db_js_1.queryOne)('SELECT * FROM reviews WHERE id = ?', [id]);
         if (!review) {
             return res.status(404).json({ error: 'Review not found' });
         }
         if (review.userId !== req.user.id && req.user.role !== 'ADMIN') {
             return res.status(403).json({ error: 'Access denied' });
         }
-        await app_js_1.prisma.review.delete({ where: { id } });
+        await (0, db_js_1.execute)('DELETE FROM reviews WHERE id = ?', [id]);
         res.json({ message: 'Review deleted successfully' });
     }
     catch (error) {

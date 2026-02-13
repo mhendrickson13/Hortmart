@@ -99,6 +99,9 @@ export function CoursePlayer({
   const [currentVideoTime, setCurrentVideoTime] = useState(0);
   const [isFavorited, setIsFavorited] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(false);
+  // Track whether this is the first lesson load (use initialTime from API)
+  const isFirstLoadRef = useRef(true);
+  const autoAdvanceTimerRef = useRef<NodeJS.Timeout>();
 
   const handleFavorite = () => {
     setIsFavorited(!isFavorited);
@@ -126,7 +129,13 @@ export function CoursePlayer({
   const handleLessonSelect = useCallback((lessonId: string) => {
     const lesson = allLessons.find((l) => l.id === lessonId);
     if (lesson && !lesson.isLocked) {
+      isFirstLoadRef.current = false; // subsequent selections use lesson progress
+      if (autoAdvanceTimerRef.current) {
+        clearTimeout(autoAdvanceTimerRef.current);
+      }
       setCurrentLessonId(lessonId);
+    } else if (lesson?.isLocked) {
+      toast({ title: "This lesson is locked", description: "Complete previous lessons first.", variant: "warning" });
     }
   }, [allLessons]);
 
@@ -147,7 +156,7 @@ export function CoursePlayer({
     try {
       await lessonsApi.updateProgress(currentLessonId, {
         progressPercent: 100,
-        lastWatchedTimestamp: 0,
+        lastWatchedTimestamp: Math.floor(currentVideoTime),
       });
 
       toast({
@@ -156,11 +165,14 @@ export function CoursePlayer({
         variant: "success",
       });
 
-      // Auto-advance to next lesson
+      // Auto-advance to next lesson (cancel any previous timer)
+      if (autoAdvanceTimerRef.current) {
+        clearTimeout(autoAdvanceTimerRef.current);
+      }
       if (currentLessonIndex < allLessons.length - 1) {
         const nextLesson = allLessons[currentLessonIndex + 1];
         if (!nextLesson.isLocked) {
-          setTimeout(() => {
+          autoAdvanceTimerRef.current = setTimeout(() => {
             setCurrentLessonId(nextLesson.id);
           }, 2000);
         }
@@ -168,7 +180,7 @@ export function CoursePlayer({
     } catch (error) {
       console.error("Failed to mark as complete:", error);
     }
-  }, [currentLessonId, currentLessonIndex, allLessons]);
+  }, [currentLessonId, currentLessonIndex, allLessons, currentVideoTime]);
 
   const handleVideoTimeUpdate = useCallback((time: number) => {
     setCurrentVideoTime(time);
@@ -298,7 +310,11 @@ export function CoursePlayer({
         <VideoPlayer
           ref={videoRef}
           src={currentLesson?.videoUrl}
-          initialTime={currentLesson?.progress?.lastWatchedTimestamp || 0}
+          initialTime={
+            isFirstLoadRef.current && initialTime > 0
+              ? initialTime
+              : (currentLesson?.progress?.lastWatchedTimestamp || 0)
+          }
           onProgress={handleProgress}
           onComplete={handleComplete}
           onTimeUpdate={handleVideoTimeUpdate}

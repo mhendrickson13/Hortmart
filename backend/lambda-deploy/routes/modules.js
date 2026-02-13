@@ -1,33 +1,22 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
-const zod_1 = require("zod");
-const app_js_1 = require("../app.js");
+const db_js_1 = require("../db.js");
 const auth_js_1 = require("../middleware/auth.js");
 const router = (0, express_1.Router)();
-const updateModuleSchema = zod_1.z.object({
-    title: zod_1.z.string().min(1).optional(),
-    position: zod_1.z.number().int().min(0).optional(),
-});
 // GET /modules/:id
 router.get('/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const module = await app_js_1.prisma.module.findUnique({
-            where: { id },
-            include: {
-                lessons: {
-                    orderBy: { position: 'asc' },
-                },
-                course: {
-                    select: { id: true, title: true, creatorId: true },
-                },
-            },
-        });
-        if (!module) {
+        const mod = await (0, db_js_1.queryOne)('SELECT * FROM modules WHERE id = ?', [id]);
+        if (!mod) {
             return res.status(404).json({ error: 'Module not found' });
         }
-        res.json({ module });
+        const lessons = await (0, db_js_1.query)('SELECT * FROM lessons WHERE moduleId = ? ORDER BY position ASC', [id]);
+        // Convert boolean fields
+        lessons.forEach(l => { l.isLocked = !!l.isLocked; l.isFreePreview = !!l.isFreePreview; });
+        const course = await (0, db_js_1.queryOne)('SELECT id, title, creatorId FROM courses WHERE id = ?', [mod.courseId]);
+        res.json({ module: { ...mod, lessons, course } });
     }
     catch (error) {
         console.error('Get module error:', error);
@@ -38,29 +27,33 @@ router.get('/:id', async (req, res) => {
 router.patch('/:id', auth_js_1.authenticate, async (req, res) => {
     try {
         const { id } = req.params;
-        const module = await app_js_1.prisma.module.findUnique({
-            where: { id },
-            include: {
-                course: { select: { creatorId: true } },
-            },
-        });
-        if (!module) {
+        const mod = await (0, db_js_1.queryOne)('SELECT * FROM modules WHERE id = ?', [id]);
+        if (!mod) {
             return res.status(404).json({ error: 'Module not found' });
         }
-        if (module.course.creatorId !== req.user.id && req.user.role !== 'ADMIN') {
+        const course = await (0, db_js_1.queryOne)('SELECT creatorId FROM courses WHERE id = ?', [mod.courseId]);
+        if (!course || (course.creatorId !== req.user.id && req.user.role !== 'ADMIN')) {
             return res.status(403).json({ error: 'Access denied' });
         }
-        const data = updateModuleSchema.parse(req.body);
-        const updated = await app_js_1.prisma.module.update({
-            where: { id },
-            data,
-        });
+        const { title, position } = req.body;
+        const sets = [];
+        const params = [];
+        if (title !== undefined) {
+            sets.push('title = ?');
+            params.push(title);
+        }
+        if (position !== undefined) {
+            sets.push('position = ?');
+            params.push(position);
+        }
+        sets.push('updatedAt = ?');
+        params.push((0, db_js_1.now)());
+        params.push(id);
+        await (0, db_js_1.execute)(`UPDATE modules SET ${sets.join(', ')} WHERE id = ?`, params);
+        const updated = await (0, db_js_1.queryOne)('SELECT * FROM modules WHERE id = ?', [id]);
         res.json({ module: updated });
     }
     catch (error) {
-        if (error instanceof zod_1.z.ZodError) {
-            return res.status(400).json({ error: error.errors });
-        }
         console.error('Update module error:', error);
         res.status(500).json({ error: 'Failed to update module' });
     }
@@ -69,19 +62,15 @@ router.patch('/:id', auth_js_1.authenticate, async (req, res) => {
 router.delete('/:id', auth_js_1.authenticate, async (req, res) => {
     try {
         const { id } = req.params;
-        const module = await app_js_1.prisma.module.findUnique({
-            where: { id },
-            include: {
-                course: { select: { creatorId: true } },
-            },
-        });
-        if (!module) {
+        const mod = await (0, db_js_1.queryOne)('SELECT * FROM modules WHERE id = ?', [id]);
+        if (!mod) {
             return res.status(404).json({ error: 'Module not found' });
         }
-        if (module.course.creatorId !== req.user.id && req.user.role !== 'ADMIN') {
+        const course = await (0, db_js_1.queryOne)('SELECT creatorId FROM courses WHERE id = ?', [mod.courseId]);
+        if (!course || (course.creatorId !== req.user.id && req.user.role !== 'ADMIN')) {
             return res.status(403).json({ error: 'Access denied' });
         }
-        await app_js_1.prisma.module.delete({ where: { id } });
+        await (0, db_js_1.execute)('DELETE FROM modules WHERE id = ?', [id]);
         res.json({ message: 'Module deleted successfully' });
     }
     catch (error) {
@@ -97,22 +86,16 @@ router.patch('/:id/reorder', auth_js_1.authenticate, async (req, res) => {
         if (!Array.isArray(lessonOrder)) {
             return res.status(400).json({ error: 'lessonOrder must be an array' });
         }
-        const module = await app_js_1.prisma.module.findUnique({
-            where: { id },
-            include: {
-                course: { select: { creatorId: true } },
-            },
-        });
-        if (!module) {
+        const mod = await (0, db_js_1.queryOne)('SELECT * FROM modules WHERE id = ?', [id]);
+        if (!mod) {
             return res.status(404).json({ error: 'Module not found' });
         }
-        if (module.course.creatorId !== req.user.id && req.user.role !== 'ADMIN') {
+        const course = await (0, db_js_1.queryOne)('SELECT creatorId FROM courses WHERE id = ?', [mod.courseId]);
+        if (!course || (course.creatorId !== req.user.id && req.user.role !== 'ADMIN')) {
             return res.status(403).json({ error: 'Access denied' });
         }
-        await Promise.all(lessonOrder.map((lessonId, index) => app_js_1.prisma.lesson.update({
-            where: { id: lessonId },
-            data: { position: index },
-        })));
+        const ts = (0, db_js_1.now)();
+        await Promise.all(lessonOrder.map((lessonId, index) => (0, db_js_1.execute)('UPDATE lessons SET position = ?, updatedAt = ? WHERE id = ?', [index, ts, lessonId])));
         res.json({ message: 'Lessons reordered' });
     }
     catch (error) {

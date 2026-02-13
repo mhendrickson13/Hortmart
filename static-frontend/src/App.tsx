@@ -4,6 +4,7 @@ import { Providers } from "@/components/shared/providers";
 // Layouts
 import { AdminLayout } from "@/layouts/AdminLayout";
 import { LearnerLayout } from "@/layouts/LearnerLayout";
+import { PublicLearnerLayout } from "@/layouts/PublicLearnerLayout";
 import { PlayerLayout } from "@/layouts/PlayerLayout";
 import { SharedLayout } from "@/layouts/SharedLayout";
 
@@ -50,9 +51,11 @@ export default function App() {
           <Route path="/users" element={<AdminLayout><UsersPage /></AdminLayout>} />
           <Route path="/users/:id" element={<AdminLayout><UserDetailPage /></AdminLayout>} />
 
-          {/* Learner routes */}
-          <Route path="/courses" element={<LearnerLayout><CoursesPage /></LearnerLayout>} />
-          <Route path="/course/:id" element={<LearnerLayout><CourseOverviewPage /></LearnerLayout>} />
+          {/* Public learner routes (browsable without login) */}
+          <Route path="/courses" element={<PublicLearnerLayout><CoursesPage /></PublicLearnerLayout>} />
+          <Route path="/course/:id" element={<PublicLearnerLayout><CourseOverviewPage /></PublicLearnerLayout>} />
+
+          {/* Authenticated learner routes */}
           <Route path="/my-courses" element={<LearnerLayout><MyCoursesPage /></LearnerLayout>} />
 
           {/* Player route */}

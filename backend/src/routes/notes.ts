@@ -1,29 +1,18 @@
 import { Router, Response } from 'express';
-import { z } from 'zod';
-import { prisma } from '../app.js';
+import { queryOne, execute, now } from '../db.js';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
 
 const router = Router();
-
-const updateNoteSchema = z.object({
-  content: z.string().min(1).optional(),
-  timestampSeconds: z.number().int().min(0).optional(),
-});
 
 // GET /notes/:id
 router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-
-    const note = await prisma.note.findUnique({
-      where: { id },
-    });
+    const note = await queryOne<any>('SELECT * FROM notes WHERE id = ?', [id]);
 
     if (!note) {
       return res.status(404).json({ error: 'Note not found' });
     }
-
-    // Only owner can view
     if (note.userId !== req.user!.id) {
       return res.status(403).json({ error: 'Access denied' });
     }
@@ -39,8 +28,7 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
 router.patch('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-
-    const note = await prisma.note.findUnique({ where: { id } });
+    const note = await queryOne<any>('SELECT * FROM notes WHERE id = ?', [id]);
 
     if (!note) {
       return res.status(404).json({ error: 'Note not found' });
@@ -49,18 +37,20 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    const data = updateNoteSchema.parse(req.body);
+    const { content, timestampSeconds } = req.body;
+    const sets: string[] = [];
+    const params: any[] = [];
 
-    const updated = await prisma.note.update({
-      where: { id },
-      data,
-    });
+    if (content !== undefined) { sets.push('content = ?'); params.push(content); }
+    if (timestampSeconds !== undefined) { sets.push('timestampSeconds = ?'); params.push(timestampSeconds); }
+    sets.push('updatedAt = ?'); params.push(now());
+    params.push(id);
+
+    await execute(`UPDATE notes SET ${sets.join(', ')} WHERE id = ?`, params);
+    const updated = await queryOne<any>('SELECT * FROM notes WHERE id = ?', [id]);
 
     res.json({ note: updated });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
-    }
     console.error('Update note error:', error);
     res.status(500).json({ error: 'Failed to update note' });
   }
@@ -70,8 +60,7 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res: Response) => {
 router.delete('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-
-    const note = await prisma.note.findUnique({ where: { id } });
+    const note = await queryOne<any>('SELECT * FROM notes WHERE id = ?', [id]);
 
     if (!note) {
       return res.status(404).json({ error: 'Note not found' });
@@ -80,8 +69,7 @@ router.delete('/:id', authenticate, async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    await prisma.note.delete({ where: { id } });
-
+    await execute('DELETE FROM notes WHERE id = ?', [id]);
     res.json({ message: 'Note deleted successfully' });
   } catch (error) {
     console.error('Delete note error:', error);

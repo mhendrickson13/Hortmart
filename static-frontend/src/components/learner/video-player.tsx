@@ -77,12 +77,43 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
     },
   }), [currentTime, isYouTube]);
 
-  // Initialize video time
+  // Reset and initialize video time when src changes (lesson switch)
   useEffect(() => {
-    if (videoRef.current && initialTime > 0 && !isYouTube) {
+    if (!videoRef.current || isYouTube) return;
+    const video = videoRef.current;
+    // Pause current playback
+    video.pause();
+    setIsPlaying(false);
+    setProgress(0);
+    setCurrentTime(0);
+    setDuration(0);
+
+    // For non-HLS, set the new source
+    if (src && !isHlsUrl(src)) {
+      video.src = src;
+      video.load();
+    }
+
+    // Seek to initialTime after metadata is loaded
+    const handleLoaded = () => {
+      if (initialTime > 0) {
+        video.currentTime = initialTime;
+      }
+      setDuration(video.duration || 0);
+    };
+    video.addEventListener("loadedmetadata", handleLoaded, { once: true });
+
+    return () => {
+      video.removeEventListener("loadedmetadata", handleLoaded);
+    };
+  }, [src, isYouTube]); // intentionally omit initialTime - only reset on src change
+
+  // Apply initialTime changes (e.g. from resume position) without resetting
+  useEffect(() => {
+    if (videoRef.current && initialTime > 0 && !isYouTube && videoRef.current.readyState >= 1) {
       videoRef.current.currentTime = initialTime;
     }
-  }, [initialTime, src, isYouTube]);
+  }, [initialTime, isYouTube]);
 
   // HLS.js integration for .m3u8 streams
   useEffect(() => {

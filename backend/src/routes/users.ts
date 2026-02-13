@@ -1,23 +1,9 @@
 import { Router, Response } from 'express';
 import bcrypt from 'bcryptjs';
-import { z } from 'zod';
-import { prisma } from '../app.js';
+import { query, queryOne, execute, genId, now, inPlaceholders } from '../db.js';
 import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth.js';
 
 const router = Router();
-
-// Validation schemas
-const updateUserSchema = z.object({
-  name: z.string().min(2).optional(),
-  bio: z.string().optional(),
-  image: z.string().url().optional(),
-  role: z.enum(['LEARNER', 'CREATOR', 'ADMIN']).optional(),
-});
-
-const changePasswordSchema = z.object({
-  currentPassword: z.string(),
-  newPassword: z.string().min(6),
-});
 
 // GET /users - List all users (Admin only)
 router.get('/', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
@@ -27,126 +13,117 @@ router.get('/', authenticate, requireAdmin, async (req: AuthRequest, res: Respon
     const search = req.query.search as string;
     const role = req.query.role as string;
 
-    const where: any = {};
+    // Build WHERE clause
+    const conditions: string[] = [];
+    const params: any[] = [];
 
-    // Note: SQLite doesn't support mode: 'insensitive', so we filter in-memory
-    const searchQuery = search?.toLowerCase();
-    
     if (role) {
-      where.role = role;
+      conditions.push('u.role = ?');
+      params.push(role);
+    }
+    if (search) {
+      conditions.push('(LOWER(u.name) LIKE ? OR LOWER(u.email) LIKE ?)');
+      const s = `%${search.toLowerCase()}%`;
+      params.push(s, s);
     }
 
-    let allUsers = await prisma.user.findMany({
-      where,
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        image: true,
-        role: true,
-        createdAt: true,
-        updatedAt: true,
-        _count: {
-          select: {
-            enrollments: true,
-            courses: true,
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    // In-memory search filtering (SQLite-safe)
-    if (searchQuery) {
-      allUsers = allUsers.filter(
-        (u) =>
-          (u.name && u.name.toLowerCase().includes(searchQuery)) ||
-          u.email.toLowerCase().includes(searchQuery)
+    // Count total
+    const totalRow = await queryOne<any>(`SELECT COUNT(*) as cnt FROM users u ${whereClause}`, params);
+    const total = Number(totalRow?.cnt ?? 0);
+
+    // Fetch page
+    const users = await query<any[]>(
+      `SELECT u.id, u.email, u.name, u.image, u.role, u.createdAt, u.updatedAt
+       FROM users u ${whereClause}
+       ORDER BY u.createdAt DESC
+       LIMIT ? OFFSET ?`,
+      [...params, limit, (page - 1) * limit]
+    );
+
+    if (users.length === 0) {
+      return res.json({
+        users: [],
+        pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      });
+    }
+
+    const userIds = users.map(u => u.id);
+    const placeholders = inPlaceholders(userIds);
+
+    // Counts: enrollments and courses per user
+    const enrollCounts = await query<any[]>(
+      `SELECT userId, COUNT(*) as cnt FROM enrollments WHERE userId IN (${placeholders}) GROUP BY userId`,
+      userIds
+    );
+    const courseCounts = await query<any[]>(
+      `SELECT creatorId, COUNT(*) as cnt FROM courses WHERE creatorId IN (${placeholders}) GROUP BY creatorId`,
+      userIds
+    );
+
+    const enrollMap = new Map(enrollCounts.map(r => [r.userId, Number(r.cnt)]));
+    const courseMap = new Map(courseCounts.map(r => [r.creatorId, Number(r.cnt)]));
+
+    // Last activity
+    const lastActivity = await query<any[]>(
+      `SELECT en.userId, MAX(lp.lastWatchedAt) as lastActive
+       FROM enrollments en
+       JOIN lesson_progress lp ON lp.enrollmentId = en.id
+       WHERE en.userId IN (${placeholders}) AND lp.lastWatchedAt IS NOT NULL
+       GROUP BY en.userId`,
+      userIds
+    );
+    const activityMap = new Map(lastActivity.map(r => [r.userId, r.lastActive]));
+
+    // Completed courses count
+      const enrollmentsData = await query<any[]>(
+        `SELECT id as enrollmentId, userId, courseId FROM enrollments WHERE userId IN (${placeholders})`,
+        userIds
       );
-    }
 
-    const total = allUsers.length;
-    const users = allUsers.slice((page - 1) * limit, page * limit);
+    const completedCountByUser = new Map<string, number>();
+    for (const uid of userIds) completedCountByUser.set(uid, 0);
 
-    const userIds = users.map((u) => u.id);
+    if (enrollmentsData.length > 0) {
+      const courseIds = [...new Set(enrollmentsData.map(e => e.courseId))];
+      const cp = inPlaceholders(courseIds);
 
-    // Last activity: max of lastWatchedAt from lesson progress, fallback to user updatedAt
-    const enrollmentsForUsers = await prisma.enrollment.findMany({
-      where: { userId: { in: userIds } },
-      select: { id: true, userId: true },
-    });
-    const enrollmentIds = enrollmentsForUsers.map((e) => e.id);
-    const lastWatched = enrollmentIds.length
-      ? await prisma.lessonProgress.findMany({
-          where: { enrollmentId: { in: enrollmentIds } },
-          select: { lastWatchedAt: true, enrollmentId: true },
-        })
-      : [];
-    const lastByEnrollment = new Map<string, Date | null>();
-    for (const lp of lastWatched) {
-      if (lp.lastWatchedAt) {
-        const existing = lastByEnrollment.get(lp.enrollmentId);
-        if (!existing || lp.lastWatchedAt > existing) {
-          lastByEnrollment.set(lp.enrollmentId, lp.lastWatchedAt);
+      // Total lessons per course
+      const lessonCounts = await query<any[]>(
+        `SELECT m.courseId, COUNT(l.id) as cnt FROM modules m JOIN lessons l ON l.moduleId = m.id WHERE m.courseId IN (${cp}) GROUP BY m.courseId`,
+        courseIds
+      );
+      const totalLessonsMap = new Map(lessonCounts.map(r => [r.courseId, Number(r.cnt)]));
+
+      const eIds = enrollmentsData.map(e => e.enrollmentId);
+      const ep = inPlaceholders(eIds);
+
+      const completedCounts = await query<any[]>(
+        `SELECT enrollmentId, COUNT(*) as cnt FROM lesson_progress WHERE enrollmentId IN (${ep}) AND completedAt IS NOT NULL GROUP BY enrollmentId`,
+        eIds
+      );
+      const completedMap = new Map(completedCounts.map(r => [r.enrollmentId, Number(r.cnt)]));
+
+      for (const enr of enrollmentsData) {
+        const totalL = totalLessonsMap.get(enr.courseId) ?? 0;
+        const completedL = completedMap.get(enr.enrollmentId) ?? 0;
+        if (totalL > 0 && completedL === totalL) {
+          completedCountByUser.set(enr.userId, (completedCountByUser.get(enr.userId) ?? 0) + 1);
         }
       }
     }
-    const enrollmentToUser = new Map(enrollmentsForUsers.map((e) => [e.id, e.userId]));
-    const lastActiveByUser = new Map<string, Date>();
-    for (const [eid, date] of lastByEnrollment) {
-      if (!date) continue;
-      const uid = enrollmentToUser.get(eid);
-      if (uid) {
-        const existing = lastActiveByUser.get(uid);
-        if (!existing || date > existing) lastActiveByUser.set(uid, date);
-      }
-    }
 
-    // Completed courses count per user (enrollment where all lessons completed)
-    const enrollmentsWithProgress = await prisma.enrollment.findMany({
-      where: { userId: { in: userIds } },
-      include: {
-        course: {
-          select: {
-            modules: {
-              select: {
-                lessons: { select: { id: true } },
-              },
-            },
-          },
-        },
-        lessonProgress: {
-          select: { completedAt: true, lessonId: true },
-        },
-      },
-    });
-    const completedCountByUser = new Map<string, number>();
-    for (const uid of userIds) completedCountByUser.set(uid, 0);
-    for (const enr of enrollmentsWithProgress) {
-      const totalLessons = enr.course.modules.reduce((acc, m) => acc + m.lessons.length, 0);
-      const completedLessons = enr.lessonProgress.filter((lp) => lp.completedAt != null).length;
-      if (totalLessons > 0 && completedLessons === totalLessons) {
-        completedCountByUser.set(enr.userId, (completedCountByUser.get(enr.userId) ?? 0) + 1);
-      }
-    }
-
-    const usersWithStats = users.map((u) => {
-      const lastActiveAt = lastActiveByUser.get(u.id) ?? (u as { updatedAt?: Date }).updatedAt ?? u.createdAt;
-      return {
-        ...u,
-        lastActiveAt: lastActiveAt instanceof Date ? lastActiveAt.toISOString() : lastActiveAt,
-        completedCoursesCount: completedCountByUser.get(u.id) ?? 0,
-      };
-    });
+    const usersWithStats = users.map(u => ({
+      ...u,
+      _count: { enrollments: enrollMap.get(u.id) ?? 0, courses: courseMap.get(u.id) ?? 0 },
+      lastActiveAt: activityMap.get(u.id) ?? u.updatedAt ?? u.createdAt,
+      completedCoursesCount: completedCountByUser.get(u.id) ?? 0,
+    }));
 
     res.json({
       users: usersWithStats,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
   } catch (error) {
     console.error('List users error:', error);
@@ -154,206 +131,192 @@ router.get('/', authenticate, requireAdmin, async (req: AuthRequest, res: Respon
   }
 });
 
-// GET /users/profile - Get current user profile
+// GET /users/profile
 router.get('/profile', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: req.user!.id },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        image: true,
-        bio: true,
-        role: true,
-        createdAt: true,
-        updatedAt: true,
+    const user = await queryOne<any>(
+      'SELECT id, email, name, image, bio, role, createdAt, updatedAt FROM users WHERE id = ?',
+      [req.user!.id]
+    );
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const counts = await queryOne<any>(
+      `SELECT
+        (SELECT COUNT(*) FROM enrollments WHERE userId = ?) as enrollments,
+        (SELECT COUNT(*) FROM courses WHERE creatorId = ?) as courses,
+        (SELECT COUNT(*) FROM reviews WHERE userId = ?) as reviews`,
+      [req.user!.id, req.user!.id, req.user!.id]
+    );
+
+    res.json({
+      user: {
+        ...user,
         _count: {
-          select: {
-            enrollments: true,
-            courses: true,
-            reviews: true,
-          },
+          enrollments: Number(counts?.enrollments ?? 0),
+          courses: Number(counts?.courses ?? 0),
+          reviews: Number(counts?.reviews ?? 0),
         },
       },
     });
-
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    res.json({ user });
   } catch (error) {
     console.error('Get profile error:', error);
     res.status(500).json({ error: 'Failed to get profile' });
   }
 });
 
-// GET /users/profile/enrollments - Get current user's enrollments
+// GET /users/profile/enrollments
 router.get('/profile/enrollments', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const enrollments = await prisma.enrollment.findMany({
-      where: { userId: req.user!.id },
-      include: {
-        course: {
-          select: {
-            id: true,
-            title: true,
-            subtitle: true,
-            coverImage: true,
-            price: true,
-            level: true,
-            category: true,
-            creator: {
-              select: { id: true, name: true, image: true },
-            },
-            modules: {
-              include: {
-                lessons: {
-                  select: { id: true, durationSeconds: true },
-                },
-              },
-            },
-          },
-        },
-        lessonProgress: true,
-      },
-      orderBy: { enrolledAt: 'desc' },
-    });
+    const enrollments = await query<any[]>(
+      `SELECT e.*, c.id as c_id, c.title, c.subtitle, c.coverImage, c.price, c.level, c.category,
+              u.id as cr_id, u.name as cr_name, u.image as cr_image
+       FROM enrollments e
+       JOIN courses c ON e.courseId = c.id AND c.status = 'PUBLISHED'
+       LEFT JOIN users u ON c.creatorId = u.id
+       WHERE e.userId = ?
+       ORDER BY e.enrolledAt DESC`,
+      [req.user!.id]
+    );
 
-    res.json({ enrollments });
+    // Enrich each enrollment with modules/lessons/progress
+    const result = [];
+    for (const enr of enrollments) {
+      const modules = await query<any[]>(
+        'SELECT m.id, l.id as lessonId, l.durationSeconds FROM modules m LEFT JOIN lessons l ON l.moduleId = m.id WHERE m.courseId = ?',
+        [enr.courseId]
+      );
+      const lessonProgress = await query<any[]>(
+        'SELECT * FROM lesson_progress WHERE enrollmentId = ?',
+        [enr.id]
+      );
+
+      result.push({
+        id: enr.id, userId: enr.userId, courseId: enr.courseId, enrolledAt: enr.enrolledAt,
+        course: {
+          id: enr.c_id, title: enr.title, subtitle: enr.subtitle, coverImage: enr.coverImage,
+          price: enr.price, level: enr.level, category: enr.category,
+          creator: { id: enr.cr_id, name: enr.cr_name, image: enr.cr_image },
+          modules: groupModulesWithLessons(modules),
+        },
+        lessonProgress,
+      });
+    }
+
+    res.json({ enrollments: result });
   } catch (error) {
     console.error('Get profile enrollments error:', error);
     res.status(500).json({ error: 'Failed to get enrollments' });
   }
 });
 
-// PATCH /users/profile - Update current user profile
+// Helper to group flat module/lesson rows
+function groupModulesWithLessons(rows: any[]) {
+  const moduleMap = new Map<string, any>();
+  for (const r of rows) {
+    if (!moduleMap.has(r.id)) {
+      moduleMap.set(r.id, { id: r.id, lessons: [] });
+    }
+    if (r.lessonId) {
+      moduleMap.get(r.id)!.lessons.push({ id: r.lessonId, durationSeconds: r.durationSeconds ?? 0 });
+    }
+  }
+  return [...moduleMap.values()];
+}
+
+// PATCH /users/profile
 router.patch('/profile', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const data = updateUserSchema.parse(req.body);
-    
-    // Remove role if not admin
-    if (req.user!.role !== 'ADMIN') {
-      delete data.role;
-    }
+    const { name, bio, image, role } = req.body;
+    const sets: string[] = [];
+    const params: any[] = [];
 
-    const user = await prisma.user.update({
-      where: { id: req.user!.id },
-      data,
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        image: true,
-        bio: true,
-        role: true,
-        updatedAt: true,
-      },
-    });
+    if (name !== undefined) { sets.push('name = ?'); params.push(name); }
+    if (bio !== undefined) { sets.push('bio = ?'); params.push(bio); }
+    if (image !== undefined) { sets.push('image = ?'); params.push(image); }
+    if (role !== undefined && req.user!.role === 'ADMIN') { sets.push('role = ?'); params.push(role); }
+    sets.push('updatedAt = ?'); params.push(now());
+    params.push(req.user!.id);
+
+    await execute(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`, params);
+    const user = await queryOne<any>(
+      'SELECT id, email, name, image, bio, role, updatedAt FROM users WHERE id = ?',
+      [req.user!.id]
+    );
 
     res.json({ user });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
-    }
     console.error('Update profile error:', error);
     res.status(500).json({ error: 'Failed to update profile' });
   }
 });
 
-// PATCH /users/password - Change password
+// PATCH /users/password
 router.patch('/password', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const data = changePasswordSchema.parse(req.body);
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword || newPassword.length < 6) {
+      return res.status(400).json({ error: 'Valid currentPassword and newPassword (min 6 chars) required' });
+    }
 
-    const user = await prisma.user.findUnique({
-      where: { id: req.user!.id },
-    });
-
+    const user = await queryOne<any>('SELECT password FROM users WHERE id = ?', [req.user!.id]);
     if (!user || !user.password) {
       return res.status(400).json({ error: 'Cannot change password' });
     }
 
-    const valid = await bcrypt.compare(data.currentPassword, user.password);
+    const valid = await bcrypt.compare(currentPassword, user.password);
     if (!valid) {
       return res.status(400).json({ error: 'Current password is incorrect' });
     }
 
-    const hashedPassword = await bcrypt.hash(data.newPassword, 10);
-
-    await prisma.user.update({
-      where: { id: req.user!.id },
-      data: { password: hashedPassword },
-    });
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await execute('UPDATE users SET password = ?, updatedAt = ? WHERE id = ?', [hashed, now(), req.user!.id]);
 
     res.json({ message: 'Password updated successfully' });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
-    }
     console.error('Change password error:', error);
     res.status(500).json({ error: 'Failed to change password' });
   }
 });
 
-// GET /users/:id - Get user by ID
+// GET /users/:id
 router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-
-    // Only admin or self can view
     if (req.user!.role !== 'ADMIN' && req.user!.id !== id) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        image: true,
-        bio: true,
-        role: true,
-        emailVerified: true,
-        createdAt: true,
-        updatedAt: true,
-        _count: {
-          select: {
-            enrollments: true,
-            courses: true,
-            reviews: true,
-          },
-        },
-      },
-    });
+    const user = await queryOne<any>(
+      'SELECT id, email, name, image, bio, role, emailVerified, blockedAt, createdAt, updatedAt FROM users WHERE id = ?',
+      [id]
+    );
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+    const counts = await queryOne<any>(
+      `SELECT
+        (SELECT COUNT(*) FROM enrollments WHERE userId = ?) as enrollments,
+        (SELECT COUNT(*) FROM courses WHERE creatorId = ?) as courses,
+        (SELECT COUNT(*) FROM reviews WHERE userId = ?) as reviews`,
+      [id, id, id]
+    );
 
-    // Last activity: max lastWatchedAt from lesson progress, fallback to updatedAt
-    const enrollments = await prisma.enrollment.findMany({
-      where: { userId: id },
-      select: { id: true },
-    });
-    const enrollmentIds = enrollments.map((e) => e.id);
-    let lastActiveAt: Date | null = null;
-    if (enrollmentIds.length > 0) {
-      const latest = await prisma.lessonProgress.findFirst({
-        where: { enrollmentId: { in: enrollmentIds } },
-        orderBy: { lastWatchedAt: 'desc' },
-        select: { lastWatchedAt: true },
-      });
-      lastActiveAt = latest?.lastWatchedAt ?? null;
-    }
-    const lastActive = lastActiveAt ?? (user as { updatedAt: Date }).updatedAt;
+    // Last activity
+    const lastActive = await queryOne<any>(
+      `SELECT MAX(lp.lastWatchedAt) as lastActive
+       FROM enrollments en JOIN lesson_progress lp ON lp.enrollmentId = en.id
+       WHERE en.userId = ? AND lp.lastWatchedAt IS NOT NULL`,
+      [id]
+    );
 
     res.json({
       user: {
         ...user,
-        lastActiveAt: lastActive ? (lastActive instanceof Date ? lastActive.toISOString() : lastActive) : null,
+        _count: {
+          enrollments: Number(counts?.enrollments ?? 0),
+          courses: Number(counts?.courses ?? 0),
+          reviews: Number(counts?.reviews ?? 0),
+        },
+        lastActiveAt: lastActive?.lastActive ?? user.updatedAt,
       },
     });
   } catch (error) {
@@ -362,59 +325,47 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   }
 });
 
-// PATCH /users/:id - Update user (Admin or self)
+// PATCH /users/:id
 router.patch('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-
-    // Only admin or self can update
     if (req.user!.role !== 'ADMIN' && req.user!.id !== id) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    const data = updateUserSchema.parse(req.body);
-    
-    // Only admin can change role
-    if (req.user!.role !== 'ADMIN') {
-      delete data.role;
-    }
+    const { name, bio, image, role } = req.body;
+    const sets: string[] = [];
+    const params: any[] = [];
 
-    const user = await prisma.user.update({
-      where: { id },
-      data,
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        image: true,
-        bio: true,
-        role: true,
-        updatedAt: true,
-      },
-    });
+    if (name !== undefined) { sets.push('name = ?'); params.push(name); }
+    if (bio !== undefined) { sets.push('bio = ?'); params.push(bio); }
+    if (image !== undefined) { sets.push('image = ?'); params.push(image); }
+    if (role !== undefined && req.user!.role === 'ADMIN') { sets.push('role = ?'); params.push(role); }
+    sets.push('updatedAt = ?'); params.push(now());
+    params.push(id);
+
+    await execute(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`, params);
+    const user = await queryOne<any>(
+      'SELECT id, email, name, image, bio, role, updatedAt FROM users WHERE id = ?',
+      [id]
+    );
 
     res.json({ user });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
-    }
     console.error('Update user error:', error);
     res.status(500).json({ error: 'Failed to update user' });
   }
 });
 
-// DELETE /users/:id - Delete user (Admin or self)
+// DELETE /users/:id
 router.delete('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-
-    // Only admin or self can delete
     if (req.user!.role !== 'ADMIN' && req.user!.id !== id) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    await prisma.user.delete({ where: { id } });
-
+    await execute('DELETE FROM users WHERE id = ?', [id]);
     res.json({ message: 'User deleted successfully' });
   } catch (error) {
     console.error('Delete user error:', error);
@@ -422,80 +373,69 @@ router.delete('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   }
 });
 
-// GET /users/:id/enrollments - Get user's enrollments
+// GET /users/:id/enrollments
 router.get('/:id/enrollments', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-
-    // Only admin or self can view
     if (req.user!.role !== 'ADMIN' && req.user!.id !== id) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    const enrollments = await prisma.enrollment.findMany({
-      where: { userId: id },
-      include: {
-        course: {
-          select: {
-            id: true,
-            title: true,
-            coverImage: true,
-            price: true,
-            creator: {
-              select: { name: true },
-            },
-            modules: {
-              include: {
-                lessons: {
-                  select: { id: true },
-                },
-              },
-            },
-          },
-        },
-        lessonProgress: true,
-      },
-      orderBy: { enrolledAt: 'desc' },
-    });
+    const enrollments = await query<any[]>(
+      `SELECT e.*, c.id as c_id, c.title as c_title, c.coverImage, c.price,
+              u.name as cr_name
+       FROM enrollments e
+       JOIN courses c ON e.courseId = c.id
+       LEFT JOIN users u ON c.creatorId = u.id
+       WHERE e.userId = ?
+       ORDER BY e.enrolledAt DESC`,
+      [id]
+    );
 
-    // Calculate progress and last activity for each enrollment
-    const enrollmentsWithProgress = enrollments.map((enrollment) => {
-      const totalLessons = enrollment.course.modules.reduce(
-        (acc, module) => acc + module.lessons.length,
-        0
+    const result = [];
+    for (const enr of enrollments) {
+      // Lesson counts
+      const lessonRows = await query<any[]>(
+        'SELECT l.id FROM modules m JOIN lessons l ON l.moduleId = m.id WHERE m.courseId = ?',
+        [enr.courseId]
       );
-      const completedLessons = enrollment.lessonProgress.filter(
-        (lp) => lp.completedAt != null
-      ).length;
+      const totalLessons = lessonRows.length;
+
+      const progressRows = await query<any[]>(
+        'SELECT * FROM lesson_progress WHERE enrollmentId = ?',
+        [enr.id]
+      );
+      const completedLessons = progressRows.filter(lp => lp.completedAt != null).length;
       const progress = totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0;
-      const lastActivityAt = enrollment.lessonProgress.reduce<Date | null>((max, lp) => {
+
+      const lastActivityAt = progressRows.reduce<Date | null>((max, lp) => {
         const d = lp.lastWatchedAt ?? lp.completedAt ?? lp.updatedAt;
         if (!d) return max;
         return !max || d > max ? d : max;
       }, null);
 
-      return {
-        id: enrollment.id,
-        courseId: enrollment.course.id,
-        courseTitle: enrollment.course.title,
-        coursePrice: enrollment.course.price ?? 0,
-        enrolledAt: enrollment.enrolledAt,
+      result.push({
+        id: enr.id,
+        courseId: enr.c_id,
+        courseTitle: enr.c_title,
+        coursePrice: enr.price ?? 0,
+        enrolledAt: enr.enrolledAt,
         totalLessons,
         completedLessons,
         progressPercent: Math.round(progress * 10) / 10,
         lastActivityAt: lastActivityAt ? lastActivityAt.toISOString() : null,
         isCompleted: totalLessons > 0 && completedLessons === totalLessons,
         course: {
-          id: enrollment.course.id,
-          title: enrollment.course.title,
-          coverImage: enrollment.course.coverImage,
-          creator: enrollment.course.creator,
+          id: enr.c_id,
+          title: enr.c_title,
+          coverImage: enr.coverImage,
+          creator: { name: enr.cr_name },
         },
         progress: Math.round(progress * 10) / 10,
-      };
-    });
+      });
+    }
 
-    res.json({ enrollments: enrollmentsWithProgress });
+    res.json({ enrollments: result });
   } catch (error) {
     console.error('Get enrollments error:', error);
     res.status(500).json({ error: 'Failed to get enrollments' });
@@ -505,100 +445,80 @@ router.get('/:id/enrollments', authenticate, async (req: AuthRequest, res: Respo
 // POST /users - Create user (Admin only)
 router.post('/', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
-    const createUserSchema = z.object({
-      email: z.string().email(),
-      password: z.string().min(6),
-      name: z.string().min(2).optional(),
-      role: z.enum(['LEARNER', 'CREATOR', 'ADMIN']).optional(),
-    });
+    const { email, password, name, role } = req.body;
+    if (!email || !password || password.length < 6) {
+      return res.status(400).json({ error: 'Valid email and password (min 6 chars) required' });
+    }
 
-    const data = createUserSchema.parse(req.body);
-    const hashedPassword = await bcrypt.hash(data.password, 10);
+    const hashed = await bcrypt.hash(password, 10);
+    const id = genId();
+    const ts = now();
 
-    const user = await prisma.user.create({
-      data: {
-        email: data.email,
-        password: hashedPassword,
-        name: data.name || null,
-        role: data.role || 'LEARNER',
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        image: true,
-        role: true,
-        createdAt: true,
-      },
-    });
+    try {
+      await execute(
+        'INSERT INTO users (id, email, password, name, role, updatedAt) VALUES (?, ?, ?, ?, ?, ?)',
+        [id, email, hashed, name || null, role || 'LEARNER', ts]
+      );
+    } catch (e: any) {
+      if (e.code === 'ER_DUP_ENTRY') {
+        return res.status(409).json({ error: 'Email already exists' });
+      }
+      throw e;
+    }
+
+    const user = await queryOne<any>(
+      'SELECT id, email, name, image, role, createdAt FROM users WHERE id = ?',
+      [id]
+    );
 
     res.status(201).json({ user });
-  } catch (error: any) {
-    if (error?.code === 'P2002') {
-      return res.status(409).json({ error: 'Email already exists' });
-    }
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
-    }
+  } catch (error) {
     console.error('Create user error:', error);
     res.status(500).json({ error: 'Failed to create user' });
   }
 });
 
-// POST /users/:id/block - Block a user (Admin only)
+// POST /users/:id/block
 router.post('/:id/block', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.params.id;
-
-    // Don't allow blocking yourself
     if (userId === req.user!.id) {
       return res.status(400).json({ error: 'Cannot block yourself' });
     }
 
-    const user = await prisma.user.update({
-      where: { id: userId },
-      data: { blockedAt: new Date() },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        blockedAt: true,
-      },
-    });
+    const existing = await queryOne<any>('SELECT id FROM users WHERE id = ?', [userId]);
+    if (!existing) return res.status(404).json({ error: 'User not found' });
+
+    const ts = now();
+    await execute('UPDATE users SET blockedAt = ?, updatedAt = ? WHERE id = ?', [ts, ts, userId]);
+    const user = await queryOne<any>(
+      'SELECT id, email, name, role, blockedAt FROM users WHERE id = ?',
+      [userId]
+    );
 
     res.json({ user, message: 'User blocked successfully' });
-  } catch (error: any) {
-    if (error?.code === 'P2025') {
-      return res.status(404).json({ error: 'User not found' });
-    }
+  } catch (error) {
     console.error('Block user error:', error);
     res.status(500).json({ error: 'Failed to block user' });
   }
 });
 
-// POST /users/:id/unblock - Unblock a user (Admin only)
+// POST /users/:id/unblock
 router.post('/:id/unblock', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.params.id;
 
-    const user = await prisma.user.update({
-      where: { id: userId },
-      data: { blockedAt: null },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        blockedAt: true,
-      },
-    });
+    const existing = await queryOne<any>('SELECT id FROM users WHERE id = ?', [userId]);
+    if (!existing) return res.status(404).json({ error: 'User not found' });
+
+    await execute('UPDATE users SET blockedAt = NULL, updatedAt = ? WHERE id = ?', [now(), userId]);
+    const user = await queryOne<any>(
+      'SELECT id, email, name, role, blockedAt FROM users WHERE id = ?',
+      [userId]
+    );
 
     res.json({ user, message: 'User unblocked successfully' });
-  } catch (error: any) {
-    if (error?.code === 'P2025') {
-      return res.status(404).json({ error: 'User not found' });
-    }
+  } catch (error) {
     console.error('Unblock user error:', error);
     res.status(500).json({ error: 'Failed to unblock user' });
   }

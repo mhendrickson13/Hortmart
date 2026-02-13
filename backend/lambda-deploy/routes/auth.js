@@ -6,60 +6,31 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-const zod_1 = require("zod");
-const app_js_1 = require("../app.js");
+const db_js_1 = require("../db.js");
 const auth_js_1 = require("../middleware/auth.js");
 const router = (0, express_1.Router)();
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const JWT_EXPIRES_IN = (process.env.JWT_EXPIRES_IN || '7d');
-// Validation schemas
-const registerSchema = zod_1.z.object({
-    email: zod_1.z.string().email(),
-    password: zod_1.z.string().min(6),
-    name: zod_1.z.string().min(2).optional(),
-});
-const loginSchema = zod_1.z.object({
-    email: zod_1.z.string().email(),
-    password: zod_1.z.string(),
-});
 // POST /auth/register
 router.post('/register', async (req, res) => {
     try {
-        const data = registerSchema.parse(req.body);
-        // Check if user exists
-        const existing = await app_js_1.prisma.user.findUnique({
-            where: { email: data.email },
-        });
+        const { email, password, name } = req.body;
+        if (!email || !password || password.length < 6) {
+            return res.status(400).json({ error: 'Valid email and password (min 6 chars) are required' });
+        }
+        const existing = await (0, db_js_1.queryOne)('SELECT id FROM users WHERE email = ?', [email]);
         if (existing) {
             return res.status(409).json({ error: 'Email already registered' });
         }
-        // Hash password
-        const hashedPassword = await bcryptjs_1.default.hash(data.password, 10);
-        // Create user
-        const user = await app_js_1.prisma.user.create({
-            data: {
-                email: data.email,
-                password: hashedPassword,
-                name: data.name,
-            },
-            select: {
-                id: true,
-                email: true,
-                name: true,
-                role: true,
-                createdAt: true,
-            },
-        });
-        // Generate token
-        const token = jsonwebtoken_1.default.sign({ userId: user.id }, JWT_SECRET, {
-            expiresIn: JWT_EXPIRES_IN,
-        });
+        const hashedPassword = await bcryptjs_1.default.hash(password, 10);
+        const id = (0, db_js_1.genId)();
+        const ts = (0, db_js_1.now)();
+        await (0, db_js_1.execute)('INSERT INTO users (id, email, password, name, role, updatedAt) VALUES (?, ?, ?, ?, ?, ?)', [id, email, hashedPassword, name || null, 'LEARNER', ts]);
+        const user = { id, email, name: name || null, role: 'LEARNER', createdAt: new Date() };
+        const token = jsonwebtoken_1.default.sign({ userId: id }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
         res.status(201).json({ user, token });
     }
     catch (error) {
-        if (error instanceof zod_1.z.ZodError) {
-            return res.status(400).json({ error: error.errors });
-        }
         console.error('Register error:', error);
         res.status(500).json({ error: 'Registration failed' });
     }
@@ -67,23 +38,19 @@ router.post('/register', async (req, res) => {
 // POST /auth/login
 router.post('/login', async (req, res) => {
     try {
-        const data = loginSchema.parse(req.body);
-        // Find user
-        const user = await app_js_1.prisma.user.findUnique({
-            where: { email: data.email },
-        });
+        const { email, password } = req.body;
+        if (!email || !password) {
+            return res.status(400).json({ error: 'Email and password are required' });
+        }
+        const user = await (0, db_js_1.queryOne)('SELECT * FROM users WHERE email = ?', [email]);
         if (!user || !user.password) {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
-        // Verify password
-        const valid = await bcryptjs_1.default.compare(data.password, user.password);
+        const valid = await bcryptjs_1.default.compare(password, user.password);
         if (!valid) {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
-        // Generate token
-        const token = jsonwebtoken_1.default.sign({ userId: user.id }, JWT_SECRET, {
-            expiresIn: JWT_EXPIRES_IN,
-        });
+        const token = jsonwebtoken_1.default.sign({ userId: user.id }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
         res.json({
             user: {
                 id: user.id,
@@ -96,9 +63,6 @@ router.post('/login', async (req, res) => {
         });
     }
     catch (error) {
-        if (error instanceof zod_1.z.ZodError) {
-            return res.status(400).json({ error: error.errors });
-        }
         console.error('Login error:', error);
         res.status(500).json({ error: 'Login failed' });
     }
@@ -106,17 +70,7 @@ router.post('/login', async (req, res) => {
 // GET /auth/session
 router.get('/session', auth_js_1.authenticate, async (req, res) => {
     try {
-        const user = await app_js_1.prisma.user.findUnique({
-            where: { id: req.user.id },
-            select: {
-                id: true,
-                email: true,
-                name: true,
-                image: true,
-                bio: true,
-                role: true,
-            },
-        });
+        const user = await (0, db_js_1.queryOne)('SELECT id, email, name, image, bio, role FROM users WHERE id = ?', [req.user.id]);
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
         }

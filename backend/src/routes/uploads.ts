@@ -6,7 +6,7 @@ import crypto from 'crypto';
 
 const router = Router();
 
-// S3 client — Lambda in us-east-1 with IAM role already has credentials
+// S3 client — Lambda runtime provides @aws-sdk; no need to bundle
 const s3 = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
 const BUCKET = process.env.S3_BUCKET || 'cxflowio';
 const CDN_BASE = process.env.CDN_BASE_URL || 'https://cxflowio.s3.us-east-1.amazonaws.com';
@@ -15,17 +15,17 @@ const CDN_BASE = process.env.CDN_BASE_URL || 'https://cxflowio.s3.us-east-1.amaz
 const ALLOWED_TYPES: Record<string, { extensions: string[]; maxSize: number; folder: string }> = {
   image: {
     extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'],
-    maxSize: 10 * 1024 * 1024, // 10MB
+    maxSize: 10 * 1024 * 1024,
     folder: 'academy/uploads/images',
   },
   video: {
     extensions: ['mp4', 'webm', 'mov', 'avi', 'mkv'],
-    maxSize: 2 * 1024 * 1024 * 1024, // 2GB
+    maxSize: 2 * 1024 * 1024 * 1024,
     folder: 'academy/uploads/videos',
   },
   document: {
     extensions: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'zip', 'rar'],
-    maxSize: 100 * 1024 * 1024, // 100MB
+    maxSize: 100 * 1024 * 1024,
     folder: 'academy/uploads/documents',
   },
 };
@@ -45,11 +45,6 @@ const CONTENT_TYPES: Record<string, string> = {
   txt: 'text/plain', zip: 'application/zip', rar: 'application/x-rar-compressed',
 };
 
-/**
- * POST /uploads/presigned
- * Body: { fileName: string, fileType: 'image' | 'video' | 'document', fileSize?: number }
- * Returns: { uploadUrl: string, fileUrl: string, key: string }
- */
 router.post('/presigned', authenticate, async (req: any, res) => {
   try {
     const { fileName, fileType, fileSize } = req.body;
@@ -63,7 +58,6 @@ router.post('/presigned', authenticate, async (req: any, res) => {
       return res.status(400).json({ error: `Invalid fileType. Must be one of: ${Object.keys(ALLOWED_TYPES).join(', ')}` });
     }
 
-    // Get file extension
     const ext = fileName.split('.').pop()?.toLowerCase() || '';
     if (!typeConfig.extensions.includes(ext)) {
       return res.status(400).json({
@@ -71,20 +65,17 @@ router.post('/presigned', authenticate, async (req: any, res) => {
       });
     }
 
-    // Check file size if provided
     if (fileSize && fileSize > typeConfig.maxSize) {
       return res.status(400).json({
         error: `File too large. Max size for ${fileType}: ${Math.round(typeConfig.maxSize / 1024 / 1024)}MB`,
       });
     }
 
-    // Generate unique key
     const uniqueId = crypto.randomUUID();
     const sanitizedName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
     const key = `${typeConfig.folder}/${uniqueId}-${sanitizedName}`;
     const contentType = CONTENT_TYPES[ext] || 'application/octet-stream';
 
-    // Generate presigned PUT URL (valid for 15 minutes)
     const command = new PutObjectCommand({
       Bucket: BUCKET,
       Key: key,

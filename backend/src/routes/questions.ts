@@ -1,51 +1,36 @@
 import { Router, Response } from 'express';
-import { z } from 'zod';
-import { prisma } from '../app.js';
+import { query, queryOne, execute, genId, now } from '../db.js';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
 
 const router = Router();
-
-const updateQuestionSchema = z.object({
-  content: z.string().min(1),
-});
-
-const createAnswerSchema = z.object({
-  content: z.string().min(1),
-});
 
 // GET /questions/:id
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-
-    const question = await prisma.question.findUnique({
-      where: { id },
-      include: {
-        user: {
-          select: { id: true, name: true, image: true },
-        },
-        answers: {
-          include: {
-            user: {
-              select: { id: true, name: true, image: true },
-            },
-          },
-          orderBy: [
-            { isAccepted: 'desc' },
-            { createdAt: 'asc' },
-          ],
-        },
-        lesson: {
-          select: { id: true, title: true },
-        },
-      },
-    });
+    const question = await queryOne<any>('SELECT * FROM questions WHERE id = ?', [id]);
 
     if (!question) {
       return res.status(404).json({ error: 'Question not found' });
     }
 
-    res.json({ question });
+    const user = await queryOne<any>('SELECT id, name, image FROM users WHERE id = ?', [question.userId]);
+    const lesson = await queryOne<any>('SELECT id, title FROM lessons WHERE id = ?', [question.lessonId]);
+    const answers = await query<any[]>(
+      `SELECT a.*, u.id as u_id, u.name as u_name, u.image as u_image
+       FROM answers a LEFT JOIN users u ON a.userId = u.id
+       WHERE a.questionId = ?
+       ORDER BY a.isAccepted DESC, a.createdAt ASC`,
+      [id]
+    );
+
+    const formattedAnswers = answers.map(a => ({
+      id: a.id, content: a.content, userId: a.userId, questionId: a.questionId,
+      isAccepted: !!a.isAccepted, createdAt: a.createdAt, updatedAt: a.updatedAt,
+      user: { id: a.u_id, name: a.u_name, image: a.u_image },
+    }));
+
+    res.json({ question: { ...question, user, lesson, answers: formattedAnswers } });
   } catch (error) {
     console.error('Get question error:', error);
     res.status(500).json({ error: 'Failed to get question' });
@@ -56,8 +41,7 @@ router.get('/:id', async (req, res) => {
 router.patch('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-
-    const question = await prisma.question.findUnique({ where: { id } });
+    const question = await queryOne<any>('SELECT * FROM questions WHERE id = ?', [id]);
 
     if (!question) {
       return res.status(404).json({ error: 'Question not found' });
@@ -66,18 +50,16 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    const data = updateQuestionSchema.parse(req.body);
+    const { content } = req.body;
+    if (!content) {
+      return res.status(400).json({ error: 'content is required' });
+    }
 
-    const updated = await prisma.question.update({
-      where: { id },
-      data,
-    });
+    await execute('UPDATE questions SET content = ?, updatedAt = ? WHERE id = ?', [content, now(), id]);
+    const updated = await queryOne<any>('SELECT * FROM questions WHERE id = ?', [id]);
 
     res.json({ question: updated });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
-    }
     console.error('Update question error:', error);
     res.status(500).json({ error: 'Failed to update question' });
   }
@@ -87,8 +69,7 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res: Response) => {
 router.delete('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-
-    const question = await prisma.question.findUnique({ where: { id } });
+    const question = await queryOne<any>('SELECT * FROM questions WHERE id = ?', [id]);
 
     if (!question) {
       return res.status(404).json({ error: 'Question not found' });
@@ -97,8 +78,7 @@ router.delete('/:id', authenticate, async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    await prisma.question.delete({ where: { id } });
-
+    await execute('DELETE FROM questions WHERE id = ?', [id]);
     res.json({ message: 'Question deleted successfully' });
   } catch (error) {
     console.error('Delete question error:', error);
@@ -110,31 +90,31 @@ router.delete('/:id', authenticate, async (req: AuthRequest, res: Response) => {
 router.post('/:id/answers', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const data = createAnswerSchema.parse(req.body);
+    const { content } = req.body;
 
-    const question = await prisma.question.findUnique({ where: { id } });
+    if (!content) {
+      return res.status(400).json({ error: 'content is required' });
+    }
+
+    const question = await queryOne<any>('SELECT id FROM questions WHERE id = ?', [id]);
     if (!question) {
       return res.status(404).json({ error: 'Question not found' });
     }
 
-    const answer = await prisma.answer.create({
-      data: {
-        content: data.content,
-        userId: req.user!.id,
-        questionId: id,
-      },
-      include: {
-        user: {
-          select: { id: true, name: true, image: true },
-        },
-      },
-    });
+    const answerId = genId();
+    const ts = now();
 
-    res.status(201).json({ answer });
+    await execute(
+      'INSERT INTO answers (id, content, userId, questionId, isAccepted, updatedAt) VALUES (?, ?, ?, ?, false, ?)',
+      [answerId, content, req.user!.id, id, ts]
+    );
+
+    const answer = await queryOne<any>('SELECT * FROM answers WHERE id = ?', [answerId]);
+    const user = await queryOne<any>('SELECT id, name, image FROM users WHERE id = ?', [req.user!.id]);
+    answer!.isAccepted = !!answer!.isAccepted;
+
+    res.status(201).json({ answer: { ...answer, user } });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
-    }
     console.error('Create answer error:', error);
     res.status(500).json({ error: 'Failed to create answer' });
   }

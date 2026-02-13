@@ -5,7 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.requireAdmin = exports.requireCreatorOrAdmin = exports.requireRole = exports.optionalAuth = exports.authenticate = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-const app_js_1 = require("../app.js");
+const db_js_1 = require("../db.js");
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const authenticate = async (req, res, next) => {
     try {
@@ -15,10 +15,7 @@ const authenticate = async (req, res, next) => {
         }
         const token = authHeader.substring(7);
         const decoded = jsonwebtoken_1.default.verify(token, JWT_SECRET);
-        const user = await app_js_1.prisma.user.findUnique({
-            where: { id: decoded.userId },
-            select: { id: true, email: true, role: true },
-        });
+        const user = await (0, db_js_1.queryOne)('SELECT id, email, role FROM users WHERE id = ?', [decoded.userId]);
         if (!user) {
             return res.status(401).json({ error: 'User not found' });
         }
@@ -36,10 +33,7 @@ const optionalAuth = async (req, res, next) => {
         if (authHeader?.startsWith('Bearer ')) {
             const token = authHeader.substring(7);
             const decoded = jsonwebtoken_1.default.verify(token, JWT_SECRET);
-            const user = await app_js_1.prisma.user.findUnique({
-                where: { id: decoded.userId },
-                select: { id: true, email: true, role: true },
-            });
+            const user = await (0, db_js_1.queryOne)('SELECT id, email, role FROM users WHERE id = ?', [decoded.userId]);
             if (user) {
                 req.user = user;
             }

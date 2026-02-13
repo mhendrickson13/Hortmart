@@ -1,63 +1,34 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
-const zod_1 = require("zod");
-const app_js_1 = require("../app.js");
+const db_js_1 = require("../db.js");
 const auth_js_1 = require("../middleware/auth.js");
 const router = (0, express_1.Router)();
-const updateLessonSchema = zod_1.z.object({
-    title: zod_1.z.string().min(1).optional(),
-    description: zod_1.z.string().optional(),
-    videoUrl: zod_1.z.string().url().optional(),
-    durationSeconds: zod_1.z.number().int().min(0).optional(),
-    position: zod_1.z.number().int().min(0).optional(),
-    isLocked: zod_1.z.boolean().optional(),
-    isFreePreview: zod_1.z.boolean().optional(),
-});
-const updateProgressSchema = zod_1.z.object({
-    progressPercent: zod_1.z.number().int().min(0).max(100),
-    lastWatchedTimestamp: zod_1.z.number().int().min(0),
-});
-const createNoteSchema = zod_1.z.object({
-    content: zod_1.z.string().min(1),
-    timestampSeconds: zod_1.z.number().int().min(0).optional(),
-});
-const createQuestionSchema = zod_1.z.object({
-    content: zod_1.z.string().min(1),
-});
-const createResourceSchema = zod_1.z.object({
-    title: zod_1.z.string().min(1),
-    type: zod_1.z.string().min(1),
-    url: zod_1.z.string().url(),
-    fileSize: zod_1.z.number().int().min(0).optional(),
-});
 // GET /lessons/:id
 router.get('/:id', auth_js_1.optionalAuth, async (req, res) => {
     try {
         const { id } = req.params;
-        const lesson = await app_js_1.prisma.lesson.findUnique({
-            where: { id },
-            include: {
-                resources: true,
-                module: {
-                    include: {
-                        course: {
-                            select: { id: true, title: true, creatorId: true, status: true },
-                        },
-                    },
-                },
-            },
-        });
-        if (!lesson) {
+        const lesson = await (0, db_js_1.queryOne)('SELECT * FROM lessons WHERE id = ?', [id]);
+        if (!lesson)
             return res.status(404).json({ error: 'Lesson not found' });
-        }
-        // Check access for unpublished courses
-        if (lesson.module.course.status !== 'PUBLISHED') {
-            if (!req.user || (req.user.id !== lesson.module.course.creatorId && req.user.role !== 'ADMIN')) {
+        lesson.isLocked = !!lesson.isLocked;
+        lesson.isFreePreview = !!lesson.isFreePreview;
+        // Get module + course info for access check
+        const mod = await (0, db_js_1.queryOne)('SELECT * FROM modules WHERE id = ?', [lesson.moduleId]);
+        const course = await (0, db_js_1.queryOne)('SELECT id, title, creatorId, status FROM courses WHERE id = ?', [mod?.courseId]);
+        if (course && course.status !== 'PUBLISHED') {
+            if (!req.user || (req.user.id !== course.creatorId && req.user.role !== 'ADMIN')) {
                 return res.status(403).json({ error: 'Access denied' });
             }
         }
-        res.json({ lesson });
+        const resources = await (0, db_js_1.query)('SELECT * FROM resources WHERE lessonId = ? ORDER BY createdAt ASC', [id]);
+        res.json({
+            lesson: {
+                ...lesson,
+                resources,
+                module: { ...mod, course },
+            },
+        });
     }
     catch (error) {
         console.error('Get lesson error:', error);
@@ -68,33 +39,57 @@ router.get('/:id', auth_js_1.optionalAuth, async (req, res) => {
 router.patch('/:id', auth_js_1.authenticate, async (req, res) => {
     try {
         const { id } = req.params;
-        const lesson = await app_js_1.prisma.lesson.findUnique({
-            where: { id },
-            include: {
-                module: {
-                    include: {
-                        course: { select: { creatorId: true } },
-                    },
-                },
-            },
-        });
-        if (!lesson) {
+        const lesson = await (0, db_js_1.queryOne)('SELECT * FROM lessons WHERE id = ?', [id]);
+        if (!lesson)
             return res.status(404).json({ error: 'Lesson not found' });
-        }
-        if (lesson.module.course.creatorId !== req.user.id && req.user.role !== 'ADMIN') {
+        const mod = await (0, db_js_1.queryOne)('SELECT courseId FROM modules WHERE id = ?', [lesson.moduleId]);
+        const course = await (0, db_js_1.queryOne)('SELECT creatorId FROM courses WHERE id = ?', [mod?.courseId]);
+        if (!course || (course.creatorId !== req.user.id && req.user.role !== 'ADMIN')) {
             return res.status(403).json({ error: 'Access denied' });
         }
-        const data = updateLessonSchema.parse(req.body);
-        const updated = await app_js_1.prisma.lesson.update({
-            where: { id },
-            data,
-        });
+        const { title, description, videoUrl, durationSeconds, position, isLocked, isFreePreview } = req.body;
+        const sets = [];
+        const params = [];
+        if (title !== undefined) {
+            sets.push('title = ?');
+            params.push(title);
+        }
+        if (description !== undefined) {
+            sets.push('description = ?');
+            params.push(description);
+        }
+        if (videoUrl !== undefined) {
+            sets.push('videoUrl = ?');
+            params.push(videoUrl);
+        }
+        if (durationSeconds !== undefined) {
+            sets.push('durationSeconds = ?');
+            params.push(durationSeconds);
+        }
+        if (position !== undefined) {
+            sets.push('position = ?');
+            params.push(position);
+        }
+        if (isLocked !== undefined) {
+            sets.push('isLocked = ?');
+            params.push(isLocked);
+        }
+        if (isFreePreview !== undefined) {
+            sets.push('isFreePreview = ?');
+            params.push(isFreePreview);
+        }
+        sets.push('updatedAt = ?');
+        params.push((0, db_js_1.now)());
+        params.push(id);
+        await (0, db_js_1.execute)(`UPDATE lessons SET ${sets.join(', ')} WHERE id = ?`, params);
+        const updated = await (0, db_js_1.queryOne)('SELECT * FROM lessons WHERE id = ?', [id]);
+        if (updated) {
+            updated.isLocked = !!updated.isLocked;
+            updated.isFreePreview = !!updated.isFreePreview;
+        }
         res.json({ lesson: updated });
     }
     catch (error) {
-        if (error instanceof zod_1.z.ZodError) {
-            return res.status(400).json({ error: error.errors });
-        }
         console.error('Update lesson error:', error);
         res.status(500).json({ error: 'Failed to update lesson' });
     }
@@ -103,23 +98,15 @@ router.patch('/:id', auth_js_1.authenticate, async (req, res) => {
 router.delete('/:id', auth_js_1.authenticate, async (req, res) => {
     try {
         const { id } = req.params;
-        const lesson = await app_js_1.prisma.lesson.findUnique({
-            where: { id },
-            include: {
-                module: {
-                    include: {
-                        course: { select: { creatorId: true } },
-                    },
-                },
-            },
-        });
-        if (!lesson) {
+        const lesson = await (0, db_js_1.queryOne)('SELECT * FROM lessons WHERE id = ?', [id]);
+        if (!lesson)
             return res.status(404).json({ error: 'Lesson not found' });
-        }
-        if (lesson.module.course.creatorId !== req.user.id && req.user.role !== 'ADMIN') {
+        const mod = await (0, db_js_1.queryOne)('SELECT courseId FROM modules WHERE id = ?', [lesson.moduleId]);
+        const course = await (0, db_js_1.queryOne)('SELECT creatorId FROM courses WHERE id = ?', [mod?.courseId]);
+        if (!course || (course.creatorId !== req.user.id && req.user.role !== 'ADMIN')) {
             return res.status(403).json({ error: 'Access denied' });
         }
-        await app_js_1.prisma.lesson.delete({ where: { id } });
+        await (0, db_js_1.execute)('DELETE FROM lessons WHERE id = ?', [id]);
         res.json({ message: 'Lesson deleted successfully' });
     }
     catch (error) {
@@ -131,34 +118,14 @@ router.delete('/:id', auth_js_1.authenticate, async (req, res) => {
 router.get('/:id/progress', auth_js_1.authenticate, async (req, res) => {
     try {
         const { id } = req.params;
-        const lesson = await app_js_1.prisma.lesson.findUnique({
-            where: { id },
-            include: {
-                module: { select: { courseId: true } },
-            },
-        });
-        if (!lesson) {
+        const lesson = await (0, db_js_1.queryOne)('SELECT moduleId FROM lessons WHERE id = ?', [id]);
+        if (!lesson)
             return res.status(404).json({ error: 'Lesson not found' });
-        }
-        const enrollment = await app_js_1.prisma.enrollment.findUnique({
-            where: {
-                userId_courseId: {
-                    userId: req.user.id,
-                    courseId: lesson.module.courseId,
-                },
-            },
-        });
-        if (!enrollment) {
+        const mod = await (0, db_js_1.queryOne)('SELECT courseId FROM modules WHERE id = ?', [lesson.moduleId]);
+        const enrollment = await (0, db_js_1.queryOne)('SELECT id FROM enrollments WHERE userId = ? AND courseId = ?', [req.user.id, mod?.courseId]);
+        if (!enrollment)
             return res.status(404).json({ error: 'Not enrolled' });
-        }
-        const progress = await app_js_1.prisma.lessonProgress.findUnique({
-            where: {
-                enrollmentId_lessonId: {
-                    enrollmentId: enrollment.id,
-                    lessonId: id,
-                },
-            },
-        });
+        const progress = await (0, db_js_1.queryOne)('SELECT * FROM lesson_progress WHERE enrollmentId = ? AND lessonId = ?', [enrollment.id, id]);
         res.json({
             progress: progress || {
                 progressPercent: 0,
@@ -177,56 +144,32 @@ router.get('/:id/progress', auth_js_1.authenticate, async (req, res) => {
 router.post('/:id/progress', auth_js_1.authenticate, async (req, res) => {
     try {
         const { id } = req.params;
-        const data = updateProgressSchema.parse(req.body);
-        const lesson = await app_js_1.prisma.lesson.findUnique({
-            where: { id },
-            include: {
-                module: { select: { courseId: true } },
-            },
-        });
-        if (!lesson) {
+        const { progressPercent, lastWatchedTimestamp } = req.body;
+        if (progressPercent === undefined || lastWatchedTimestamp === undefined) {
+            return res.status(400).json({ error: 'progressPercent and lastWatchedTimestamp are required' });
+        }
+        const lesson = await (0, db_js_1.queryOne)('SELECT moduleId FROM lessons WHERE id = ?', [id]);
+        if (!lesson)
             return res.status(404).json({ error: 'Lesson not found' });
-        }
-        const enrollment = await app_js_1.prisma.enrollment.findUnique({
-            where: {
-                userId_courseId: {
-                    userId: req.user.id,
-                    courseId: lesson.module.courseId,
-                },
-            },
-        });
-        if (!enrollment) {
+        const mod = await (0, db_js_1.queryOne)('SELECT courseId FROM modules WHERE id = ?', [lesson.moduleId]);
+        const enrollment = await (0, db_js_1.queryOne)('SELECT id FROM enrollments WHERE userId = ? AND courseId = ?', [req.user.id, mod?.courseId]);
+        if (!enrollment)
             return res.status(404).json({ error: 'Not enrolled' });
+        const completedAt = progressPercent >= 90 ? (0, db_js_1.now)() : null;
+        const ts = (0, db_js_1.now)();
+        // Upsert: try update first, then insert
+        const existing = await (0, db_js_1.queryOne)('SELECT id FROM lesson_progress WHERE enrollmentId = ? AND lessonId = ?', [enrollment.id, id]);
+        if (existing) {
+            await (0, db_js_1.execute)(`UPDATE lesson_progress SET progressPercent = ?, lastWatchedTimestamp = ?, lastWatchedAt = ?, completedAt = COALESCE(completedAt, ?), updatedAt = ? WHERE id = ?`, [progressPercent, lastWatchedTimestamp, ts, completedAt, ts, existing.id]);
         }
-        const completedAt = data.progressPercent >= 90 ? new Date() : null;
-        const progress = await app_js_1.prisma.lessonProgress.upsert({
-            where: {
-                enrollmentId_lessonId: {
-                    enrollmentId: enrollment.id,
-                    lessonId: id,
-                },
-            },
-            create: {
-                enrollmentId: enrollment.id,
-                lessonId: id,
-                progressPercent: data.progressPercent,
-                lastWatchedTimestamp: data.lastWatchedTimestamp,
-                lastWatchedAt: new Date(),
-                completedAt,
-            },
-            update: {
-                progressPercent: data.progressPercent,
-                lastWatchedTimestamp: data.lastWatchedTimestamp,
-                lastWatchedAt: new Date(),
-                completedAt,
-            },
-        });
+        else {
+            const progressId = (0, db_js_1.genId)();
+            await (0, db_js_1.execute)(`INSERT INTO lesson_progress (id, enrollmentId, lessonId, progressPercent, lastWatchedTimestamp, lastWatchedAt, completedAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [progressId, enrollment.id, id, progressPercent, lastWatchedTimestamp, ts, completedAt, ts]);
+        }
+        const progress = await (0, db_js_1.queryOne)('SELECT * FROM lesson_progress WHERE enrollmentId = ? AND lessonId = ?', [enrollment.id, id]);
         res.json({ progress });
     }
     catch (error) {
-        if (error instanceof zod_1.z.ZodError) {
-            return res.status(400).json({ error: error.errors });
-        }
         console.error('Update lesson progress error:', error);
         res.status(500).json({ error: 'Failed to update progress' });
     }
@@ -235,13 +178,7 @@ router.post('/:id/progress', auth_js_1.authenticate, async (req, res) => {
 router.get('/:id/notes', auth_js_1.authenticate, async (req, res) => {
     try {
         const { id } = req.params;
-        const notes = await app_js_1.prisma.note.findMany({
-            where: {
-                lessonId: id,
-                userId: req.user.id,
-            },
-            orderBy: { timestampSeconds: 'asc' },
-        });
+        const notes = await (0, db_js_1.query)('SELECT * FROM notes WHERE lessonId = ? AND userId = ? ORDER BY timestampSeconds ASC', [id, req.user.id]);
         res.json({ notes });
     }
     catch (error) {
@@ -253,21 +190,16 @@ router.get('/:id/notes', auth_js_1.authenticate, async (req, res) => {
 router.post('/:id/notes', auth_js_1.authenticate, async (req, res) => {
     try {
         const { id } = req.params;
-        const data = createNoteSchema.parse(req.body);
-        const note = await app_js_1.prisma.note.create({
-            data: {
-                content: data.content,
-                timestampSeconds: data.timestampSeconds || 0,
-                userId: req.user.id,
-                lessonId: id,
-            },
-        });
+        const { content, timestampSeconds } = req.body;
+        if (!content)
+            return res.status(400).json({ error: 'content is required' });
+        const noteId = (0, db_js_1.genId)();
+        const ts = (0, db_js_1.now)();
+        await (0, db_js_1.execute)('INSERT INTO notes (id, content, timestampSeconds, userId, lessonId, updatedAt) VALUES (?, ?, ?, ?, ?, ?)', [noteId, content, timestampSeconds || 0, req.user.id, id, ts]);
+        const note = await (0, db_js_1.queryOne)('SELECT * FROM notes WHERE id = ?', [noteId]);
         res.status(201).json({ note });
     }
     catch (error) {
-        if (error instanceof zod_1.z.ZodError) {
-            return res.status(400).json({ error: error.errors });
-        }
         console.error('Create note error:', error);
         res.status(500).json({ error: 'Failed to create note' });
     }
@@ -278,42 +210,46 @@ router.get('/:id/questions', async (req, res) => {
         const { id } = req.params;
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
-        const [questions, total] = await Promise.all([
-            app_js_1.prisma.question.findMany({
-                where: { lessonId: id },
-                include: {
-                    user: {
-                        select: { id: true, name: true, image: true },
-                    },
-                    answers: {
-                        include: {
-                            user: {
-                                select: { id: true, name: true, image: true },
-                            },
-                        },
-                        orderBy: [
-                            { isAccepted: 'desc' },
-                            { createdAt: 'asc' },
-                        ],
-                    },
-                    _count: {
-                        select: { answers: true },
-                    },
-                },
-                skip: (page - 1) * limit,
-                take: limit,
-                orderBy: { createdAt: 'desc' },
-            }),
-            app_js_1.prisma.question.count({ where: { lessonId: id } }),
-        ]);
+        const totalRow = await (0, db_js_1.queryOne)('SELECT COUNT(*) as cnt FROM questions WHERE lessonId = ?', [id]);
+        const total = Number(totalRow?.cnt ?? 0);
+        const questions = await (0, db_js_1.query)(`SELECT q.*, u.id as u_id, u.name as u_name, u.image as u_image
+       FROM questions q
+       LEFT JOIN users u ON q.userId = u.id
+       WHERE q.lessonId = ?
+       ORDER BY q.createdAt DESC
+       LIMIT ? OFFSET ?`, [id, limit, (page - 1) * limit]);
+        // Fetch answers for all questions
+        const qIds = questions.map(q => q.id);
+        let answersMap = new Map();
+        let answerCountMap = new Map();
+        if (qIds.length > 0) {
+            const ph = qIds.map(() => '?').join(', ');
+            const answers = await (0, db_js_1.query)(`SELECT a.*, u.id as u_id, u.name as u_name, u.image as u_image
+         FROM answers a LEFT JOIN users u ON a.userId = u.id
+         WHERE a.questionId IN (${ph})
+         ORDER BY a.isAccepted DESC, a.createdAt ASC`, qIds);
+            for (const a of answers) {
+                const key = a.questionId;
+                if (!answersMap.has(key))
+                    answersMap.set(key, []);
+                answersMap.get(key).push({
+                    id: a.id, content: a.content, userId: a.userId, questionId: a.questionId,
+                    isAccepted: !!a.isAccepted, createdAt: a.createdAt, updatedAt: a.updatedAt,
+                    user: { id: a.u_id, name: a.u_name, image: a.u_image },
+                });
+                answerCountMap.set(key, (answerCountMap.get(key) ?? 0) + 1);
+            }
+        }
+        const formatted = questions.map(q => ({
+            id: q.id, content: q.content, userId: q.userId, lessonId: q.lessonId,
+            createdAt: q.createdAt, updatedAt: q.updatedAt,
+            user: { id: q.u_id, name: q.u_name, image: q.u_image },
+            answers: answersMap.get(q.id) ?? [],
+            _count: { answers: answerCountMap.get(q.id) ?? 0 },
+        }));
         res.json({
-            questions,
-            pagination: {
-                page,
-                limit,
-                total,
-                totalPages: Math.ceil(total / limit),
-            },
+            questions: formatted,
+            pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
         });
     }
     catch (error) {
@@ -325,25 +261,17 @@ router.get('/:id/questions', async (req, res) => {
 router.post('/:id/questions', auth_js_1.authenticate, async (req, res) => {
     try {
         const { id } = req.params;
-        const data = createQuestionSchema.parse(req.body);
-        const question = await app_js_1.prisma.question.create({
-            data: {
-                content: data.content,
-                userId: req.user.id,
-                lessonId: id,
-            },
-            include: {
-                user: {
-                    select: { id: true, name: true, image: true },
-                },
-            },
-        });
-        res.status(201).json({ question });
+        const { content } = req.body;
+        if (!content)
+            return res.status(400).json({ error: 'content is required' });
+        const qId = (0, db_js_1.genId)();
+        const ts = (0, db_js_1.now)();
+        await (0, db_js_1.execute)('INSERT INTO questions (id, content, userId, lessonId, updatedAt) VALUES (?, ?, ?, ?, ?)', [qId, content, req.user.id, id, ts]);
+        const question = await (0, db_js_1.queryOne)('SELECT * FROM questions WHERE id = ?', [qId]);
+        const user = await (0, db_js_1.queryOne)('SELECT id, name, image FROM users WHERE id = ?', [req.user.id]);
+        res.status(201).json({ question: { ...question, user } });
     }
     catch (error) {
-        if (error instanceof zod_1.z.ZodError) {
-            return res.status(400).json({ error: error.errors });
-        }
         console.error('Create question error:', error);
         res.status(500).json({ error: 'Failed to create question' });
     }
@@ -352,10 +280,7 @@ router.post('/:id/questions', auth_js_1.authenticate, async (req, res) => {
 router.get('/:id/resources', async (req, res) => {
     try {
         const { id } = req.params;
-        const resources = await app_js_1.prisma.resource.findMany({
-            where: { lessonId: id },
-            orderBy: { createdAt: 'asc' },
-        });
+        const resources = await (0, db_js_1.query)('SELECT * FROM resources WHERE lessonId = ? ORDER BY createdAt ASC', [id]);
         res.json({ resources });
     }
     catch (error) {
@@ -367,35 +292,25 @@ router.get('/:id/resources', async (req, res) => {
 router.post('/:id/resources', auth_js_1.authenticate, async (req, res) => {
     try {
         const { id } = req.params;
-        const lesson = await app_js_1.prisma.lesson.findUnique({
-            where: { id },
-            include: {
-                module: {
-                    include: {
-                        course: { select: { creatorId: true } },
-                    },
-                },
-            },
-        });
-        if (!lesson) {
+        // Ownership check
+        const lesson = await (0, db_js_1.queryOne)('SELECT moduleId FROM lessons WHERE id = ?', [id]);
+        if (!lesson)
             return res.status(404).json({ error: 'Lesson not found' });
-        }
-        if (lesson.module.course.creatorId !== req.user.id && req.user.role !== 'ADMIN') {
+        const mod = await (0, db_js_1.queryOne)('SELECT courseId FROM modules WHERE id = ?', [lesson.moduleId]);
+        const course = await (0, db_js_1.queryOne)('SELECT creatorId FROM courses WHERE id = ?', [mod?.courseId]);
+        if (!course || (course.creatorId !== req.user.id && req.user.role !== 'ADMIN')) {
             return res.status(403).json({ error: 'Access denied' });
         }
-        const data = createResourceSchema.parse(req.body);
-        const resource = await app_js_1.prisma.resource.create({
-            data: {
-                ...data,
-                lessonId: id,
-            },
-        });
+        const { title, type, url, fileSize } = req.body;
+        if (!title || !type || !url) {
+            return res.status(400).json({ error: 'title, type, and url are required' });
+        }
+        const resourceId = (0, db_js_1.genId)();
+        await (0, db_js_1.execute)('INSERT INTO resources (id, title, type, url, fileSize, lessonId) VALUES (?, ?, ?, ?, ?, ?)', [resourceId, title, type, url, fileSize || null, id]);
+        const resource = await (0, db_js_1.queryOne)('SELECT * FROM resources WHERE id = ?', [resourceId]);
         res.status(201).json({ resource });
     }
     catch (error) {
-        if (error instanceof zod_1.z.ZodError) {
-            return res.status(400).json({ error: error.errors });
-        }
         console.error('Create resource error:', error);
         res.status(500).json({ error: 'Failed to create resource' });
     }

@@ -21,10 +21,10 @@ interface MobileCourseCardProps {
     coverImage?: string | null;
     price: number;
     level?: string | null;
-    creator: {
-      name: string | null;
-      image: string | null;
-    };
+    creator?: {
+      name?: string | null;
+      image?: string | null;
+    } | null;
     _count?: {
       enrollments?: number;
       reviews?: number;
@@ -81,7 +81,7 @@ export function MobileCourseCard({
             <h3 className="text-body-sm font-semibold text-text-1 truncate mb-1">
               {course.title}
             </h3>
-            <p className="text-[11px] text-text-3 mb-2">{course.creator.name}</p>
+            <p className="text-[11px] text-text-3 mb-2">{course.creator?.name || "Instructor"}</p>
             
             {progress ? (
               <div className="flex items-center gap-2">
@@ -170,16 +170,16 @@ export function MobileCourseCard({
           {/* Title & Creator */}
           <div className="flex items-start gap-2 mb-2">
             <Avatar className="w-8 h-8 flex-shrink-0">
-              <AvatarImage src={course.creator.image || undefined} />
+              <AvatarImage src={course.creator?.image || undefined} />
               <AvatarFallback className="text-[10px]">
-                {getInitials(course.creator.name || "C")}
+                {getInitials(course.creator?.name || "C")}
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
               <h3 className="text-body-sm font-semibold text-text-1 line-clamp-2 leading-snug">
                 {course.title}
               </h3>
-              <p className="text-[11px] text-text-3 mt-0.5">{course.creator.name}</p>
+              <p className="text-[11px] text-text-3 mt-0.5">{course.creator?.name || "Instructor"}</p>
             </div>
           </div>
           

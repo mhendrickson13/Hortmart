@@ -17,16 +17,18 @@ interface UserHeaderActionsProps {
   userId: string;
   userName: string | null;
   userRole: string;
+  blockedAt?: string | null;
 }
 
 export function UserHeaderActions({
   userId,
   userName,
   userRole,
+  blockedAt,
 }: UserHeaderActionsProps) {
   const navigate = useNavigate();
   const [blocking, setBlocking] = useState(false);
-  const [isBlocked, setIsBlocked] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(!!blockedAt);
 
   const handleMessage = () => {
     toast({

@@ -104,7 +104,7 @@ export default function UserDetailPage() {
             </p>
           </div>
         </div>
-        <UserHeaderActions userId={user.id} userName={user.name} userRole={user.role} />
+        <UserHeaderActions userId={user.id} userName={user.name} userRole={user.role} blockedAt={(user as any).blockedAt} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-3 flex-1 min-h-0">

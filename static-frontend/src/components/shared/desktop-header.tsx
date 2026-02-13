@@ -1,7 +1,10 @@
 import { useLocation } from "react-router-dom";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { DesktopNotificationsPopover } from "./desktop-notifications-popover";
+import { notifications as notificationsApi } from "@/lib/api-client";
+import { useAuth } from "@/lib/auth-context";
 import { Search, Bell, HelpCircle } from "lucide-react";
 
 interface DesktopHeaderProps {
@@ -18,6 +21,18 @@ export function DesktopHeader({ user, variant = "learner", onSearchClick }: Desk
   const { pathname } = useLocation();
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const { user: authUser } = useAuth();
+
+  // Fetch real unread count
+  const { data: unreadData } = useQuery({
+    queryKey: ["notifications-unread-count"],
+    queryFn: () => notificationsApi.unreadCount(),
+    enabled: !!authUser,
+    refetchInterval: 60000, // Poll every 60 seconds
+    refetchOnWindowFocus: true,
+  });
+
+  const unreadCount = unreadData?.count ?? 0;
 
   // Get page title based on pathname
   const getPageTitle = () => {
@@ -141,10 +156,12 @@ export function DesktopHeader({ user, variant = "learner", onSearchClick }: Desk
             >
               <Bell className="w-4 h-4" />
             </Button>
-            {/* Badge */}
-            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-danger rounded-full flex items-center justify-center pointer-events-none">
-              <span className="text-[10px] font-bold text-white">3</span>
-            </span>
+            {/* Badge - only show when there are unread notifications */}
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-danger rounded-full flex items-center justify-center pointer-events-none">
+                <span className="text-[10px] font-bold text-white">{unreadCount > 99 ? '99+' : unreadCount}</span>
+              </span>
+            )}
             
             <DesktopNotificationsPopover
               isOpen={isNotificationsOpen}

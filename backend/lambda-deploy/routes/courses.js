@@ -1,41 +1,60 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
-const zod_1 = require("zod");
-const app_js_1 = require("../app.js");
+const db_js_1 = require("../db.js");
 const auth_js_1 = require("../middleware/auth.js");
+const notifications_js_1 = require("./notifications.js");
 const router = (0, express_1.Router)();
-// Validation schemas
-const createCourseSchema = zod_1.z.object({
-    title: zod_1.z.string().min(3),
-    subtitle: zod_1.z.string().optional(),
-    description: zod_1.z.string().optional(),
-    whatYouWillLearn: zod_1.z.string().optional(), // JSON array of learning outcomes
-    coverImage: zod_1.z.string().optional(),
-    price: zod_1.z.number().min(0).optional(),
-    currency: zod_1.z.string().length(3).optional(),
-    level: zod_1.z.enum(['BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'ALL_LEVELS']).optional(),
-    category: zod_1.z.string().optional(),
-    language: zod_1.z.string().optional(),
-});
-const updateCourseSchema = createCourseSchema.partial().extend({
-    status: zod_1.z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional(),
-});
-const createModuleSchema = zod_1.z.object({
-    title: zod_1.z.string().min(1),
-    position: zod_1.z.number().int().min(0).optional(),
-});
-const createLessonSchema = zod_1.z.object({
-    title: zod_1.z.string().min(1),
-    description: zod_1.z.string().optional(),
-    videoUrl: zod_1.z.string().url().optional(),
-    durationSeconds: zod_1.z.number().int().min(0).optional(),
-    position: zod_1.z.number().int().min(0).optional(),
-    isLocked: zod_1.z.boolean().optional(),
-    isFreePreview: zod_1.z.boolean().optional(),
-    moduleId: zod_1.z.string(),
-});
-// GET /courses - List courses
+// ── Helper: build course list with stats ──
+async function enrichCourses(courseRows) {
+    if (courseRows.length === 0)
+        return [];
+    const courseIds = courseRows.map(c => c.id);
+    const ph = (0, db_js_1.inPlaceholders)(courseIds);
+    // Creator info
+    const creatorIds = [...new Set(courseRows.map(c => c.creatorId))];
+    const crPh = (0, db_js_1.inPlaceholders)(creatorIds);
+    const creators = await (0, db_js_1.query)(`SELECT id, name, image FROM users WHERE id IN (${crPh})`, creatorIds);
+    const creatorMap = new Map(creators.map(u => [u.id, { id: u.id, name: u.name, image: u.image }]));
+    // Module + lesson data
+    const modLessons = await (0, db_js_1.query)(`SELECT m.courseId, m.id as moduleId, l.id as lessonId, l.durationSeconds
+     FROM modules m LEFT JOIN lessons l ON l.moduleId = m.id
+     WHERE m.courseId IN (${ph})`, courseIds);
+    const moduleCountMap = new Map();
+    const durationMap = new Map();
+    for (const r of modLessons) {
+        if (!moduleCountMap.has(r.courseId))
+            moduleCountMap.set(r.courseId, new Set());
+        moduleCountMap.get(r.courseId).add(r.moduleId);
+        if (r.lessonId) {
+            durationMap.set(r.courseId, (durationMap.get(r.courseId) ?? 0) + (r.durationSeconds ?? 0));
+        }
+    }
+    // Enrollment counts
+    const enrollCounts = await (0, db_js_1.query)(`SELECT courseId, COUNT(*) as cnt FROM enrollments WHERE courseId IN (${ph}) GROUP BY courseId`, courseIds);
+    const enrollMap = new Map(enrollCounts.map(r => [r.courseId, Number(r.cnt)]));
+    // Review counts + avg rating
+    const reviewStats = await (0, db_js_1.query)(`SELECT courseId, COUNT(*) as cnt, AVG(rating) as avg FROM reviews WHERE courseId IN (${ph}) GROUP BY courseId`, courseIds);
+    const reviewMap = new Map(reviewStats.map(r => [r.courseId, { count: Number(r.cnt), avg: Number(r.avg) }]));
+    return courseRows.map(c => {
+        const rs = reviewMap.get(c.id);
+        return {
+            id: c.id, title: c.title, subtitle: c.subtitle, description: c.description,
+            coverImage: c.coverImage, price: c.price, currency: c.currency, status: c.status,
+            level: c.level, category: c.category, language: c.language,
+            createdAt: c.createdAt, publishedAt: c.publishedAt,
+            creator: creatorMap.get(c.creatorId) ?? null,
+            _count: {
+                modules: moduleCountMap.get(c.id)?.size ?? 0,
+                enrollments: enrollMap.get(c.id) ?? 0,
+                reviews: rs?.count ?? 0,
+            },
+            avgRating: rs ? Math.round(rs.avg * 10) / 10 : null,
+            totalDuration: durationMap.get(c.id) ?? 0,
+        };
+    });
+}
+// GET /courses
 router.get('/', auth_js_1.optionalAuth, async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
@@ -43,139 +62,80 @@ router.get('/', auth_js_1.optionalAuth, async (req, res) => {
         const status = req.query.status;
         const mine = req.query.mine === 'true';
         let creatorId = req.query.creatorId;
-        // Search and filter params
         const q = req.query.q;
         const category = req.query.category;
         const level = req.query.level;
         const priceRange = req.query.priceRange;
         const sort = req.query.sort;
-        // If mine=true, filter by current user's courses
-        if (mine && req.user) {
+        if (mine && req.user)
             creatorId = req.user.id;
-        }
-        const where = {};
-        // If not authenticated or not the creator, only show published
-        if (!req.user || (creatorId && creatorId !== req.user.id && req.user.role !== 'ADMIN')) {
-            where.status = 'PUBLISHED';
+        const conditions = [];
+        const params = [];
+        // Visibility
+        if (!req.user || (creatorId && creatorId !== req.user?.id && req.user?.role !== 'ADMIN')) {
+            conditions.push('c.status = ?');
+            params.push('PUBLISHED');
         }
         else if (status) {
-            where.status = status;
+            conditions.push('c.status = ?');
+            params.push(status);
         }
         if (creatorId) {
-            where.creatorId = creatorId;
+            conditions.push('c.creatorId = ?');
+            params.push(creatorId);
         }
-        // Search query - For SQLite, we need to use raw filtering after fetch
-        // or use LOWER() in raw query. Prisma's mode: 'insensitive' doesn't work with SQLite
-        const searchQuery = q?.toLowerCase();
-        // Category filter
         if (category && category !== 'all') {
-            where.category = category;
+            conditions.push('c.category = ?');
+            params.push(category);
         }
-        // Level filter
         if (level && level !== 'all') {
-            where.level = level;
+            conditions.push('c.level = ?');
+            params.push(level);
         }
-        // Price range filter
         if (priceRange && priceRange !== 'all') {
             if (priceRange === 'free') {
-                where.price = 0;
+                conditions.push('c.price = 0');
             }
             else if (priceRange === 'paid') {
-                where.price = { gt: 0 };
+                conditions.push('c.price > 0');
             }
             else if (priceRange.includes('-')) {
                 const [min, max] = priceRange.split('-').map(Number);
-                where.price = { gte: min, lte: max };
+                conditions.push('c.price >= ? AND c.price <= ?');
+                params.push(min, max);
             }
             else if (priceRange.endsWith('+')) {
-                const min = parseInt(priceRange);
-                where.price = { gte: min };
+                conditions.push('c.price >= ?');
+                params.push(parseInt(priceRange));
             }
         }
-        // Sorting
-        let orderBy = { createdAt: 'desc' };
-        if (sort === 'newest')
-            orderBy = { createdAt: 'desc' };
-        else if (sort === 'oldest')
-            orderBy = { createdAt: 'asc' };
-        else if (sort === 'popular')
-            orderBy = { enrollments: { _count: 'desc' } };
-        else if (sort === 'price-low')
-            orderBy = { price: 'asc' };
-        else if (sort === 'price-high')
-            orderBy = { price: 'desc' };
-        else if (sort === 'title')
-            orderBy = { title: 'asc' };
-        // Fetch courses
-        let allCourses = await app_js_1.prisma.course.findMany({
-            where,
-            include: {
-                creator: {
-                    select: { id: true, name: true, image: true },
-                },
-                modules: {
-                    include: {
-                        lessons: {
-                            select: { id: true, durationSeconds: true },
-                        },
-                    },
-                },
-                _count: {
-                    select: { enrollments: true, reviews: true },
-                },
-                reviews: {
-                    select: { rating: true },
-                },
-            },
-            orderBy,
-        });
-        // Apply case-insensitive search filter (SQLite doesn't support mode: 'insensitive')
-        if (searchQuery) {
-            allCourses = allCourses.filter((course) => course.title.toLowerCase().includes(searchQuery) ||
-                course.subtitle?.toLowerCase().includes(searchQuery) ||
-                course.description?.toLowerCase().includes(searchQuery));
+        if (q) {
+            conditions.push('(LOWER(c.title) LIKE ? OR LOWER(c.subtitle) LIKE ? OR LOWER(c.description) LIKE ?)');
+            const s = `%${q.toLowerCase()}%`;
+            params.push(s, s, s);
         }
-        // Calculate total and apply pagination
-        const total = allCourses.length;
-        const courses = allCourses.slice((page - 1) * limit, page * limit);
-        // Calculate additional fields
-        const coursesWithStats = courses.map((course) => {
-            const totalDuration = course.modules.reduce((acc, m) => acc + m.lessons.reduce((a, l) => a + l.durationSeconds, 0), 0);
-            const avgRating = course.reviews.length > 0
-                ? course.reviews.reduce((a, r) => a + r.rating, 0) / course.reviews.length
-                : null;
-            return {
-                id: course.id,
-                title: course.title,
-                subtitle: course.subtitle,
-                description: course.description,
-                coverImage: course.coverImage,
-                price: course.price,
-                currency: course.currency,
-                status: course.status,
-                level: course.level,
-                category: course.category,
-                language: course.language,
-                createdAt: course.createdAt,
-                publishedAt: course.publishedAt,
-                creator: course.creator,
-                _count: {
-                    modules: course.modules.length,
-                    enrollments: course._count.enrollments,
-                    reviews: course._count.reviews,
-                },
-                avgRating: avgRating ? Math.round(avgRating * 10) / 10 : null,
-                totalDuration,
-            };
-        });
+        const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+        // Sorting
+        let orderBy = 'c.createdAt DESC';
+        if (sort === 'newest')
+            orderBy = 'c.createdAt DESC';
+        else if (sort === 'oldest')
+            orderBy = 'c.createdAt ASC';
+        else if (sort === 'price-low')
+            orderBy = 'c.price ASC';
+        else if (sort === 'price-high')
+            orderBy = 'c.price DESC';
+        else if (sort === 'title')
+            orderBy = 'c.title ASC';
+        // Count
+        const totalRow = await (0, db_js_1.queryOne)(`SELECT COUNT(*) as cnt FROM courses c ${where}`, params);
+        const total = Number(totalRow?.cnt ?? 0);
+        // Fetch page
+        const courses = await (0, db_js_1.query)(`SELECT c.* FROM courses c ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`, [...params, limit, (page - 1) * limit]);
+        const enriched = await enrichCourses(courses);
         res.json({
-            courses: coursesWithStats,
-            pagination: {
-                page,
-                limit,
-                total,
-                totalPages: Math.ceil(total / limit),
-            },
+            courses: enriched,
+            pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
         });
     }
     catch (error) {
@@ -183,28 +143,18 @@ router.get('/', auth_js_1.optionalAuth, async (req, res) => {
         res.status(500).json({ error: 'Failed to list courses' });
     }
 });
-// GET /courses/categories - Get all unique categories
+// GET /courses/categories
 router.get('/categories', async (req, res) => {
     try {
-        const courses = await app_js_1.prisma.course.findMany({
-            where: {
-                status: 'PUBLISHED',
-                category: { not: null }
-            },
-            select: { category: true },
-            distinct: ['category'],
-        });
-        const categories = courses
-            .map((c) => c.category)
-            .filter((c) => c !== null);
-        res.json({ categories });
+        const rows = await (0, db_js_1.query)('SELECT DISTINCT category FROM courses WHERE status = ? AND category IS NOT NULL', ['PUBLISHED']);
+        res.json({ categories: rows.map(r => r.category) });
     }
     catch (error) {
         console.error('Get categories error:', error);
         res.status(500).json({ error: 'Failed to get categories' });
     }
 });
-// GET /courses/search - Search courses
+// GET /courses/search
 router.get('/search', async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
@@ -214,107 +164,51 @@ router.get('/search', async (req, res) => {
         const level = req.query.level;
         const priceRange = req.query.priceRange;
         const sort = req.query.sort;
-        const where = { status: 'PUBLISHED' };
-        const searchQuery = q?.toLowerCase();
+        const conditions = ['c.status = ?'];
+        const params = ['PUBLISHED'];
+        if (q) {
+            conditions.push('(LOWER(c.title) LIKE ? OR LOWER(c.subtitle) LIKE ? OR LOWER(c.description) LIKE ?)');
+            const s = `%${q.toLowerCase()}%`;
+            params.push(s, s, s);
+        }
         if (category) {
-            where.category = category;
+            conditions.push('c.category = ?');
+            params.push(category);
         }
         if (level) {
-            where.level = level;
+            conditions.push('c.level = ?');
+            params.push(level);
         }
         if (priceRange) {
-            if (priceRange === 'free') {
-                where.price = 0;
-            }
-            else if (priceRange === 'paid') {
-                where.price = { gt: 0 };
-            }
+            if (priceRange === 'free')
+                conditions.push('c.price = 0');
+            else if (priceRange === 'paid')
+                conditions.push('c.price > 0');
             else if (priceRange.includes('-')) {
                 const [min, max] = priceRange.split('-').map(Number);
-                where.price = { gte: min, lte: max };
+                conditions.push('c.price >= ? AND c.price <= ?');
+                params.push(min, max);
             }
             else if (priceRange.endsWith('+')) {
-                const min = parseInt(priceRange);
-                where.price = { gte: min };
+                conditions.push('c.price >= ?');
+                params.push(parseInt(priceRange));
             }
         }
-        let orderBy = { createdAt: 'desc' };
+        const where = `WHERE ${conditions.join(' AND ')}`;
+        let orderBy = 'c.createdAt DESC';
         if (sort === 'newest')
-            orderBy = { createdAt: 'desc' };
-        else if (sort === 'popular')
-            orderBy = { enrollments: { _count: 'desc' } };
+            orderBy = 'c.createdAt DESC';
         else if (sort === 'price-low')
-            orderBy = { price: 'asc' };
+            orderBy = 'c.price ASC';
         else if (sort === 'price-high')
-            orderBy = { price: 'desc' };
-        // Fetch all courses matching filters
-        let allCourses = await app_js_1.prisma.course.findMany({
-            where,
-            include: {
-                creator: {
-                    select: { id: true, name: true, image: true },
-                },
-                modules: {
-                    include: {
-                        lessons: {
-                            select: { id: true, durationSeconds: true },
-                        },
-                    },
-                },
-                _count: {
-                    select: { enrollments: true, reviews: true },
-                },
-                reviews: {
-                    select: { rating: true },
-                },
-            },
-            orderBy,
-        });
-        // Apply case-insensitive search filter (SQLite doesn't support mode: 'insensitive')
-        if (searchQuery) {
-            allCourses = allCourses.filter((course) => course.title.toLowerCase().includes(searchQuery) ||
-                course.subtitle?.toLowerCase().includes(searchQuery) ||
-                course.description?.toLowerCase().includes(searchQuery));
-        }
-        // Calculate total and apply pagination
-        const total = allCourses.length;
-        const courses = allCourses.slice((page - 1) * limit, page * limit);
-        const coursesWithStats = courses.map((course) => {
-            const totalDuration = course.modules.reduce((acc, m) => acc + m.lessons.reduce((a, l) => a + l.durationSeconds, 0), 0);
-            const avgRating = course.reviews.length > 0
-                ? course.reviews.reduce((a, r) => a + r.rating, 0) / course.reviews.length
-                : null;
-            return {
-                id: course.id,
-                title: course.title,
-                subtitle: course.subtitle,
-                description: course.description,
-                coverImage: course.coverImage,
-                price: course.price,
-                currency: course.currency,
-                status: course.status,
-                level: course.level,
-                category: course.category,
-                language: course.language,
-                createdAt: course.createdAt,
-                creator: course.creator,
-                _count: {
-                    modules: course.modules.length,
-                    enrollments: course._count.enrollments,
-                    reviews: course._count.reviews,
-                },
-                avgRating: avgRating ? Math.round(avgRating * 10) / 10 : null,
-                totalDuration,
-            };
-        });
+            orderBy = 'c.price DESC';
+        const totalRow = await (0, db_js_1.queryOne)(`SELECT COUNT(*) as cnt FROM courses c ${where}`, params);
+        const total = Number(totalRow?.cnt ?? 0);
+        const courses = await (0, db_js_1.query)(`SELECT c.* FROM courses c ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`, [...params, limit, (page - 1) * limit]);
+        const enriched = await enrichCourses(courses);
         res.json({
-            courses: coursesWithStats,
-            pagination: {
-                page,
-                limit,
-                total,
-                totalPages: Math.ceil(total / limit),
-            },
+            courses: enriched,
+            pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
         });
     }
     catch (error) {
@@ -322,85 +216,69 @@ router.get('/search', async (req, res) => {
         res.status(500).json({ error: 'Failed to search courses' });
     }
 });
-// POST /courses - Create course
+// POST /courses
 router.post('/', auth_js_1.authenticate, auth_js_1.requireCreatorOrAdmin, async (req, res) => {
     try {
-        const data = createCourseSchema.parse(req.body);
-        const course = await app_js_1.prisma.course.create({
-            data: {
-                ...data,
-                creatorId: req.user.id,
-            },
-            include: {
-                creator: {
-                    select: { id: true, name: true, image: true },
-                },
-            },
-        });
-        res.status(201).json({ course });
+        const { title, subtitle, description, whatYouWillLearn, coverImage, price, currency, level, category, language } = req.body;
+        if (!title || title.length < 3)
+            return res.status(400).json({ error: 'Title must be at least 3 characters' });
+        const id = (0, db_js_1.genId)();
+        const ts = (0, db_js_1.now)();
+        await (0, db_js_1.execute)(`INSERT INTO courses (id, title, subtitle, description, whatYouWillLearn, coverImage, price, currency, status, level, category, language, creatorId, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'DRAFT', ?, ?, ?, ?, ?)`, [id, title, subtitle || null, description || null, whatYouWillLearn || null, coverImage || null,
+            price ?? 0, currency || 'USD', level || 'ALL_LEVELS', category || null, language || 'English',
+            req.user.id, ts]);
+        const course = await (0, db_js_1.queryOne)('SELECT * FROM courses WHERE id = ?', [id]);
+        const creator = await (0, db_js_1.queryOne)('SELECT id, name, image FROM users WHERE id = ?', [req.user.id]);
+        res.status(201).json({ course: { ...course, creator } });
     }
     catch (error) {
-        if (error instanceof zod_1.z.ZodError) {
-            return res.status(400).json({ error: error.errors });
-        }
         console.error('Create course error:', error);
         res.status(500).json({ error: 'Failed to create course' });
     }
 });
-// GET /courses/:id - Get course details
+// GET /courses/:id
 router.get('/:id', auth_js_1.optionalAuth, async (req, res) => {
     try {
         const { id } = req.params;
-        const course = await app_js_1.prisma.course.findUnique({
-            where: { id },
-            include: {
-                creator: {
-                    select: { id: true, name: true, image: true, bio: true },
-                },
-                modules: {
-                    orderBy: { position: 'asc' },
-                    include: {
-                        lessons: {
-                            orderBy: { position: 'asc' },
-                            include: {
-                                resources: true,
-                            },
-                        },
-                    },
-                },
-                _count: {
-                    select: { enrollments: true, reviews: true },
-                },
-                reviews: {
-                    select: { rating: true },
-                },
-            },
-        });
-        if (!course) {
+        const course = await (0, db_js_1.queryOne)('SELECT * FROM courses WHERE id = ?', [id]);
+        if (!course)
             return res.status(404).json({ error: 'Course not found' });
-        }
-        // Check access
         if (course.status !== 'PUBLISHED') {
             if (!req.user || (req.user.id !== course.creatorId && req.user.role !== 'ADMIN')) {
                 return res.status(403).json({ error: 'Access denied' });
             }
         }
-        const totalDuration = course.modules.reduce((acc, m) => acc + m.lessons.reduce((a, l) => a + l.durationSeconds, 0), 0);
-        const totalLessons = course.modules.reduce((acc, m) => acc + m.lessons.length, 0);
-        const avgRating = course.reviews.length > 0
-            ? course.reviews.reduce((a, r) => a + r.rating, 0) / course.reviews.length
+        const creator = await (0, db_js_1.queryOne)('SELECT id, name, image, bio FROM users WHERE id = ?', [course.creatorId]);
+        // Modules with lessons and resources
+        const modules = await (0, db_js_1.query)('SELECT * FROM modules WHERE courseId = ? ORDER BY position ASC', [id]);
+        for (const mod of modules) {
+            const lessons = await (0, db_js_1.query)('SELECT * FROM lessons WHERE moduleId = ? ORDER BY position ASC', [mod.id]);
+            for (const lesson of lessons) {
+                lesson.isLocked = !!lesson.isLocked;
+                lesson.isFreePreview = !!lesson.isFreePreview;
+                lesson.resources = await (0, db_js_1.query)('SELECT * FROM resources WHERE lessonId = ? ORDER BY createdAt ASC', [lesson.id]);
+            }
+            mod.lessons = lessons;
+        }
+        // Counts
+        const enrollRow = await (0, db_js_1.queryOne)('SELECT COUNT(*) as cnt FROM enrollments WHERE courseId = ?', [id]);
+        const reviewRows = await (0, db_js_1.query)('SELECT rating FROM reviews WHERE courseId = ?', [id]);
+        const totalLessons = modules.reduce((a, m) => a + (m.lessons?.length ?? 0), 0);
+        const totalDuration = modules.reduce((a, m) => a + (m.lessons?.reduce((b, l) => b + l.durationSeconds, 0) ?? 0), 0);
+        const avgRating = reviewRows.length > 0
+            ? reviewRows.reduce((a, r) => a + r.rating, 0) / reviewRows.length
             : null;
         res.json({
             course: {
-                ...course,
-                reviews: undefined,
+                ...course, creator, modules,
                 _count: {
-                    ...course._count,
-                    modules: course.modules.length,
+                    enrollments: Number(enrollRow?.cnt ?? 0),
+                    reviews: reviewRows.length,
+                    modules: modules.length,
                 },
                 avgRating: avgRating ? Math.round(avgRating * 10) / 10 : null,
-                totalDuration,
-                totalLessons,
+                totalDuration, totalLessons,
             },
         });
     }
@@ -409,50 +287,50 @@ router.get('/:id', auth_js_1.optionalAuth, async (req, res) => {
         res.status(500).json({ error: 'Failed to get course' });
     }
 });
-// PATCH /courses/:id - Update course
+// PATCH /courses/:id
 router.patch('/:id', auth_js_1.authenticate, async (req, res) => {
     try {
         const { id } = req.params;
-        // Check ownership
-        const course = await app_js_1.prisma.course.findUnique({ where: { id } });
-        if (!course) {
+        const course = await (0, db_js_1.queryOne)('SELECT creatorId FROM courses WHERE id = ?', [id]);
+        if (!course)
             return res.status(404).json({ error: 'Course not found' });
-        }
         if (course.creatorId !== req.user.id && req.user.role !== 'ADMIN') {
             return res.status(403).json({ error: 'Access denied' });
         }
-        const data = updateCourseSchema.parse(req.body);
-        const updated = await app_js_1.prisma.course.update({
-            where: { id },
-            data,
-            include: {
-                creator: {
-                    select: { id: true, name: true, image: true },
-                },
-            },
-        });
-        res.json({ course: updated });
+        const allowedFields = ['title', 'subtitle', 'description', 'whatYouWillLearn', 'coverImage',
+            'price', 'currency', 'status', 'level', 'category', 'language'];
+        const sets = [];
+        const params = [];
+        for (const field of allowedFields) {
+            if (req.body[field] !== undefined) {
+                sets.push(`${field} = ?`);
+                params.push(req.body[field]);
+            }
+        }
+        sets.push('updatedAt = ?');
+        params.push((0, db_js_1.now)());
+        params.push(id);
+        await (0, db_js_1.execute)(`UPDATE courses SET ${sets.join(', ')} WHERE id = ?`, params);
+        const updated = await (0, db_js_1.queryOne)('SELECT * FROM courses WHERE id = ?', [id]);
+        const creator = await (0, db_js_1.queryOne)('SELECT id, name, image FROM users WHERE id = ?', [updated?.creatorId]);
+        res.json({ course: { ...updated, creator } });
     }
     catch (error) {
-        if (error instanceof zod_1.z.ZodError) {
-            return res.status(400).json({ error: error.errors });
-        }
         console.error('Update course error:', error);
         res.status(500).json({ error: 'Failed to update course' });
     }
 });
-// DELETE /courses/:id - Delete course
+// DELETE /courses/:id
 router.delete('/:id', auth_js_1.authenticate, async (req, res) => {
     try {
         const { id } = req.params;
-        const course = await app_js_1.prisma.course.findUnique({ where: { id } });
-        if (!course) {
+        const course = await (0, db_js_1.queryOne)('SELECT creatorId FROM courses WHERE id = ?', [id]);
+        if (!course)
             return res.status(404).json({ error: 'Course not found' });
-        }
         if (course.creatorId !== req.user.id && req.user.role !== 'ADMIN') {
             return res.status(403).json({ error: 'Access denied' });
         }
-        await app_js_1.prisma.course.delete({ where: { id } });
+        await (0, db_js_1.execute)('DELETE FROM courses WHERE id = ?', [id]);
         res.json({ message: 'Course deleted successfully' });
     }
     catch (error) {
@@ -460,32 +338,38 @@ router.delete('/:id', auth_js_1.authenticate, async (req, res) => {
         res.status(500).json({ error: 'Failed to delete course' });
     }
 });
-// POST /courses/:id/enroll - Enroll in course
+// POST /courses/:id/enroll
 router.post('/:id/enroll', auth_js_1.authenticate, async (req, res) => {
     try {
         const { id } = req.params;
-        const course = await app_js_1.prisma.course.findUnique({ where: { id } });
-        if (!course || course.status !== 'PUBLISHED') {
+        const course = await (0, db_js_1.queryOne)('SELECT id, status FROM courses WHERE id = ?', [id]);
+        if (!course || course.status !== 'PUBLISHED')
             return res.status(404).json({ error: 'Course not found' });
-        }
-        // Check if already enrolled
-        const existing = await app_js_1.prisma.enrollment.findUnique({
-            where: {
-                userId_courseId: {
-                    userId: req.user.id,
-                    courseId: id,
-                },
-            },
-        });
-        if (existing) {
+        const existing = await (0, db_js_1.queryOne)('SELECT id FROM enrollments WHERE userId = ? AND courseId = ?', [req.user.id, id]);
+        if (existing)
             return res.status(409).json({ error: 'Already enrolled' });
-        }
-        const enrollment = await app_js_1.prisma.enrollment.create({
-            data: {
-                userId: req.user.id,
-                courseId: id,
-            },
+        const enrollmentId = (0, db_js_1.genId)();
+        await (0, db_js_1.execute)('INSERT INTO enrollments (id, userId, courseId) VALUES (?, ?, ?)', [enrollmentId, req.user.id, id]);
+        const enrollment = await (0, db_js_1.queryOne)('SELECT * FROM enrollments WHERE id = ?', [enrollmentId]);
+        // Notify the learner
+        (0, notifications_js_1.createNotification)({
+            userId: req.user.id,
+            type: 'course',
+            title: 'Enrollment Confirmed',
+            description: `You have successfully enrolled in a course.`,
+            link: `/player/${id}`,
         });
+        // Notify the course creator
+        const courseInfo = await (0, db_js_1.queryOne)('SELECT creatorId, title FROM courses WHERE id = ?', [id]);
+        if (courseInfo && courseInfo.creatorId !== req.user.id) {
+            (0, notifications_js_1.createNotification)({
+                userId: courseInfo.creatorId,
+                type: 'course',
+                title: 'New Student Enrolled',
+                description: `A new student enrolled in "${courseInfo.title}".`,
+                link: `/manage-courses/${id}/analytics`,
+            });
+        }
         res.status(201).json({ enrollment });
     }
     catch (error) {
@@ -493,40 +377,26 @@ router.post('/:id/enroll', auth_js_1.authenticate, async (req, res) => {
         res.status(500).json({ error: 'Failed to enroll' });
     }
 });
-// GET /courses/:id/enroll - Check enrollment status
+// GET /courses/:id/enroll
 router.get('/:id/enroll', auth_js_1.authenticate, async (req, res) => {
     try {
         const { id } = req.params;
-        const enrollment = await app_js_1.prisma.enrollment.findUnique({
-            where: {
-                userId_courseId: {
-                    userId: req.user.id,
-                    courseId: id,
-                },
-            },
-        });
-        res.json({
-            enrolled: !!enrollment,
-            enrollment: enrollment || null,
-        });
+        const enrollment = await (0, db_js_1.queryOne)('SELECT * FROM enrollments WHERE userId = ? AND courseId = ?', [req.user.id, id]);
+        res.json({ enrolled: !!enrollment, enrollment: enrollment || null });
     }
     catch (error) {
         console.error('Check enrollment error:', error);
         res.status(500).json({ error: 'Failed to check enrollment' });
     }
 });
-// DELETE /courses/:id/enroll - Unenroll from course
+// DELETE /courses/:id/enroll
 router.delete('/:id/enroll', auth_js_1.authenticate, async (req, res) => {
     try {
         const { id } = req.params;
-        await app_js_1.prisma.enrollment.delete({
-            where: {
-                userId_courseId: {
-                    userId: req.user.id,
-                    courseId: id,
-                },
-            },
-        });
+        const enrollment = await (0, db_js_1.queryOne)('SELECT id FROM enrollments WHERE userId = ? AND courseId = ?', [req.user.id, id]);
+        if (!enrollment)
+            return res.status(404).json({ error: 'Not enrolled in this course' });
+        await (0, db_js_1.execute)('DELETE FROM enrollments WHERE userId = ? AND courseId = ?', [req.user.id, id]);
         res.json({ message: 'Unenrolled successfully' });
     }
     catch (error) {
@@ -534,46 +404,50 @@ router.delete('/:id/enroll', auth_js_1.authenticate, async (req, res) => {
         res.status(500).json({ error: 'Failed to unenroll' });
     }
 });
-// GET /courses/:id/progress - Get course player data with progress
+// GET /courses/:id/progress - Course player data with progress
 router.get('/:id/progress', auth_js_1.authenticate, async (req, res) => {
     try {
         const { id } = req.params;
-        const enrollment = await app_js_1.prisma.enrollment.findUnique({
-            where: {
-                userId_courseId: {
-                    userId: req.user.id,
-                    courseId: id,
-                },
-            },
-            include: {
-                lessonProgress: true,
-                course: {
-                    include: {
-                        creator: {
-                            select: { id: true, name: true, image: true },
-                        },
-                        modules: {
-                            orderBy: { position: 'asc' },
-                            include: {
-                                lessons: {
-                                    orderBy: { position: 'asc' },
-                                    include: {
-                                        resources: true,
-                                    },
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        });
-        if (!enrollment) {
+        const enrollment = await (0, db_js_1.queryOne)('SELECT * FROM enrollments WHERE userId = ? AND courseId = ?', [req.user.id, id]);
+        if (!enrollment)
             return res.status(404).json({ error: 'Not enrolled in this course' });
+        const course = await (0, db_js_1.queryOne)('SELECT * FROM courses WHERE id = ?', [id]);
+        const creator = await (0, db_js_1.queryOne)('SELECT id, name, image FROM users WHERE id = ?', [course?.creatorId]);
+        // Modules with lessons + resources
+        const modulesRaw = await (0, db_js_1.query)('SELECT * FROM modules WHERE courseId = ? ORDER BY position ASC', [id]);
+        // All lesson progress for this enrollment
+        const allProgress = await (0, db_js_1.query)('SELECT * FROM lesson_progress WHERE enrollmentId = ?', [enrollment.id]);
+        const progressMap = new Map(allProgress.map(p => [p.lessonId, p]));
+        const modules = [];
+        for (const mod of modulesRaw) {
+            const lessons = await (0, db_js_1.query)('SELECT * FROM lessons WHERE moduleId = ? ORDER BY position ASC', [mod.id]);
+            const enrichedLessons = [];
+            for (const lesson of lessons) {
+                const resources = await (0, db_js_1.query)('SELECT * FROM resources WHERE lessonId = ? ORDER BY createdAt ASC', [lesson.id]);
+                const progress = progressMap.get(lesson.id);
+                enrichedLessons.push({
+                    id: lesson.id, title: lesson.title, description: lesson.description,
+                    videoUrl: lesson.videoUrl, durationSeconds: lesson.durationSeconds,
+                    position: lesson.position, isLocked: !!lesson.isLocked, isFreePreview: !!lesson.isFreePreview,
+                    resources,
+                    progress: progress ? {
+                        id: progress.id, lessonId: progress.lessonId, enrollmentId: progress.enrollmentId,
+                        progressPercent: progress.progressPercent,
+                        completedAt: progress.completedAt ? (progress.completedAt instanceof Date ? progress.completedAt.toISOString() : progress.completedAt) : null,
+                        lastWatchedAt: progress.lastWatchedAt ? (progress.lastWatchedAt instanceof Date ? progress.lastWatchedAt.toISOString() : progress.lastWatchedAt) : null,
+                    } : null,
+                });
+            }
+            modules.push({ id: mod.id, title: mod.title, position: mod.position, lessons: enrichedLessons });
         }
-        // Find last accessed lesson for current lesson
-        const lastProgress = enrollment.lessonProgress
-            .filter((lp) => lp.lastWatchedAt)
-            .sort((a, b) => (b.lastWatchedAt?.getTime() || 0) - (a.lastWatchedAt?.getTime() || 0))[0];
+        // Find current lesson (last watched or first available)
+        const lastProgress = allProgress
+            .filter(lp => lp.lastWatchedAt)
+            .sort((a, b) => {
+            const at = a.lastWatchedAt instanceof Date ? a.lastWatchedAt.getTime() : new Date(a.lastWatchedAt).getTime();
+            const bt = b.lastWatchedAt instanceof Date ? b.lastWatchedAt.getTime() : new Date(b.lastWatchedAt).getTime();
+            return bt - at;
+        })[0];
         let currentLessonId;
         let initialTime = 0;
         if (lastProgress) {
@@ -581,71 +455,23 @@ router.get('/:id/progress', auth_js_1.authenticate, async (req, res) => {
             initialTime = lastProgress.lastWatchedTimestamp || 0;
         }
         else {
-            // Find first available lesson
-            for (const module of enrollment.course.modules) {
-                if (module.lessons.length > 0) {
-                    currentLessonId = module.lessons[0].id;
+            for (const mod of modules) {
+                if (mod.lessons.length > 0) {
+                    currentLessonId = mod.lessons[0].id;
                     break;
                 }
             }
         }
-        // Build modules with progress
-        const modules = enrollment.course.modules.map((module) => ({
-            id: module.id,
-            title: module.title,
-            position: module.position,
-            lessons: module.lessons.map((lesson) => {
-                const progress = enrollment.lessonProgress.find((lp) => lp.lessonId === lesson.id);
-                return {
-                    id: lesson.id,
-                    title: lesson.title,
-                    description: lesson.description,
-                    videoUrl: lesson.videoUrl,
-                    durationSeconds: lesson.durationSeconds,
-                    position: lesson.position,
-                    isLocked: lesson.isLocked,
-                    isFreePreview: lesson.isFreePreview,
-                    resources: lesson.resources,
-                    progress: progress ? {
-                        id: progress.id,
-                        lessonId: progress.lessonId,
-                        enrollmentId: progress.enrollmentId,
-                        progressPercent: progress.progressPercent,
-                        completedAt: progress.completedAt?.toISOString() || null,
-                        lastWatchedAt: progress.lastWatchedAt?.toISOString() || null,
-                    } : null,
-                };
-            }),
-        }));
-        // Get other students (limit to 5)
-        const otherEnrollments = await app_js_1.prisma.enrollment.findMany({
-            where: {
-                courseId: id,
-                userId: { not: req.user.id },
-            },
-            take: 5,
-            include: {
-                user: {
-                    select: { id: true, name: true, image: true },
-                },
-            },
-        });
-        const totalOtherStudents = await app_js_1.prisma.enrollment.count({
-            where: {
-                courseId: id,
-                userId: { not: req.user.id },
-            },
-        });
+        // Other students
+        const otherStudents = await (0, db_js_1.query)(`SELECT u.id, u.name, u.image FROM enrollments e JOIN users u ON e.userId = u.id
+       WHERE e.courseId = ? AND e.userId != ? LIMIT 5`, [id, req.user.id]);
+        const totalOtherRow = await (0, db_js_1.queryOne)('SELECT COUNT(*) as cnt FROM enrollments WHERE courseId = ? AND userId != ?', [id, req.user.id]);
         res.json({
-            id: enrollment.course.id,
-            title: enrollment.course.title,
-            creator: enrollment.course.creator,
-            modules,
-            currentLessonId,
-            initialTime,
+            id: course?.id, title: course?.title, creator,
+            modules, currentLessonId, initialTime,
             enrollmentId: enrollment.id,
-            otherStudents: otherEnrollments.map((e) => e.user),
-            totalOtherStudents,
+            otherStudents,
+            totalOtherStudents: Number(totalOtherRow?.cnt ?? 0),
         });
     }
     catch (error) {
@@ -653,76 +479,63 @@ router.get('/:id/progress', auth_js_1.authenticate, async (req, res) => {
         res.status(500).json({ error: 'Failed to get progress' });
     }
 });
-// POST /courses/:id/modules - Create module
+// POST /courses/:id/modules
 router.post('/:id/modules', auth_js_1.authenticate, async (req, res) => {
     try {
         const { id } = req.params;
-        const course = await app_js_1.prisma.course.findUnique({ where: { id } });
-        if (!course) {
+        const course = await (0, db_js_1.queryOne)('SELECT creatorId FROM courses WHERE id = ?', [id]);
+        if (!course)
             return res.status(404).json({ error: 'Course not found' });
-        }
         if (course.creatorId !== req.user.id && req.user.role !== 'ADMIN') {
             return res.status(403).json({ error: 'Access denied' });
         }
-        const data = createModuleSchema.parse(req.body);
-        // Get max position
-        const maxPosition = await app_js_1.prisma.module.findFirst({
-            where: { courseId: id },
-            orderBy: { position: 'desc' },
-            select: { position: true },
-        });
-        const module = await app_js_1.prisma.module.create({
-            data: {
-                ...data,
-                courseId: id,
-                position: data.position ?? (maxPosition?.position ?? -1) + 1,
-            },
-        });
-        res.status(201).json({ module });
+        const { title, position } = req.body;
+        if (!title)
+            return res.status(400).json({ error: 'title is required' });
+        const maxPosRow = await (0, db_js_1.queryOne)('SELECT MAX(position) as maxPos FROM modules WHERE courseId = ?', [id]);
+        const pos = position ?? ((maxPosRow?.maxPos ?? -1) + 1);
+        const moduleId = (0, db_js_1.genId)();
+        const ts = (0, db_js_1.now)();
+        await (0, db_js_1.execute)('INSERT INTO modules (id, title, position, courseId, updatedAt) VALUES (?, ?, ?, ?, ?)', [moduleId, title, pos, id, ts]);
+        const mod = await (0, db_js_1.queryOne)('SELECT * FROM modules WHERE id = ?', [moduleId]);
+        res.status(201).json({ module: mod });
     }
     catch (error) {
-        if (error instanceof zod_1.z.ZodError) {
-            return res.status(400).json({ error: error.errors });
-        }
         console.error('Create module error:', error);
         res.status(500).json({ error: 'Failed to create module' });
     }
 });
-// POST /courses/:id/lessons - Create lesson
+// POST /courses/:id/lessons
 router.post('/:id/lessons', auth_js_1.authenticate, async (req, res) => {
     try {
         const { id } = req.params;
-        const course = await app_js_1.prisma.course.findUnique({ where: { id } });
-        if (!course) {
+        const course = await (0, db_js_1.queryOne)('SELECT creatorId FROM courses WHERE id = ?', [id]);
+        if (!course)
             return res.status(404).json({ error: 'Course not found' });
-        }
         if (course.creatorId !== req.user.id && req.user.role !== 'ADMIN') {
             return res.status(403).json({ error: 'Access denied' });
         }
-        const data = createLessonSchema.parse(req.body);
-        // Verify module belongs to course
-        const module = await app_js_1.prisma.module.findUnique({ where: { id: data.moduleId } });
-        if (!module || module.courseId !== id) {
+        const { title, description, videoUrl, durationSeconds, position, isLocked, isFreePreview, moduleId } = req.body;
+        if (!title || !moduleId)
+            return res.status(400).json({ error: 'title and moduleId are required' });
+        const mod = await (0, db_js_1.queryOne)('SELECT * FROM modules WHERE id = ?', [moduleId]);
+        if (!mod || mod.courseId !== id)
             return res.status(400).json({ error: 'Invalid module' });
+        const maxPosRow = await (0, db_js_1.queryOne)('SELECT MAX(position) as maxPos FROM lessons WHERE moduleId = ?', [moduleId]);
+        const pos = position ?? ((maxPosRow?.maxPos ?? -1) + 1);
+        const lessonId = (0, db_js_1.genId)();
+        const ts = (0, db_js_1.now)();
+        await (0, db_js_1.execute)(`INSERT INTO lessons (id, title, description, videoUrl, durationSeconds, position, isLocked, isFreePreview, moduleId, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [lessonId, title, description || null, videoUrl || null, durationSeconds ?? 0, pos,
+            isLocked ?? false, isFreePreview ?? false, moduleId, ts]);
+        const lesson = await (0, db_js_1.queryOne)('SELECT * FROM lessons WHERE id = ?', [lessonId]);
+        if (lesson) {
+            lesson.isLocked = !!lesson.isLocked;
+            lesson.isFreePreview = !!lesson.isFreePreview;
         }
-        // Get max position
-        const maxPosition = await app_js_1.prisma.lesson.findFirst({
-            where: { moduleId: data.moduleId },
-            orderBy: { position: 'desc' },
-            select: { position: true },
-        });
-        const lesson = await app_js_1.prisma.lesson.create({
-            data: {
-                ...data,
-                position: data.position ?? (maxPosition?.position ?? -1) + 1,
-            },
-        });
         res.status(201).json({ lesson });
     }
     catch (error) {
-        if (error instanceof zod_1.z.ZodError) {
-            return res.status(400).json({ error: error.errors });
-        }
         console.error('Create lesson error:', error);
         res.status(500).json({ error: 'Failed to create lesson' });
     }
@@ -732,21 +545,16 @@ router.patch('/:id/reorder', auth_js_1.authenticate, async (req, res) => {
     try {
         const { id } = req.params;
         const { moduleOrder } = req.body;
-        if (!Array.isArray(moduleOrder)) {
+        if (!Array.isArray(moduleOrder))
             return res.status(400).json({ error: 'moduleOrder must be an array' });
-        }
-        const course = await app_js_1.prisma.course.findUnique({ where: { id } });
-        if (!course) {
+        const course = await (0, db_js_1.queryOne)('SELECT creatorId FROM courses WHERE id = ?', [id]);
+        if (!course)
             return res.status(404).json({ error: 'Course not found' });
-        }
         if (course.creatorId !== req.user.id && req.user.role !== 'ADMIN') {
             return res.status(403).json({ error: 'Access denied' });
         }
-        // Update positions
-        await Promise.all(moduleOrder.map((moduleId, index) => app_js_1.prisma.module.update({
-            where: { id: moduleId },
-            data: { position: index },
-        })));
+        const ts = (0, db_js_1.now)();
+        await Promise.all(moduleOrder.map((moduleId, index) => (0, db_js_1.execute)('UPDATE modules SET position = ?, updatedAt = ? WHERE id = ?', [index, ts, moduleId])));
         res.json({ message: 'Modules reordered' });
     }
     catch (error) {
@@ -754,24 +562,19 @@ router.patch('/:id/reorder', auth_js_1.authenticate, async (req, res) => {
         res.status(500).json({ error: 'Failed to reorder modules' });
     }
 });
-// POST /courses/:id/publish - Publish course
+// POST /courses/:id/publish
 router.post('/:id/publish', auth_js_1.authenticate, async (req, res) => {
     try {
         const { id } = req.params;
-        const course = await app_js_1.prisma.course.findUnique({ where: { id } });
-        if (!course) {
+        const course = await (0, db_js_1.queryOne)('SELECT creatorId FROM courses WHERE id = ?', [id]);
+        if (!course)
             return res.status(404).json({ error: 'Course not found' });
-        }
         if (course.creatorId !== req.user.id && req.user.role !== 'ADMIN') {
             return res.status(403).json({ error: 'Access denied' });
         }
-        const updated = await app_js_1.prisma.course.update({
-            where: { id },
-            data: {
-                status: 'PUBLISHED',
-                publishedAt: new Date(),
-            },
-        });
+        const ts = (0, db_js_1.now)();
+        await (0, db_js_1.execute)('UPDATE courses SET status = ?, publishedAt = ?, updatedAt = ? WHERE id = ?', ['PUBLISHED', ts, ts, id]);
+        const updated = await (0, db_js_1.queryOne)('SELECT * FROM courses WHERE id = ?', [id]);
         res.json({ course: updated });
     }
     catch (error) {
@@ -779,21 +582,18 @@ router.post('/:id/publish', auth_js_1.authenticate, async (req, res) => {
         res.status(500).json({ error: 'Failed to publish course' });
     }
 });
-// DELETE /courses/:id/publish - Unpublish course
+// DELETE /courses/:id/publish
 router.delete('/:id/publish', auth_js_1.authenticate, async (req, res) => {
     try {
         const { id } = req.params;
-        const course = await app_js_1.prisma.course.findUnique({ where: { id } });
-        if (!course) {
+        const course = await (0, db_js_1.queryOne)('SELECT creatorId FROM courses WHERE id = ?', [id]);
+        if (!course)
             return res.status(404).json({ error: 'Course not found' });
-        }
         if (course.creatorId !== req.user.id && req.user.role !== 'ADMIN') {
             return res.status(403).json({ error: 'Access denied' });
         }
-        const updated = await app_js_1.prisma.course.update({
-            where: { id },
-            data: { status: 'DRAFT' },
-        });
+        await (0, db_js_1.execute)('UPDATE courses SET status = ?, updatedAt = ? WHERE id = ?', ['DRAFT', (0, db_js_1.now)(), id]);
+        const updated = await (0, db_js_1.queryOne)('SELECT * FROM courses WHERE id = ?', [id]);
         res.json({ course: updated });
     }
     catch (error) {
@@ -801,48 +601,34 @@ router.delete('/:id/publish', auth_js_1.authenticate, async (req, res) => {
         res.status(500).json({ error: 'Failed to unpublish course' });
     }
 });
-// GET /courses/:id/reviews - Get course reviews
+// GET /courses/:id/reviews
 router.get('/:id/reviews', async (req, res) => {
     try {
         const { id } = req.params;
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
-        const [reviews, total, allRatings] = await Promise.all([
-            app_js_1.prisma.review.findMany({
-                where: { courseId: id },
-                include: {
-                    user: {
-                        select: { id: true, name: true, image: true },
-                    },
-                },
-                skip: (page - 1) * limit,
-                take: limit,
-                orderBy: { createdAt: 'desc' },
-            }),
-            app_js_1.prisma.review.count({ where: { courseId: id } }),
-            app_js_1.prisma.review.findMany({
-                where: { courseId: id },
-                select: { rating: true },
-            }),
-        ]);
-        // Calculate distribution
+        const totalRow = await (0, db_js_1.queryOne)('SELECT COUNT(*) as cnt FROM reviews WHERE courseId = ?', [id]);
+        const total = Number(totalRow?.cnt ?? 0);
+        const reviews = await (0, db_js_1.query)(`SELECT r.*, u.id as u_id, u.name as u_name, u.image as u_image
+       FROM reviews r LEFT JOIN users u ON r.userId = u.id
+       WHERE r.courseId = ?
+       ORDER BY r.createdAt DESC LIMIT ? OFFSET ?`, [id, limit, (page - 1) * limit]);
+        const formatted = reviews.map(r => ({
+            id: r.id, rating: r.rating, comment: r.comment, userId: r.userId, courseId: r.courseId,
+            createdAt: r.createdAt, updatedAt: r.updatedAt,
+            user: { id: r.u_id, name: r.u_name, image: r.u_image },
+        }));
+        // Rating distribution
+        const allRatings = await (0, db_js_1.query)('SELECT rating FROM reviews WHERE courseId = ?', [id]);
         const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-        allRatings.forEach((r) => {
-            distribution[r.rating]++;
-        });
-        const averageRating = allRatings.length > 0
-            ? allRatings.reduce((a, r) => a + r.rating, 0) / allRatings.length
-            : 0;
+        allRatings.forEach(r => { distribution[r.rating]++; });
+        const avgRating = allRatings.length > 0
+            ? allRatings.reduce((a, r) => a + r.rating, 0) / allRatings.length : 0;
         res.json({
-            reviews,
-            pagination: {
-                page,
-                limit,
-                total,
-                totalPages: Math.ceil(total / limit),
-            },
+            reviews: formatted,
+            pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
             stats: {
-                averageRating: Math.round(averageRating * 10) / 10,
+                averageRating: Math.round(avgRating * 10) / 10,
                 totalReviews: total,
                 distribution,
             },
@@ -853,160 +639,143 @@ router.get('/:id/reviews', async (req, res) => {
         res.status(500).json({ error: 'Failed to get reviews' });
     }
 });
-// POST /courses/:id/reviews - Create review
+// POST /courses/:id/reviews
 router.post('/:id/reviews', auth_js_1.authenticate, async (req, res) => {
     try {
         const { id } = req.params;
         const { rating, comment } = req.body;
-        if (!rating || rating < 1 || rating > 5) {
+        if (!rating || rating < 1 || rating > 5)
             return res.status(400).json({ error: 'Rating must be between 1 and 5' });
-        }
-        // Check if enrolled
-        const enrollment = await app_js_1.prisma.enrollment.findUnique({
-            where: {
-                userId_courseId: {
-                    userId: req.user.id,
-                    courseId: id,
-                },
-            },
-        });
-        if (!enrollment) {
+        const enrollment = await (0, db_js_1.queryOne)('SELECT id FROM enrollments WHERE userId = ? AND courseId = ?', [req.user.id, id]);
+        if (!enrollment)
             return res.status(403).json({ error: 'Must be enrolled to review' });
-        }
-        // Check if already reviewed
-        const existing = await app_js_1.prisma.review.findUnique({
-            where: {
-                userId_courseId: {
-                    userId: req.user.id,
-                    courseId: id,
-                },
-            },
-        });
-        if (existing) {
+        const existing = await (0, db_js_1.queryOne)('SELECT id FROM reviews WHERE userId = ? AND courseId = ?', [req.user.id, id]);
+        if (existing)
             return res.status(409).json({ error: 'Already reviewed this course' });
+        const reviewId = (0, db_js_1.genId)();
+        const ts = (0, db_js_1.now)();
+        await (0, db_js_1.execute)('INSERT INTO reviews (id, rating, comment, userId, courseId, updatedAt) VALUES (?, ?, ?, ?, ?, ?)', [reviewId, rating, comment || null, req.user.id, id, ts]);
+        const review = await (0, db_js_1.queryOne)('SELECT * FROM reviews WHERE id = ?', [reviewId]);
+        const user = await (0, db_js_1.queryOne)('SELECT id, name, image FROM users WHERE id = ?', [req.user.id]);
+        // Notify the course creator about the new review
+        const courseInfo = await (0, db_js_1.queryOne)('SELECT creatorId, title FROM courses WHERE id = ?', [id]);
+        if (courseInfo && courseInfo.creatorId !== req.user.id) {
+            (0, notifications_js_1.createNotification)({
+                userId: courseInfo.creatorId,
+                type: 'review',
+                title: 'New Course Review',
+                description: `${user?.name || 'A student'} left a ${rating}-star review on "${courseInfo.title}".`,
+                link: `/manage-courses/${id}`,
+            });
         }
-        const review = await app_js_1.prisma.review.create({
-            data: {
-                rating,
-                comment,
-                userId: req.user.id,
-                courseId: id,
-            },
-            include: {
-                user: {
-                    select: { id: true, name: true, image: true },
-                },
-            },
-        });
-        res.status(201).json({ review });
+        res.status(201).json({ review: { ...review, user } });
     }
     catch (error) {
         console.error('Create review error:', error);
         res.status(500).json({ error: 'Failed to create review' });
     }
 });
-// GET /courses/:id/analytics - Get course analytics
+// GET /courses/:id/analytics
 router.get('/:id/analytics', auth_js_1.authenticate, async (req, res) => {
     try {
         const { id } = req.params;
-        const course = await app_js_1.prisma.course.findUnique({
-            where: { id },
-            include: {
-                enrollments: {
-                    include: {
-                        lessonProgress: true,
-                        user: {
-                            select: { id: true, name: true, image: true },
-                        },
-                    },
-                },
-                modules: {
-                    include: {
-                        lessons: true,
-                    },
-                },
-                reviews: {
-                    select: { rating: true },
-                },
-            },
-        });
-        if (!course) {
+        const course = await (0, db_js_1.queryOne)('SELECT * FROM courses WHERE id = ?', [id]);
+        if (!course)
             return res.status(404).json({ error: 'Course not found' });
-        }
         if (course.creatorId !== req.user.id && req.user.role !== 'ADMIN') {
             return res.status(403).json({ error: 'Access denied' });
         }
-        const totalLessons = course.modules.reduce((a, m) => a + m.lessons.length, 0);
-        const avgRating = course.reviews.length > 0
-            ? course.reviews.reduce((a, r) => a + r.rating, 0) / course.reviews.length
-            : 0;
-        // Calculate completion rates
-        const studentProgress = course.enrollments.map((enrollment) => {
-            const completed = enrollment.lessonProgress.filter((lp) => lp.completedAt).length;
-            const progress = totalLessons > 0 ? (completed / totalLessons) * 100 : 0;
+        // Enrollments
+        const enrollments = await (0, db_js_1.query)(`SELECT e.*, u.id as u_id, u.name as u_name, u.image as u_image
+       FROM enrollments e JOIN users u ON e.userId = u.id
+       WHERE e.courseId = ?`, [id]);
+        // All lessons in course
+        const lessonRows = await (0, db_js_1.query)('SELECT l.* FROM modules m JOIN lessons l ON l.moduleId = m.id WHERE m.courseId = ? ORDER BY m.position, l.position', [id]);
+        const totalLessons = lessonRows.length;
+        // Reviews
+        const reviewRows = await (0, db_js_1.query)('SELECT rating FROM reviews WHERE courseId = ?', [id]);
+        const avgRating = reviewRows.length > 0
+            ? reviewRows.reduce((a, r) => a + r.rating, 0) / reviewRows.length : 0;
+        // Progress per enrollment
+        const enrollmentIds = enrollments.map(e => e.id);
+        let progressByEnrollment = new Map();
+        if (enrollmentIds.length > 0) {
+            const ep = (0, db_js_1.inPlaceholders)(enrollmentIds);
+            const allProgress = await (0, db_js_1.query)(`SELECT * FROM lesson_progress WHERE enrollmentId IN (${ep})`, enrollmentIds);
+            for (const p of allProgress) {
+                if (!progressByEnrollment.has(p.enrollmentId))
+                    progressByEnrollment.set(p.enrollmentId, []);
+                progressByEnrollment.get(p.enrollmentId).push(p);
+            }
+        }
+        const studentProgress = enrollments.map(e => {
+            const progress = progressByEnrollment.get(e.id) ?? [];
+            const completed = progress.filter(p => p.completedAt).length;
+            const pct = totalLessons > 0 ? (completed / totalLessons) * 100 : 0;
             return {
-                userId: enrollment.user.id,
-                name: enrollment.user.name,
-                progress: Math.round(progress * 10) / 10,
-                completedAt: completed === totalLessons ? enrollment.lessonProgress
-                    .filter((lp) => lp.completedAt)
-                    .sort((a, b) => (b.completedAt?.getTime() || 0) - (a.completedAt?.getTime() || 0))[0]?.completedAt : null,
+                userId: e.u_id, name: e.u_name,
+                progress: Math.round(pct * 10) / 10,
+                completedAt: completed === totalLessons && totalLessons > 0
+                    ? progress.filter(p => p.completedAt).sort((a, b) => {
+                        const at2 = a.completedAt instanceof Date ? a.completedAt.getTime() : new Date(a.completedAt).getTime();
+                        const bt2 = b.completedAt instanceof Date ? b.completedAt.getTime() : new Date(b.completedAt).getTime();
+                        return bt2 - at2;
+                    })[0]?.completedAt : null,
             };
         });
-        const completedStudents = studentProgress.filter((s) => s.progress === 100).length;
-        const completionRate = course.enrollments.length > 0
-            ? (completedStudents / course.enrollments.length) * 100
-            : 0;
+        const completedStudents = studentProgress.filter(s => s.progress === 100).length;
+        const completionRate = enrollments.length > 0 ? (completedStudents / enrollments.length) * 100 : 0;
         const averageProgress = studentProgress.length > 0
-            ? studentProgress.reduce((a, s) => a + s.progress, 0) / studentProgress.length
-            : 0;
+            ? studentProgress.reduce((a, s) => a + s.progress, 0) / studentProgress.length : 0;
         // Enrollment trend (last 30 days)
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        const enrollmentTrend = course.enrollments
-            .filter((e) => e.enrolledAt >= thirtyDaysAgo)
+        const enrollmentTrend = enrollments
+            .filter(e => new Date(e.enrolledAt) >= thirtyDaysAgo)
             .reduce((acc, e) => {
-            const date = e.enrolledAt.toISOString().split('T')[0];
-            acc[date] = (acc[date] || 0) + 1;
+            const d = (e.enrolledAt instanceof Date ? e.enrolledAt.toISOString() : String(e.enrolledAt)).split('T')[0];
+            acc[d] = (acc[d] || 0) + 1;
             return acc;
         }, {});
         const enrollmentTrendArray = Object.entries(enrollmentTrend)
             .map(([date, count]) => ({ date, count }))
             .sort((a, b) => a.date.localeCompare(b.date));
         // Lesson stats
-        const lessonStats = course.modules.flatMap((module) => module.lessons.map((lesson) => {
-            const lessonProgress = course.enrollments.flatMap((e) => e.lessonProgress.filter((lp) => lp.lessonId === lesson.id));
-            const completed = lessonProgress.filter((lp) => lp.completedAt).length;
-            const avgWatchTime = lessonProgress.length > 0
-                ? lessonProgress.reduce((a, lp) => a + lp.lastWatchedTimestamp, 0) / lessonProgress.length
-                : 0;
+        const lessonStats = lessonRows.map(lesson => {
+            let completedCnt = 0;
+            let totalWatchTime = 0;
+            let watchCount = 0;
+            for (const [, progressArr] of progressByEnrollment) {
+                for (const p of progressArr) {
+                    if (p.lessonId === lesson.id) {
+                        if (p.completedAt)
+                            completedCnt++;
+                        totalWatchTime += p.lastWatchedTimestamp ?? 0;
+                        watchCount++;
+                    }
+                }
+            }
             return {
-                lessonId: lesson.id,
-                title: lesson.title,
-                completionRate: course.enrollments.length > 0
-                    ? Math.round((completed / course.enrollments.length) * 100)
-                    : 0,
-                averageWatchTime: Math.round(avgWatchTime),
-                dropOffRate: 0, // Would need more data to calculate
+                lessonId: lesson.id, title: lesson.title,
+                completionRate: enrollments.length > 0 ? Math.round((completedCnt / enrollments.length) * 100) : 0,
+                averageWatchTime: watchCount > 0 ? Math.round(totalWatchTime / watchCount) : 0,
+                dropOffRate: 0,
             };
-        }));
-        const topStudents = studentProgress
-            .sort((a, b) => b.progress - a.progress)
-            .slice(0, 10);
+        });
+        const topStudents = studentProgress.sort((a, b) => b.progress - a.progress).slice(0, 10);
         res.json({
             analytics: {
                 courseId: id,
                 overview: {
-                    totalEnrollments: course.enrollments.length,
-                    activeStudents: studentProgress.filter((s) => s.progress > 0 && s.progress < 100).length,
+                    totalEnrollments: enrollments.length,
+                    activeStudents: studentProgress.filter(s => s.progress > 0 && s.progress < 100).length,
                     completionRate: Math.round(completionRate * 10) / 10,
                     averageProgress: Math.round(averageProgress * 10) / 10,
                     averageRating: Math.round(avgRating * 10) / 10,
-                    totalRevenue: course.enrollments.length * course.price,
+                    totalRevenue: enrollments.length * course.price,
                 },
                 enrollmentTrend: enrollmentTrendArray,
-                lessonStats,
-                topStudents,
+                lessonStats, topStudents,
             },
         });
     }

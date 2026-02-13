@@ -1,6 +1,10 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { notifications as notificationsApi } from "@/lib/api-client";
+import type { Notification } from "@/lib/api-client";
+import { useAuth } from "@/lib/auth-context";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { 
   X, 
@@ -16,25 +20,12 @@ import {
   Trash2,
 } from "lucide-react";
 
-interface Notification {
-  id: string;
-  type: "course" | "message" | "review" | "follow" | "achievement" | "system";
-  title: string;
-  description: string;
-  time: Date;
-  read: boolean;
-  link?: string;
-}
-
 interface MobileNotificationsSheetProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-// Notifications are loaded dynamically - starts empty
-const initialNotifications: Notification[] = [];
-
-const notificationIcons = {
+const notificationIcons: Record<string, typeof BookOpen> = {
   course: BookOpen,
   message: MessageSquare,
   review: Star,
@@ -43,7 +34,7 @@ const notificationIcons = {
   system: Bell,
 };
 
-const notificationColors = {
+const notificationColors: Record<string, string> = {
   course: "bg-primary/10 text-primary",
   message: "bg-blue-500/10 text-blue-500",
   review: "bg-yellow-500/10 text-yellow-500",
@@ -55,7 +46,42 @@ const notificationColors = {
 export function MobileNotificationsSheet({ isOpen, onClose }: MobileNotificationsSheetProps) {
   const [mounted, setMounted] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>(initialNotifications);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  const { data } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: () => notificationsApi.list({ limit: 30 }),
+    enabled: isOpen && !!user,
+    refetchOnWindowFocus: false,
+  });
+
+  const notifications = data?.notifications || [];
+  const unreadCount = data?.unreadCount ?? 0;
+
+  const markAllReadMutation = useMutation({
+    mutationFn: () => notificationsApi.markAllRead(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications-unread-count"] });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => notificationsApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications-unread-count"] });
+    },
+  });
+
+  const markReadMutation = useMutation({
+    mutationFn: (id: string) => notificationsApi.markRead(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications-unread-count"] });
+    },
+  });
 
   useEffect(() => {
     setMounted(true);
@@ -80,16 +106,6 @@ export function MobileNotificationsSheet({ isOpen, onClose }: MobileNotification
     }, 200);
   };
 
-  const markAllAsRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, read: true })));
-  };
-
-  const deleteNotification = (id: string) => {
-    setNotifications(notifications.filter(n => n.id !== id));
-  };
-
-  const unreadCount = notifications.filter(n => !n.read).length;
-
   if (!mounted || !isOpen) return null;
 
   const content = (
@@ -105,7 +121,7 @@ export function MobileNotificationsSheet({ isOpen, onClose }: MobileNotification
         onClick={handleClose}
       />
       
-      {/* Sheet - Right side panel (matches mobile nav drawer) */}
+      {/* Sheet - Right side panel */}
       <div
         className={cn(
           "absolute right-0 top-0 h-full w-[85%] max-w-[320px] flex flex-col transition-transform duration-200 ease-out",
@@ -142,7 +158,7 @@ export function MobileNotificationsSheet({ isOpen, onClose }: MobileNotification
           <div className="px-4 py-2 border-b border-border/30 bg-muted/30">
             <button
               type="button"
-              onClick={markAllAsRead}
+              onClick={() => markAllReadMutation.mutate()}
               className="flex items-center gap-1.5 text-[12px] font-semibold text-primary hover:text-primary-600 transition-colors"
             >
               <CheckCircle className="w-3.5 h-3.5" />
@@ -163,15 +179,15 @@ export function MobileNotificationsSheet({ isOpen, onClose }: MobileNotification
             </div>
           ) : (
             <div className="divide-y divide-border/50">
-              {notifications.map((notification) => {
-                const Icon = notificationIcons[notification.type];
-                const colorClass = notificationColors[notification.type];
+              {notifications.map((notification: Notification) => {
+                const Icon = notificationIcons[notification.type] || Bell;
+                const colorClass = notificationColors[notification.type] || notificationColors.system;
                 
                 const NotificationContent = (
                   <div 
                     className={cn(
                       "flex gap-3 p-4 transition-all active:bg-muted/50",
-                      !notification.read && "bg-primary/5"
+                      !notification.isRead && "bg-primary/5"
                     )}
                   >
                     {/* Icon */}
@@ -187,11 +203,11 @@ export function MobileNotificationsSheet({ isOpen, onClose }: MobileNotification
                       <div className="flex items-start justify-between gap-2">
                         <h4 className={cn(
                           "text-body-sm text-text-1 line-clamp-1",
-                          !notification.read && "font-semibold"
+                          !notification.isRead && "font-semibold"
                         )}>
                           {notification.title}
                         </h4>
-                        {!notification.read && (
+                        {!notification.isRead && (
                           <span className="w-2 h-2 bg-primary rounded-full flex-shrink-0 mt-1.5" />
                         )}
                       </div>
@@ -199,7 +215,7 @@ export function MobileNotificationsSheet({ isOpen, onClose }: MobileNotification
                         {notification.description}
                       </p>
                       <p className="text-[10px] text-text-3 mt-1">
-                        {formatRelativeTime(notification.time)}
+                        {formatRelativeTime(new Date(notification.createdAt))}
                       </p>
                     </div>
                     
@@ -209,7 +225,7 @@ export function MobileNotificationsSheet({ isOpen, onClose }: MobileNotification
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        deleteNotification(notification.id);
+                        deleteMutation.mutate(notification.id);
                       }}
                       className="w-8 h-8 rounded-lg flex items-center justify-center text-text-3 hover:bg-danger/10 hover:text-danger active:scale-95 transition-all flex-shrink-0"
                     >
@@ -223,7 +239,10 @@ export function MobileNotificationsSheet({ isOpen, onClose }: MobileNotification
                     <Link 
                       key={notification.id} 
                       to={notification.link}
-                      onClick={handleClose}
+                      onClick={() => {
+                        if (!notification.isRead) markReadMutation.mutate(notification.id);
+                        handleClose();
+                      }}
                     >
                       {NotificationContent}
                     </Link>

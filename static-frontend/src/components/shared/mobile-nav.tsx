@@ -1,4 +1,4 @@
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
@@ -83,9 +83,11 @@ export function MobileNav({ user, variant = "learner", isOpen: externalIsOpen, o
   }, [onClose]);
 
   const { logout } = useAuth();
+  const navTo = useNavigate();
 
   const handleSignOut = () => {
     logout();
+    navTo("/login");
   };
 
   // Close menu when pathname changes

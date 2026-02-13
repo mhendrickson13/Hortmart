@@ -49,7 +49,7 @@ export function ReviewsSection({ courseId, initialStats }: ReviewsSectionProps) 
           distribution,
         });
       } else {
-        setReviews([...reviews, ...data.reviews]);
+        setReviews(prev => [...prev, ...data.reviews]);
       }
       setHasMore(pageNum < data.pagination.totalPages);
       setPage(pageNum);

@@ -1,36 +1,22 @@
 import { Router, Response } from 'express';
-import { z } from 'zod';
-import { prisma } from '../app.js';
+import { queryOne, execute, now } from '../db.js';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
 
 const router = Router();
-
-const updateResourceSchema = z.object({
-  title: z.string().min(1).optional(),
-  type: z.string().min(1).optional(),
-  url: z.string().url().optional(),
-  fileSize: z.number().int().min(0).optional(),
-});
 
 // GET /resources/:id
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-
-    const resource = await prisma.resource.findUnique({
-      where: { id },
-      include: {
-        lesson: {
-          select: { id: true, title: true },
-        },
-      },
-    });
+    const resource = await queryOne<any>('SELECT * FROM resources WHERE id = ?', [id]);
 
     if (!resource) {
       return res.status(404).json({ error: 'Resource not found' });
     }
 
-    res.json({ resource });
+    const lesson = await queryOne<any>('SELECT id, title FROM lessons WHERE id = ?', [resource.lessonId]);
+
+    res.json({ resource: { ...resource, lesson } });
   } catch (error) {
     console.error('Get resource error:', error);
     res.status(500).json({ error: 'Failed to get resource' });
@@ -41,41 +27,40 @@ router.get('/:id', async (req, res) => {
 router.patch('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-
-    const resource = await prisma.resource.findUnique({
-      where: { id },
-      include: {
-        lesson: {
-          include: {
-            module: {
-              include: {
-                course: { select: { creatorId: true } },
-              },
-            },
-          },
-        },
-      },
-    });
+    const resource = await queryOne<any>('SELECT * FROM resources WHERE id = ?', [id]);
 
     if (!resource) {
       return res.status(404).json({ error: 'Resource not found' });
     }
-    if (resource.lesson.module.course.creatorId !== req.user!.id && req.user!.role !== 'ADMIN') {
+
+    // Check ownership: resource -> lesson -> module -> course -> creatorId
+    const lesson = await queryOne<any>('SELECT moduleId FROM lessons WHERE id = ?', [resource.lessonId]);
+    const mod = await queryOne<any>('SELECT courseId FROM modules WHERE id = ?', [lesson?.moduleId]);
+    const course = await queryOne<any>('SELECT creatorId FROM courses WHERE id = ?', [mod?.courseId]);
+
+    if (!course || (course.creatorId !== req.user!.id && req.user!.role !== 'ADMIN')) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    const data = updateResourceSchema.parse(req.body);
+    const { title, type, url, fileSize } = req.body;
+    const sets: string[] = [];
+    const params: any[] = [];
 
-    const updated = await prisma.resource.update({
-      where: { id },
-      data,
-    });
+    if (title !== undefined) { sets.push('title = ?'); params.push(title); }
+    if (type !== undefined) { sets.push('type = ?'); params.push(type); }
+    if (url !== undefined) { sets.push('url = ?'); params.push(url); }
+    if (fileSize !== undefined) { sets.push('fileSize = ?'); params.push(fileSize); }
+
+    if (sets.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    params.push(id);
+    await execute(`UPDATE resources SET ${sets.join(', ')} WHERE id = ?`, params);
+    const updated = await queryOne<any>('SELECT * FROM resources WHERE id = ?', [id]);
 
     res.json({ resource: updated });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
-    }
     console.error('Update resource error:', error);
     res.status(500).json({ error: 'Failed to update resource' });
   }
@@ -85,31 +70,21 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res: Response) => {
 router.delete('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-
-    const resource = await prisma.resource.findUnique({
-      where: { id },
-      include: {
-        lesson: {
-          include: {
-            module: {
-              include: {
-                course: { select: { creatorId: true } },
-              },
-            },
-          },
-        },
-      },
-    });
+    const resource = await queryOne<any>('SELECT * FROM resources WHERE id = ?', [id]);
 
     if (!resource) {
       return res.status(404).json({ error: 'Resource not found' });
     }
-    if (resource.lesson.module.course.creatorId !== req.user!.id && req.user!.role !== 'ADMIN') {
+
+    const lesson = await queryOne<any>('SELECT moduleId FROM lessons WHERE id = ?', [resource.lessonId]);
+    const mod = await queryOne<any>('SELECT courseId FROM modules WHERE id = ?', [lesson?.moduleId]);
+    const course = await queryOne<any>('SELECT creatorId FROM courses WHERE id = ?', [mod?.courseId]);
+
+    if (!course || (course.creatorId !== req.user!.id && req.user!.role !== 'ADMIN')) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    await prisma.resource.delete({ where: { id } });
-
+    await execute('DELETE FROM resources WHERE id = ?', [id]);
     res.json({ message: 'Resource deleted successfully' });
   } catch (error) {
     console.error('Delete resource error:', error);

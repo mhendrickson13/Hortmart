@@ -1,12 +1,14 @@
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/auth-context";
 import {
   LayoutDashboard,
   GraduationCap,
   BarChart3,
   Users,
   Settings,
+  LogOut,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
@@ -31,6 +33,13 @@ const navItems = [
 
 export function AdminSidebar({ user }: AdminSidebarProps) {
   const { pathname } = useLocation();
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
 
   return (
     <aside className="w-[260px] rounded-[22px] bg-white/85 border border-border/90 p-4 flex flex-col gap-3.5 transition-colors duration-200">
@@ -65,7 +74,16 @@ export function AdminSidebar({ user }: AdminSidebarProps) {
 
       <div className="flex-1" />
 
-      {/* Profile Card - matches design: no chevron, simple layout */}
+      {/* Logout */}
+      <button
+        onClick={handleLogout}
+        className="h-10 rounded-[16px] flex items-center gap-2.5 px-3 font-bold text-[13px] text-text-2 hover:bg-red-50 hover:text-red-600 transition-all border border-transparent"
+      >
+        <LogOut className="w-[18px] h-[18px]" />
+        Sign out
+      </button>
+
+      {/* Profile Card */}
       <div className="flex items-center gap-3 p-3 rounded-[18px] border border-border/95 bg-white/92">
         <Avatar className="w-10 h-10 rounded-[16px] border border-border/95">
           <AvatarImage src={user?.image || undefined} alt={user?.name || "User"} />
