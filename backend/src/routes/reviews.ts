@@ -41,7 +41,12 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res: Response) => {
     const sets: string[] = [];
     const params: any[] = [];
 
-    if (rating !== undefined) { sets.push('rating = ?'); params.push(rating); }
+    if (rating !== undefined) {
+      if (typeof rating !== 'number' || rating < 1 || rating > 5 || !Number.isInteger(rating)) {
+        return res.status(400).json({ error: 'Rating must be an integer between 1 and 5' });
+      }
+      sets.push('rating = ?'); params.push(rating);
+    }
     if (comment !== undefined) { sets.push('comment = ?'); params.push(comment); }
     sets.push('updatedAt = ?'); params.push(now());
     params.push(id);

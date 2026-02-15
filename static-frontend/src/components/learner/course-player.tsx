@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { VideoPlayer, VideoPlayerRef } from "@/components/learner/video-player";
@@ -80,6 +80,160 @@ interface CoursePlayerProps {
   totalOtherStudents: number;
 }
 
+// --- Activity Chart Component ---
+type LessonLike = {
+  progress: {
+    progressPercent: number;
+    completedAt: Date | null;
+    lastWatchedTimestamp: number;
+  } | null;
+  durationSeconds: number;
+};
+
+function ActivityChart({ lessons }: { lessons: LessonLike[] }) {
+  // Get last 7 days labels and compute activity per day
+  const { dayLabels, values, maxVal } = useMemo(() => {
+    const now = new Date();
+    const days: { label: string; dateStr: string }[] = [];
+    const dayNames = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      days.push({
+        label: dayNames[d.getDay()],
+        dateStr: d.toISOString().slice(0, 10), // YYYY-MM-DD
+      });
+    }
+
+    // Accumulate activity per day from lesson progress
+    const activityMap: Record<string, number> = {};
+    days.forEach((d) => (activityMap[d.dateStr] = 0));
+
+    lessons.forEach((lesson) => {
+      if (!lesson.progress) return;
+      const prog = lesson.progress;
+
+      // Use completedAt if available
+      if (prog.completedAt) {
+        const dateStr = new Date(prog.completedAt).toISOString().slice(0, 10);
+        if (activityMap[dateStr] !== undefined) {
+          // Count completed lesson's full estimated duration as watched time
+          activityMap[dateStr] += lesson.durationSeconds;
+        }
+      }
+
+      // Use lastWatchedTimestamp (seconds into video) as indicator of recent watch
+      // We treat the progress update date as "today" if no completedAt
+      if (prog.lastWatchedTimestamp > 0 && !prog.completedAt) {
+        const todayStr = now.toISOString().slice(0, 10);
+        if (activityMap[todayStr] !== undefined) {
+          // Estimate time spent as progressPercent * duration
+          activityMap[todayStr] += Math.round(
+            (prog.progressPercent / 100) * lesson.durationSeconds
+          );
+        }
+      }
+    });
+
+    const vals = days.map((d) => activityMap[d.dateStr] || 0);
+    const mx = Math.max(...vals, 1); // Avoid division by zero
+
+    return { dayLabels: days.map((d) => d.label), values: vals, maxVal: mx };
+  }, [lessons]);
+
+  // SVG dimensions
+  const W = 320;
+  const H = 80;
+  const padX = 12;
+  const padTop = 8;
+  const padBot = 4;
+  const chartW = W - padX * 2;
+  const chartH = H - padTop - padBot;
+
+  // Convert values to points
+  const points = values.map((v: number, i: number) => ({
+    x: padX + (i / (values.length - 1)) * chartW,
+    y: padTop + chartH - (v / maxVal) * chartH,
+  }));
+
+  // Build smooth bezier path
+  let pathD = `M${points[0].x} ${points[0].y}`;
+  for (let i = 1; i < points.length; i++) {
+    const prev = points[i - 1];
+    const curr = points[i];
+    const cpx1 = prev.x + (curr.x - prev.x) * 0.4;
+    const cpx2 = curr.x - (curr.x - prev.x) * 0.4;
+    pathD += ` C ${cpx1} ${prev.y}, ${cpx2} ${curr.y}, ${curr.x} ${curr.y}`;
+  }
+
+  // Area fill path (under the curve)
+  const areaD =
+    pathD +
+    ` L ${points[points.length - 1].x} ${padTop + chartH} L ${points[0].x} ${padTop + chartH} Z`;
+
+  const hasActivity = values.some((v: number) => v > 0);
+
+  return (
+    <div>
+      <div className="relative">
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-[72px]" fill="none">
+          {/* Gradient fill */}
+          <defs>
+            <linearGradient id="actGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="rgba(47, 111, 237, 0.25)" />
+              <stop offset="100%" stopColor="rgba(47, 111, 237, 0.02)" />
+            </linearGradient>
+          </defs>
+          {hasActivity && (
+            <>
+              <path d={areaD} fill="url(#actGrad)" />
+              <path
+                d={pathD}
+                stroke="rgba(47, 111, 237, 0.85)"
+                strokeWidth="3"
+                strokeLinecap="round"
+                fill="none"
+              />
+              {/* Dots on points with activity */}
+              {points.map(
+                (pt: { x: number; y: number }, i: number) =>
+                  values[i] > 0 && (
+                    <circle
+                      key={i}
+                      cx={pt.x}
+                      cy={pt.y}
+                      r="4"
+                      fill="rgba(47, 111, 237, 0.95)"
+                      stroke="white"
+                      strokeWidth="1.5"
+                    />
+                  )
+              )}
+            </>
+          )}
+          {!hasActivity && (
+            <text
+              x={W / 2}
+              y={H / 2}
+              textAnchor="middle"
+              fill="#94a3b8"
+              fontSize="11"
+            >
+              No activity yet
+            </text>
+          )}
+        </svg>
+      </div>
+      <div className="flex justify-between mt-1 text-[10px] text-text-3 font-bold">
+        {dayLabels.map((label: string, i: number) => (
+          <span key={i}>{label}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function CoursePlayer({
   course,
   currentLessonId: initialLessonId,
@@ -109,6 +263,13 @@ export function CoursePlayer({
       setIsFavorited(status.isFavourite);
       setIsBookmarked(status.isBookmarked);
     }).catch(() => {});
+
+    // Cleanup auto-advance timer on unmount
+    return () => {
+      if (autoAdvanceTimerRef.current) {
+        clearTimeout(autoAdvanceTimerRef.current);
+      }
+    };
   }, [course.id]);
 
   const handleFavorite = async () => {
@@ -609,28 +770,7 @@ export function CoursePlayer({
           <h4 className="text-caption font-bold text-text-1 mb-2 italic">
             Your time on the course
           </h4>
-          <div className="relative">
-            <svg viewBox="0 0 320 80" className="w-full h-[72px]" fill="none">
-              {/* Smooth curve line */}
-              <path 
-                d="M8 62 C 48 62, 60 25, 90 25 C 120 25, 140 52, 170 52 C 200 52, 220 18, 250 18 C 280 18, 292 40, 312 40"
-                stroke="rgba(47, 111, 237, 0.85)" 
-                strokeWidth="4" 
-                strokeLinecap="round"
-                fill="none"
-              />
-              {/* Activity dots */}
-              <circle cx="90" cy="25" r="5" fill="rgba(47, 111, 237, 0.95)" />
-              <circle cx="250" cy="18" r="5" fill="rgba(47, 111, 237, 0.95)" />
-            </svg>
-          </div>
-          <div className="flex justify-between mt-1 text-[10px] text-text-3 font-bold">
-            <span>MON</span>
-            <span>TUE</span>
-            <span>WED</span>
-            <span>THU</span>
-            <span>FRI</span>
-          </div>
+          <ActivityChart lessons={allLessons} />
         </Card>
       </aside>
 

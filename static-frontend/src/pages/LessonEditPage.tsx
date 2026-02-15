@@ -377,7 +377,7 @@ function LessonEditor({
           <Link
             to={`/manage-courses/${courseId}/edit`}
             onClick={() => onNavigateBack?.()}
-            className="w-10 h-10 rounded-[16px] border border-border/95 bg-white/95 grid place-items-center hover:bg-muted transition-colors flex-shrink-0"
+            className="w-10 h-10 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 grid place-items-center hover:bg-muted transition-colors flex-shrink-0"
           >
             <ArrowLeft className="w-4 h-4 text-text-1" />
           </Link>
@@ -399,7 +399,7 @@ function LessonEditor({
           </div>
           <button
             onClick={() => window.open(`/course/${courseId}`, "_blank")}
-            className="h-10 px-3.5 rounded-[16px] border border-border/95 bg-white/95 text-text-1 font-black text-[13px] inline-flex items-center gap-2 shadow-[0_14px_28px_rgba(21,25,35,0.06)] whitespace-nowrap"
+            className="h-10 px-3.5 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-text-1 font-black text-[13px] inline-flex items-center gap-2 shadow-[0_14px_28px_rgba(21,25,35,0.06)] dark:shadow-[0_14px_28px_rgba(0,0,0,0.25)] whitespace-nowrap"
           >
             Preview
           </button>
@@ -434,11 +434,11 @@ function LessonEditor({
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-3 flex-1 min-h-0 mt-3">
         {/* Left Panel - Lesson Details */}
-        <div className="rounded-[22px] bg-white/92 border border-border/95 shadow-[0_14px_28px_rgba(21,25,35,0.06)] p-3.5 min-w-0 flex flex-col gap-3 overflow-auto">
+        <div className="rounded-[22px] bg-white/92 dark:bg-card/92 border border-border/95 shadow-[0_14px_28px_rgba(21,25,35,0.06)] dark:shadow-[0_14px_28px_rgba(0,0,0,0.25)] p-3.5 min-w-0 flex flex-col gap-3 overflow-auto">
           <h2 className="text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">Lesson details</h2>
 
           {/* Title */}
-          <div className="rounded-[18px] border border-border/95 bg-white/95 p-3">
+          <div className="rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
             <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">Title</div>
             {editingField === "title" ? (
               <Input
@@ -458,7 +458,7 @@ function LessonEditor({
               />
             ) : (
               <div
-                className="mt-2 h-10 rounded-[16px] border border-border/95 bg-white/95 px-3.5 flex items-center text-text-1 font-black text-[13px] cursor-pointer hover:border-primary/40 transition-colors"
+                className="mt-2 h-10 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 px-3.5 flex items-center text-text-1 font-black text-[13px] cursor-pointer hover:border-primary/40 transition-colors"
                 onClick={() => setEditingField("title")}
               >
                 {lesson.title}
@@ -469,7 +469,7 @@ function LessonEditor({
 
           {/* Duration & Access */}
           <div className="grid grid-cols-2 gap-2.5">
-            <div className="rounded-[18px] border border-border/95 bg-white/95 p-3">
+            <div className="rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
               <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">Duration</div>
               {editingField === "durationSeconds" ? (
                 <Input
@@ -494,7 +494,7 @@ function LessonEditor({
                 />
               ) : (
                 <div
-                  className="mt-2 h-10 rounded-[16px] border border-border/95 bg-white/95 px-3.5 flex items-center text-text-1 font-black text-[13px] cursor-pointer hover:border-primary/40 transition-colors"
+                  className="mt-2 h-10 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 px-3.5 flex items-center text-text-1 font-black text-[13px] cursor-pointer hover:border-primary/40 transition-colors"
                   onClick={() => setEditingField("durationSeconds")}
                 >
                   {lesson.durationSeconds > 0 ? formatDuration(lesson.durationSeconds) : "Not set"}
@@ -502,12 +502,12 @@ function LessonEditor({
                 </div>
               )}
             </div>
-            <div className="rounded-[18px] border border-border/95 bg-white/95 p-3">
+            <div className="rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
               <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">Access</div>
               <select
                 value={lesson.isFreePreview ? "free" : "paid"}
                 onChange={(e) => saveField("isFreePreview", e.target.value === "free")}
-                className="mt-2 w-full h-10 px-3 rounded-[16px] border border-border/95 bg-white/95 text-[13px] font-black text-text-1 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                className="mt-2 w-full h-10 px-3 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-[13px] font-black text-text-1 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
               >
                 <option value="paid">Paid</option>
                 <option value="free">Free preview</option>
@@ -516,13 +516,13 @@ function LessonEditor({
           </div>
 
           {/* Description */}
-          <div className="rounded-[18px] border border-border/95 bg-white/95 p-3">
+          <div className="rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
             <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">Description</div>
             {editingField === "description" ? (
               <textarea
                 defaultValue={lesson.description}
                 autoFocus
-                className="mt-2 w-full h-24 px-3.5 py-2.5 rounded-[16px] border border-border/95 bg-white/95 text-[13px] font-black text-text-1 resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                className="mt-2 w-full h-24 px-3.5 py-2.5 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-[13px] font-black text-text-1 resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 onBlur={(e) => {
                   if (e.target.value !== lesson.description) saveField("description", e.target.value);
                   else setEditingField(null);
@@ -543,7 +543,7 @@ function LessonEditor({
           <h2 className="mt-1.5 text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">Video</h2>
           {/* Hidden video file input */}
           <input ref={videoInputRef} type="file" accept="video/*" className="hidden" onChange={handleVideoFileSelect} />
-          <div className="rounded-[18px] border border-border/95 bg-white/95 p-3">
+          <div className="rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
             {uploadingVideo ? (
               <div className="flex flex-col items-center justify-center py-10 border-2 border-dashed border-primary/40 rounded-[16px] bg-primary/5">
                 <Loader2 className="w-10 h-10 text-primary animate-spin mb-3" />
@@ -578,7 +578,7 @@ function LessonEditor({
                     </button>
                     <button
                       onClick={() => saveField("videoUrl", "")}
-                      className="h-8 px-3 rounded-[14px] text-[12px] font-black border border-red-200 text-red-500 hover:bg-red-50 transition-colors"
+                      className="h-8 px-3 rounded-[14px] text-[12px] font-black border border-red-200 dark:border-red-800 text-red-500 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
                     >
                       Remove
                     </button>
@@ -628,15 +628,15 @@ function LessonEditor({
         </div>
 
         {/* Right Panel - Resources & Behavior */}
-        <div className="rounded-[22px] bg-white/92 border border-border/95 shadow-[0_14px_28px_rgba(21,25,35,0.06)] p-3.5 min-w-0 flex flex-col gap-3 overflow-auto">
+        <div className="rounded-[22px] bg-white/92 dark:bg-card/92 border border-border/95 shadow-[0_14px_28px_rgba(21,25,35,0.06)] dark:shadow-[0_14px_28px_rgba(0,0,0,0.25)] p-3.5 min-w-0 flex flex-col gap-3 overflow-auto">
           <h2 className="text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">Resources</h2>
 
-          <div className="rounded-[22px] border border-border/95 bg-white/95 p-3">
+          <div className="rounded-[22px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
             {/* Resources list */}
             {resources.length > 0 ? (
               <div className="space-y-2.5">
                 {resources.map((resource) => (
-                  <div key={resource.id} className="flex items-center gap-3 p-2.5 rounded-[16px] border border-border/95 bg-white/95">
+                  <div key={resource.id} className="flex items-center gap-3 p-2.5 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95">
                     <div className="w-[34px] h-[34px] rounded-[14px] border border-border/95 bg-primary/10 grid place-items-center text-primary-600 flex-shrink-0">
                       {resource.type === "link" ? <ExternalLink className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
                     </div>
@@ -656,7 +656,7 @@ function LessonEditor({
                     </div>
                     <button
                       onClick={() => removeResource(resource.id)}
-                      className="h-[30px] px-2.5 rounded-[12px] text-[12px] font-black border border-red-200 text-red-500 hover:bg-red-50 transition-colors"
+                      className="h-[30px] px-2.5 rounded-[12px] text-[12px] font-black border border-red-200 dark:border-red-800 text-red-500 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
                     >
                       Remove
                     </button>
@@ -682,7 +682,7 @@ function LessonEditor({
                   </button>
                   <button
                     onClick={() => { setShowAddLink(false); setNewLinkTitle(""); setNewLinkUrl(""); }}
-                    className="h-9 px-3 rounded-[14px] border border-border/95 bg-white/95 text-text-2 font-black text-[12px]"
+                    className="h-9 px-3 rounded-[14px] border border-border/95 bg-white/95 dark:bg-card/95 text-text-2 font-black text-[12px]"
                   >
                     Cancel
                   </button>
@@ -713,7 +713,7 @@ function LessonEditor({
               </button>
               <button
                 onClick={() => { setShowAddLink(true); }}
-                className="flex-1 h-9 rounded-[14px] border border-border/95 bg-white/95 text-text-1 font-black text-[12px] inline-flex items-center justify-center gap-1.5 hover:bg-muted transition-colors"
+                className="flex-1 h-9 rounded-[14px] border border-border/95 bg-white/95 dark:bg-card/95 text-text-1 font-black text-[12px] inline-flex items-center justify-center gap-1.5 hover:bg-muted transition-colors"
               >
                 <Link2 className="w-3.5 h-3.5" />
                 Add link
@@ -724,8 +724,8 @@ function LessonEditor({
           {/* Lesson Features */}
           <h2 className="mt-1.5 text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">Lesson features</h2>
 
-          <div className="rounded-[22px] border border-border/95 bg-white/95 p-3 space-y-2.5">
-            <div className="flex items-center gap-3 p-3 rounded-[18px] border border-border/95 bg-white/95">
+          <div className="rounded-[22px] border border-border/95 bg-white/95 dark:bg-card/95 p-3 space-y-2.5">
+            <div className="flex items-center gap-3 p-3 rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95">
               <div className="w-8 h-8 rounded-lg bg-primary/10 grid place-items-center text-primary flex-shrink-0">
                 <ToggleRight className="w-4 h-4" />
               </div>
@@ -734,7 +734,7 @@ function LessonEditor({
                 <div className="mt-0.5 text-[12px] font-extrabold text-text-3">Learners can ask questions on this lesson.</div>
               </div>
             </div>
-            <div className="flex items-center gap-3 p-3 rounded-[18px] border border-border/95 bg-white/95">
+            <div className="flex items-center gap-3 p-3 rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95">
               <div className="w-8 h-8 rounded-lg bg-primary/10 grid place-items-center text-primary flex-shrink-0">
                 <ToggleRight className="w-4 h-4" />
               </div>
@@ -753,7 +753,7 @@ function LessonEditor({
                 onNavigateBack?.();
                 navigate(`/manage-courses/${courseId}/edit`);
               }}
-              className="flex-1 h-10 rounded-[16px] border border-border/95 bg-white/95 text-text-1 font-black text-[13px] inline-flex items-center justify-center gap-2 shadow-[0_14px_28px_rgba(21,25,35,0.06)]"
+              className="flex-1 h-10 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-text-1 font-black text-[13px] inline-flex items-center justify-center gap-2 shadow-[0_14px_28px_rgba(21,25,35,0.06)] dark:shadow-[0_14px_28px_rgba(0,0,0,0.25)]"
             >
               <ArrowLeft className="w-4 h-4" />
               Back to course

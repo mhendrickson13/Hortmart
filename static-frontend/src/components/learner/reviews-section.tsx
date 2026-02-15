@@ -78,7 +78,7 @@ export function ReviewsSection({ courseId, initialStats }: ReviewsSectionProps) 
               "w-4 h-4",
               rating >= star
                 ? "fill-yellow-400 text-yellow-400"
-                : "text-neutral-300"
+                : "text-text-3/40 dark:text-text-3/30"
             )}
           />
         ))}
@@ -143,7 +143,7 @@ export function ReviewsSection({ courseId, initialStats }: ReviewsSectionProps) 
                   <div key={rating} className="flex items-center gap-2">
                     <span className="text-caption text-text-2 w-3">{rating}</span>
                     <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
-                    <div className="flex-1 h-2 bg-neutral-100 rounded-full overflow-hidden">
+                    <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
                       <div
                         className="h-full bg-yellow-400 rounded-full transition-all"
                         style={{ width: `${percent}%` }}

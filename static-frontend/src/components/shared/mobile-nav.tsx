@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/lib/auth-context";
+import { useAppPreferences } from "@/lib/theme-context";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -57,6 +58,7 @@ export function MobileNav({ user, variant = "learner", isOpen: externalIsOpen, o
   const [internalIsOpen, setInternalIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
+  const { t } = useAppPreferences();
   const navItems = variant === "admin" ? adminNavItems : learnerNavItems;
   const drawerRef = useRef<HTMLDivElement>(null);
   const startXRef = useRef<number>(0);
@@ -194,7 +196,7 @@ export function MobileNav({ user, variant = "learner", isOpen: externalIsOpen, o
             <div className="flex-1 min-w-0">
               <p className="font-bold text-text-1 truncate">{user.name || "User"}</p>
               <p className="text-caption text-text-3">
-                {user.role === "ADMIN" ? "Administrator" : user.role === "CREATOR" ? "Course Creator" : "Learner"}
+                {user.role === "ADMIN" ? t("roles.admin") : user.role === "CREATOR" ? t("roles.creator") : t("roles.learner")}
               </p>
             </div>
             <ChevronRight className="w-4 h-4 text-text-3 flex-shrink-0" />
@@ -206,7 +208,7 @@ export function MobileNav({ user, variant = "learner", isOpen: externalIsOpen, o
           {/* Main Navigation */}
           <div className="mb-6">
             <p className="text-[11px] font-semibold text-text-3 uppercase tracking-wider mb-2 px-1">
-              {variant === "admin" ? "Creator Tools" : "Navigation"}
+              {variant === "admin" ? "Creator Tools" : t("nav.home")}
             </p>
             <nav className="space-y-1">
               {navItems.map((item) => {
@@ -296,7 +298,7 @@ export function MobileNav({ user, variant = "learner", isOpen: externalIsOpen, o
               <button
                 type="button"
                 onClick={() => {
-                  window.open("/settings?tab=privacy", "_self");
+                  window.open("/settings?tab=legal", "_self");
                   handleClose();
                 }}
                 className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-text-2 hover:bg-muted transition-all active:scale-[0.98]"
@@ -304,6 +306,16 @@ export function MobileNav({ user, variant = "learner", isOpen: externalIsOpen, o
                 <Shield className="w-5 h-5 flex-shrink-0" />
                 <span className="font-medium text-body-sm text-left">Privacy Policy</span>
               </button>
+              <Link
+                to="/settings?tab=legal"
+                onClick={handleClose}
+                className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-text-2 hover:bg-muted transition-all active:scale-[0.98]"
+              >
+                <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span className="font-medium text-body-sm text-left">Terms of Service</span>
+              </Link>
             </nav>
           </div>
         </div>
@@ -325,7 +337,7 @@ export function MobileNav({ user, variant = "learner", isOpen: externalIsOpen, o
               onClick={handleClose}
               className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-primary text-white font-semibold shadow-lg shadow-primary/25 hover:brightness-110 active:scale-[0.98] transition-all"
             >
-              Sign In
+              {t("nav.signIn")}
             </Link>
           )}
         </div>

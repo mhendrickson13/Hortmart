@@ -136,11 +136,14 @@ router.get('/:id/progress', authenticate, async (req: AuthRequest, res: Response
 router.post('/:id/progress', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { progressPercent, lastWatchedTimestamp } = req.body;
+    const { progressPercent: rawProgress, lastWatchedTimestamp } = req.body;
 
-    if (progressPercent === undefined || lastWatchedTimestamp === undefined) {
+    if (rawProgress === undefined || lastWatchedTimestamp === undefined) {
       return res.status(400).json({ error: 'progressPercent and lastWatchedTimestamp are required' });
     }
+
+    // Clamp progressPercent to 0-100
+    const progressPercent = Math.max(0, Math.min(100, Number(rawProgress) || 0));
 
     const lesson = await queryOne<any>('SELECT moduleId FROM lessons WHERE id = ?', [id]);
     if (!lesson) return res.status(404).json({ error: 'Lesson not found' });

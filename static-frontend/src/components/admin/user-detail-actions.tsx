@@ -87,7 +87,7 @@ export function UserHeaderActions({
     <div className="flex items-center gap-2.5">
       <button
         onClick={handleMessage}
-        className="h-10 px-3.5 rounded-[16px] border border-border/95 bg-white/95 text-text-1 font-black text-[13px] inline-flex items-center gap-2 shadow-[0_14px_28px_rgba(21,25,35,0.06)]"
+        className="h-10 px-3.5 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-text-1 font-black text-[13px] inline-flex items-center gap-2 shadow-[0_14px_28px_rgba(21,25,35,0.06)] dark:shadow-[0_14px_28px_rgba(0,0,0,0.25)]"
       >
         <Mail className="w-4 h-4" />
         Message
@@ -104,8 +104,8 @@ export function UserHeaderActions({
         disabled={blocking}
         className={`h-10 px-3.5 rounded-[16px] border font-black text-[13px] inline-flex items-center gap-2 transition-colors disabled:opacity-50 ${
           isBlocked
-            ? "border-success/50 bg-white text-success hover:bg-success/5"
-            : "border-red-300 bg-white text-red-500 hover:bg-red-50"
+            ? "border-success/50 bg-card text-success hover:bg-success/5"
+            : "border-red-300 dark:border-red-800 bg-card text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950"
         }`}
       >
         {isBlocked ? (
@@ -164,7 +164,7 @@ export function EditPermissionsButton({
         <select
           value={role}
           onChange={(e) => setRole(e.target.value)}
-          className="h-[30px] px-2 rounded-[12px] text-[11px] font-black border border-border/95 bg-white/95 text-text-1"
+          className="h-[30px] px-2 rounded-[12px] text-[11px] font-black border border-border/95 bg-white/95 dark:bg-card/95 text-text-1"
         >
           <option value="LEARNER">Learner</option>
           <option value="CREATOR">Creator</option>
@@ -182,7 +182,7 @@ export function EditPermissionsButton({
             setRole(currentRole);
             setEditing(false);
           }}
-          className="h-[30px] px-2.5 rounded-[12px] text-[11px] font-black border border-border/95 bg-white/95 text-text-1"
+          className="h-[30px] px-2.5 rounded-[12px] text-[11px] font-black border border-border/95 bg-white/95 dark:bg-card/95 text-text-1"
         >
           Cancel
         </button>
@@ -193,7 +193,7 @@ export function EditPermissionsButton({
   return (
     <button
       onClick={() => setEditing(true)}
-      className="h-[30px] px-2.5 rounded-[12px] text-[11px] font-black border border-border/95 bg-white/95 text-text-1 hover:bg-muted transition-colors"
+      className="h-[30px] px-2.5 rounded-[12px] text-[11px] font-black border border-border/95 bg-white/95 dark:bg-card/95 text-text-1 hover:bg-muted transition-colors"
     >
       Edit
     </button>
@@ -212,7 +212,7 @@ export function ReviewRefundButton() {
           variant: "info",
         })
       }
-      className="h-[30px] px-2.5 rounded-[12px] text-[11px] font-black border border-border/95 bg-white/95 text-text-1 hover:bg-muted transition-colors"
+      className="h-[30px] px-2.5 rounded-[12px] text-[11px] font-black border border-border/95 bg-white/95 dark:bg-card/95 text-text-1 hover:bg-muted transition-colors"
     >
       Review
     </button>

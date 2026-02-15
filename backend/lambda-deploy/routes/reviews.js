@@ -36,6 +36,9 @@ router.patch('/:id', auth_js_1.authenticate, async (req, res) => {
         const sets = [];
         const params = [];
         if (rating !== undefined) {
+            if (typeof rating !== 'number' || rating < 1 || rating > 5 || !Number.isInteger(rating)) {
+                return res.status(400).json({ error: 'Rating must be an integer between 1 and 5' });
+            }
             sets.push('rating = ?');
             params.push(rating);
         }

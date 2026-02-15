@@ -72,13 +72,24 @@ router.get('/', auth_js_1.optionalAuth, async (req, res) => {
         const conditions = [];
         const params = [];
         // Visibility
-        if (!req.user || (creatorId && creatorId !== req.user?.id && req.user?.role !== 'ADMIN')) {
+        if (creatorId && creatorId === req.user?.id) {
+            // Creator viewing own courses - apply status filter if provided
+            if (status) {
+                conditions.push('c.status = ?');
+                params.push(status);
+            }
+        }
+        else if (req.user?.role === 'ADMIN') {
+            // Admin can see all - apply status filter if provided
+            if (status) {
+                conditions.push('c.status = ?');
+                params.push(status);
+            }
+        }
+        else {
+            // Everyone else sees only PUBLISHED
             conditions.push('c.status = ?');
             params.push('PUBLISHED');
-        }
-        else if (status) {
-            conditions.push('c.status = ?');
-            params.push(status);
         }
         if (creatorId) {
             conditions.push('c.creatorId = ?');
@@ -330,6 +341,26 @@ router.delete('/:id', auth_js_1.authenticate, async (req, res) => {
         if (course.creatorId !== req.user.id && req.user.role !== 'ADMIN') {
             return res.status(403).json({ error: 'Access denied' });
         }
+        // Cascade: delete all related data before deleting the course
+        const courseModules = await (0, db_js_1.query)('SELECT id FROM modules WHERE courseId = ?', [id]);
+        for (const mod of courseModules) {
+            const modLessons = await (0, db_js_1.query)('SELECT id FROM lessons WHERE moduleId = ?', [mod.id]);
+            for (const lesson of modLessons) {
+                await (0, db_js_1.execute)('DELETE FROM lesson_progress WHERE lessonId = ?', [lesson.id]);
+                await (0, db_js_1.execute)('DELETE FROM resources WHERE lessonId = ?', [lesson.id]);
+                await (0, db_js_1.execute)('DELETE FROM notes WHERE lessonId = ?', [lesson.id]);
+                const lessonQuestions = await (0, db_js_1.query)('SELECT id FROM questions WHERE lessonId = ?', [lesson.id]);
+                for (const q of lessonQuestions) {
+                    await (0, db_js_1.execute)('DELETE FROM answers WHERE questionId = ?', [q.id]);
+                }
+                await (0, db_js_1.execute)('DELETE FROM questions WHERE lessonId = ?', [lesson.id]);
+            }
+            await (0, db_js_1.execute)('DELETE FROM lessons WHERE moduleId = ?', [mod.id]);
+        }
+        await (0, db_js_1.execute)('DELETE FROM modules WHERE courseId = ?', [id]);
+        await (0, db_js_1.execute)('DELETE FROM enrollments WHERE courseId = ?', [id]);
+        await (0, db_js_1.execute)('DELETE FROM reviews WHERE courseId = ?', [id]);
+        await (0, db_js_1.execute)('DELETE FROM user_course_saves WHERE courseId = ?', [id]);
         await (0, db_js_1.execute)('DELETE FROM courses WHERE id = ?', [id]);
         res.json({ message: 'Course deleted successfully' });
     }
@@ -396,6 +427,8 @@ router.delete('/:id/enroll', auth_js_1.authenticate, async (req, res) => {
         const enrollment = await (0, db_js_1.queryOne)('SELECT id FROM enrollments WHERE userId = ? AND courseId = ?', [req.user.id, id]);
         if (!enrollment)
             return res.status(404).json({ error: 'Not enrolled in this course' });
+        // Cascade: delete lesson_progress for this enrollment before deleting
+        await (0, db_js_1.execute)('DELETE FROM lesson_progress WHERE enrollmentId = ?', [enrollment.id]);
         await (0, db_js_1.execute)('DELETE FROM enrollments WHERE userId = ? AND courseId = ?', [req.user.id, id]);
         res.json({ message: 'Unenrolled successfully' });
     }
@@ -433,6 +466,7 @@ router.get('/:id/progress', auth_js_1.authenticate, async (req, res) => {
                     progress: progress ? {
                         id: progress.id, lessonId: progress.lessonId, enrollmentId: progress.enrollmentId,
                         progressPercent: progress.progressPercent,
+                        lastWatchedTimestamp: progress.lastWatchedTimestamp || 0,
                         completedAt: progress.completedAt ? (progress.completedAt instanceof Date ? progress.completedAt.toISOString() : progress.completedAt) : null,
                         lastWatchedAt: progress.lastWatchedAt ? (progress.lastWatchedAt instanceof Date ? progress.lastWatchedAt.toISOString() : progress.lastWatchedAt) : null,
                     } : null,
@@ -467,8 +501,9 @@ router.get('/:id/progress', auth_js_1.authenticate, async (req, res) => {
        WHERE e.courseId = ? AND e.userId != ? LIMIT 5`, [id, req.user.id]);
         const totalOtherRow = await (0, db_js_1.queryOne)('SELECT COUNT(*) as cnt FROM enrollments WHERE courseId = ? AND userId != ?', [id, req.user.id]);
         res.json({
-            id: course?.id, title: course?.title, creator,
-            modules, currentLessonId, initialTime,
+            id: course?.id, title: course?.title, description: course?.description,
+            level: course?.level || 'ALL_LEVELS', language: course?.language || 'English',
+            creator, modules, currentLessonId, initialTime,
             enrollmentId: enrollment.id,
             otherStudents,
             totalOtherStudents: Number(totalOtherRow?.cnt ?? 0),

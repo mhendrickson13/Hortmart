@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { analytics as analyticsApi } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
+import { useAppPreferences } from "@/lib/theme-context";
 import { DashboardHeader } from "@/components/admin/dashboard-header";
 import { StatCard } from "@/components/admin/stat-card";
 import { Card } from "@/components/ui/card";
@@ -10,6 +11,7 @@ import { formatCurrency, formatNumber } from "@/lib/utils";
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const { t } = useAppPreferences();
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["dashboard-stats"],
@@ -88,10 +90,10 @@ export default function DashboardPage() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
-        <StatCard title="Revenue (30d)" value={formatCurrency(overview?.totalRevenue ?? 0)} change={revenueChange} changeLabel="vs prev period" />
-        <StatCard title="Enrollments" value={formatNumber(overview?.totalEnrollments ?? 0)} change={enrollmentChange} changeLabel={`${overview?.totalCourses ?? 0} courses`} />
-        <StatCard title="Active learners (30d)" value={formatNumber(overview?.activeUsers ?? 0)} changeLabel={`${overview?.totalUsers ?? 0} total users`} />
-        <StatCard title="Completion rate" value={`${overview?.completionRate ?? 0}%`} changeLabel="Avg across courses" />
+        <StatCard title={t("dashboard.revenue")} value={formatCurrency(overview?.totalRevenue ?? 0)} change={revenueChange} changeLabel={t("dashboard.vsLast30Days")} />
+        <StatCard title={t("dashboard.enrollments")} value={formatNumber(overview?.totalEnrollments ?? 0)} change={enrollmentChange} changeLabel={`${overview?.totalCourses ?? 0} courses`} />
+        <StatCard title={t("dashboard.activeLearners")} value={formatNumber(overview?.activeUsers ?? 0)} changeLabel={`${overview?.totalUsers ?? 0} total users`} />
+        <StatCard title={t("dashboard.completionRate")} value={`${overview?.completionRate ?? 0}%`} changeLabel={t("dashboard.avgAcrossCourses")} />
       </div>
 
       {/* Main Grid */}
@@ -99,7 +101,7 @@ export default function DashboardPage() {
         {/* Sales Chart Panel */}
         <Card className="p-3.5 flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-[14px] font-black text-text-1">Sales (last 30 days)</h3>
+            <h3 className="text-[14px] font-black text-text-1">{t("dashboard.salesChart")}</h3>
             <span className="h-[26px] px-2.5 rounded-full inline-flex items-center text-[11px] font-black tracking-[0.2px] bg-primary/10 text-primary-600 border border-primary/14">All courses</span>
           </div>
           <div className="flex-1 rounded-[18px] border border-border/95 bg-gradient-to-b from-white/95 to-white/88 p-3">
@@ -135,12 +137,12 @@ export default function DashboardPage() {
           {/* Top Courses */}
           <Card className="p-3.5">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-[14px] font-black text-text-1">Top courses</h3>
-              <span className="h-[26px] px-2.5 rounded-full inline-flex items-center text-[11px] font-black tracking-[0.2px] bg-primary/10 text-primary-600 border border-primary/14">By revenue</span>
+              <h3 className="text-[14px] font-black text-text-1">{t("dashboard.topCourses")}</h3>
+              <span className="h-[26px] px-2.5 rounded-full inline-flex items-center text-[11px] font-black tracking-[0.2px] bg-primary/10 text-primary-600 border border-primary/14">{t("dashboard.byRevenue")}</span>
             </div>
             <div className="flex flex-col gap-2.5">
               {topCourses.length > 0 ? topCourses.slice(0, 5).map((course: any) => (
-                <Link key={course.id} to={`/manage-courses/${course.id}/analytics`} className="flex items-center justify-between gap-3 p-3 rounded-[18px] border border-border/95 bg-white/95 hover:bg-muted/50 transition-colors">
+                <Link key={course.id} to={`/manage-courses/${course.id}/analytics`} className="flex items-center justify-between gap-3 p-3 rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 hover:bg-muted/50 transition-colors">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div className="w-[38px] h-[38px] rounded-[14px] border border-border/95 bg-gradient-to-br from-primary/28 to-accent/18 flex-shrink-0 flex items-center justify-center text-[11px] font-black text-primary/60">
                       {course.rating ? Number(course.rating).toFixed(1) : "--"}
@@ -163,7 +165,7 @@ export default function DashboardPage() {
           {/* Progress Distribution */}
           <Card className="p-3.5 flex-1">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-[14px] font-black text-text-1">Learner progress snapshot</h3>
+              <h3 className="text-[14px] font-black text-text-1">{t("dashboard.learnerProgress")}</h3>
               <span className="h-[26px] px-2.5 rounded-full inline-flex items-center text-[11px] font-black tracking-[0.2px] bg-primary/10 text-primary-600 border border-primary/14">30d</span>
             </div>
             <div className="rounded-[18px] border border-border/95 bg-gradient-to-b from-white/95 to-white/88 p-3">

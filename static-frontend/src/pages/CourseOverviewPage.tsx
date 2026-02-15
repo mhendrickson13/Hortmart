@@ -7,7 +7,6 @@ import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ReviewsSection } from "@/components/learner/reviews-section";
-import { RatingDialog } from "@/components/learner/rating-dialog";
 import { Play, Clock, Users, Globe, BarChart3, Lock, Star, CheckCircle2, Loader2, ChevronDown, ChevronUp, Heart, Share2, Bookmark, BookOpen } from "lucide-react";
 import { formatDuration, formatPrice, getInitials, cn } from "@/lib/utils";
 import { toast } from "@/components/ui/toaster";
@@ -21,7 +20,6 @@ export default function CourseOverviewPage() {
   const [loading, setLoading] = useState(true);
   const [showAllModules, setShowAllModules] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
-  const [showRating, setShowRating] = useState(false);
   const [isFavourite, setIsFavourite] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(false);
 
@@ -138,10 +136,15 @@ export default function CourseOverviewPage() {
         </div>
 
         {/* Instructor + Rating + Students (single compact row) */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1.5">
-            <Avatar className="w-5 h-5"><AvatarImage src={course.creator?.image || undefined} /><AvatarFallback className="text-[9px]">{getInitials(course.creator?.name || "I")}</AvatarFallback></Avatar>
-            <span className="text-caption font-semibold text-primary-600">{course.creator?.name || "Instructor"}</span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <Avatar className="w-5 h-5"><AvatarImage src={course.creator?.image || undefined} /><AvatarFallback className="text-[9px]">{getInitials(course.creator?.name || "I")}</AvatarFallback></Avatar>
+              <span className="text-caption font-semibold text-primary-600">{course.creator?.name || "Instructor"}</span>
+            </div>
+            {enrollmentCount > 0 && (
+              <span className="text-caption text-text-3 flex items-center gap-1"><Users className="w-3 h-3" />{enrollmentCount}</span>
+            )}
           </div>
           {reviewCount > 0 && (
             <div className="flex items-center gap-1">
@@ -150,35 +153,32 @@ export default function CourseOverviewPage() {
               <span className="text-caption text-text-3">({reviewCount})</span>
             </div>
           )}
-          {enrollmentCount > 0 && (
-            <span className="text-caption text-text-3 flex items-center gap-1"><Users className="w-3 h-3" />{enrollmentCount}</span>
-          )}
         </div>
 
         {/* Quick Stats - 2x2 grid */}
         <div className="grid grid-cols-2 gap-2">
-          <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-border/60">
+          <div className="flex items-center gap-2 p-2.5 rounded-xl bg-card border border-border/60">
             <BarChart3 className="w-4 h-4 text-primary flex-shrink-0" />
             <div className="min-w-0">
               <div className="text-[10px] text-text-3 uppercase">Level</div>
               <div className="text-caption font-semibold text-text-1 truncate">{(course.level || "ALL_LEVELS").replace("_", " ")}</div>
             </div>
           </div>
-          <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-border/60">
+          <div className="flex items-center gap-2 p-2.5 rounded-xl bg-card border border-border/60">
             <Clock className="w-4 h-4 text-primary flex-shrink-0" />
             <div className="min-w-0">
               <div className="text-[10px] text-text-3 uppercase">Duration</div>
               <div className="text-caption font-semibold text-text-1">{formatDuration(totalDuration)}</div>
             </div>
           </div>
-          <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-border/60">
+          <div className="flex items-center gap-2 p-2.5 rounded-xl bg-card border border-border/60">
             <BookOpen className="w-4 h-4 text-primary flex-shrink-0" />
             <div className="min-w-0">
               <div className="text-[10px] text-text-3 uppercase">Lessons</div>
               <div className="text-caption font-semibold text-text-1">{totalLessons} lessons</div>
             </div>
           </div>
-          <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-border/60">
+          <div className="flex items-center gap-2 p-2.5 rounded-xl bg-card border border-border/60">
             <Globe className="w-4 h-4 text-primary flex-shrink-0" />
             <div className="min-w-0">
               <div className="text-[10px] text-text-3 uppercase">Language</div>
@@ -201,12 +201,6 @@ export default function CourseOverviewPage() {
             <Share2 className="w-5 h-5 text-text-2" />
             <span className="text-[10px] font-medium text-text-3">Share</span>
           </button>
-          {isEnrolled && (
-            <button onClick={() => setShowRating(true)} className="flex flex-col items-center gap-1 py-1.5 px-3 active:scale-95 transition-all">
-              <Star className="w-5 h-5 text-text-2" />
-              <span className="text-[10px] font-medium text-text-3">Rate</span>
-            </button>
-          )}
         </div>
 
         {/* What You'll Learn */}
@@ -259,7 +253,7 @@ export default function CourseOverviewPage() {
         <ReviewsSection courseId={course.id} />
 
         {/* Fixed bottom enroll bar */}
-        <div className="fixed bottom-16 left-0 right-0 z-50 px-4 py-3 bg-white/95 backdrop-blur-sm border-t border-border shadow-lg">
+        <div className="fixed bottom-16 left-0 right-0 z-50 px-4 py-3 bg-white/95 dark:bg-card/95 backdrop-blur-sm border-t border-border shadow-lg">
           <div className="flex items-center gap-3">
             <div className="text-body font-bold text-text-1">{course.price === 0 ? "Free" : formatPrice(course.price)}</div>
             <div className="flex-1">
@@ -285,21 +279,23 @@ export default function CourseOverviewPage() {
               <h1 className="text-display font-bold text-text-1 leading-tight">{course.title}</h1>
               {course.subtitle && <p className="text-h3 text-text-2">{course.subtitle}</p>}
 
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                <div className="flex items-center gap-2">
-                  <Avatar className="w-8 h-8"><AvatarImage src={course.creator?.image || undefined} /><AvatarFallback className="text-xs">{getInitials(course.creator?.name || "I")}</AvatarFallback></Avatar>
-                  <span className="text-body-sm text-text-2">by <a href="#instructor" className="text-primary-600 font-semibold hover:underline">{course.creator?.name || "Instructor"}</a></span>
+              <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                  <div className="flex items-center gap-2">
+                    <Avatar className="w-8 h-8"><AvatarImage src={course.creator?.image || undefined} /><AvatarFallback className="text-xs">{getInitials(course.creator?.name || "I")}</AvatarFallback></Avatar>
+                    <span className="text-body-sm text-text-2">by <a href="#instructor" className="text-primary-600 font-semibold hover:underline">{course.creator?.name || "Instructor"}</a></span>
+                  </div>
+                  {enrollmentCount > 0 && <span className="text-body-sm text-text-3">{enrollmentCount.toLocaleString()} students</span>}
                 </div>
                 {reviewCount > 0 && (
                   <div className="flex items-center gap-1.5">
                     <div className="flex items-center gap-0.5">
-                      {[1,2,3,4,5].map((star) => <Star key={star} className={cn("w-4 h-4", avgRating >= star ? "fill-yellow-400 text-yellow-400" : "text-neutral-300")} />)}
+                      {[1,2,3,4,5].map((star) => <Star key={star} className={cn("w-4 h-4", avgRating >= star ? "fill-yellow-400 text-yellow-400" : "text-text-3/40")} />)}
                     </div>
                     <span className="text-body-sm font-semibold text-text-1">{Number(avgRating).toFixed(1)}</span>
                     <span className="text-body-sm text-text-3">({reviewCount} reviews)</span>
                   </div>
                 )}
-                {enrollmentCount > 0 && <span className="text-body-sm text-text-3">{enrollmentCount.toLocaleString()} students</span>}
               </div>
 
               {enrollmentCount > 1 && (
@@ -316,13 +312,13 @@ export default function CourseOverviewPage() {
               )}
 
               <div className="flex items-center gap-2 pt-2">
-                <button type="button" onClick={handleToggleFavourite} className={cn("p-2.5 rounded-xl border transition-all duration-200 active:scale-90", isFavourite ? "border-red-300 bg-red-50 hover:bg-red-100" : "border-border bg-white hover:bg-surface-3")}>
+                <button type="button" onClick={handleToggleFavourite} className={cn("p-2.5 rounded-xl border transition-all duration-200 active:scale-90", isFavourite ? "border-red-300 bg-red-50 dark:bg-red-950 hover:bg-red-100 dark:border-red-800 dark:bg-red-950 dark:hover:bg-red-900" : "border-border bg-card hover:bg-surface-3")}>
                   <Heart className={cn("w-5 h-5", isFavourite ? "text-red-500" : "text-text-2")} fill={isFavourite ? "currentColor" : "none"} />
                 </button>
-                <button type="button" onClick={handleToggleBookmark} className={cn("p-2.5 rounded-xl border transition-all duration-200 active:scale-90", isBookmarked ? "border-blue-300 bg-blue-50 hover:bg-blue-100" : "border-border bg-white hover:bg-surface-3")}>
+                <button type="button" onClick={handleToggleBookmark} className={cn("p-2.5 rounded-xl border transition-all duration-200 active:scale-90", isBookmarked ? "border-blue-300 bg-blue-50 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950 dark:hover:bg-blue-900" : "border-border bg-card hover:bg-surface-3")}>
                   <Bookmark className={cn("w-5 h-5", isBookmarked ? "text-blue-500" : "text-text-2")} fill={isBookmarked ? "currentColor" : "none"} />
                 </button>
-                <button type="button" onClick={() => { navigator.clipboard.writeText(window.location.href); toast({ title: "Link copied!", variant: "success" }); }} className="p-2.5 rounded-xl border border-border bg-white hover:bg-surface-3 transition-all duration-200 active:scale-90">
+                <button type="button" onClick={() => { navigator.clipboard.writeText(window.location.href); toast({ title: "Link copied!", variant: "success" }); }} className="p-2.5 rounded-xl border border-border bg-card hover:bg-surface-3 transition-all duration-200 active:scale-90">
                   <Share2 className="w-5 h-5 text-text-2" />
                 </button>
               </div>
@@ -343,10 +339,10 @@ export default function CourseOverviewPage() {
             </Card>
 
             <div className="flex flex-wrap gap-3">
-              <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-border shadow-soft-1"><BarChart3 className="w-4 h-4 text-primary" /><span className="text-body-sm font-medium text-text-1">{(course.level || "ALL_LEVELS").replace("_", " ")}</span></div>
-              <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-border shadow-soft-1"><Clock className="w-4 h-4 text-primary" /><span className="text-body-sm font-medium text-text-1">{formatDuration(totalDuration)}</span></div>
-              <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-border shadow-soft-1"><Users className="w-4 h-4 text-primary" /><span className="text-body-sm font-medium text-text-1">{enrollmentCount} students</span></div>
-              <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-border shadow-soft-1"><Globe className="w-4 h-4 text-primary" /><span className="text-body-sm font-medium text-text-1">{course.language || "English"}</span></div>
+              <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-card border border-border shadow-soft-1"><BarChart3 className="w-4 h-4 text-primary" /><span className="text-body-sm font-medium text-text-1">{(course.level || "ALL_LEVELS").replace("_", " ")}</span></div>
+              <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-card border border-border shadow-soft-1"><Clock className="w-4 h-4 text-primary" /><span className="text-body-sm font-medium text-text-1">{formatDuration(totalDuration)}</span></div>
+              <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-card border border-border shadow-soft-1"><Users className="w-4 h-4 text-primary" /><span className="text-body-sm font-medium text-text-1">{enrollmentCount} students</span></div>
+              <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-card border border-border shadow-soft-1"><Globe className="w-4 h-4 text-primary" /><span className="text-body-sm font-medium text-text-1">{course.language || "English"}</span></div>
             </div>
 
             {learningOutcomes.length > 0 && (
@@ -373,14 +369,7 @@ export default function CourseOverviewPage() {
               </div>
             </Card>
 
-            <div className="space-y-3">
-              {isEnrolled && (
-                <Button variant="secondary" className="w-full" onClick={() => setShowRating(true)}>
-                  <Star className="w-4 h-4 mr-2" />Leave a Review
-                </Button>
-              )}
-              <ReviewsSection courseId={course.id} />
-            </div>
+            <ReviewsSection courseId={course.id} />
           </div>
 
           {/* Sidebar */}
@@ -414,7 +403,6 @@ export default function CourseOverviewPage() {
         </div>
       </div>
 
-      <RatingDialog courseId={course?.id || ""} courseName={course?.title || ""} open={showRating} onOpenChange={setShowRating} />
     </>
   );
 }
@@ -436,7 +424,7 @@ function MobileCurriculumPanel({ id, course, visibleModules, totalModules, total
             </div>
             <div className="space-y-1 ml-7">
               {(mod.lessons || []).map((lesson: any) => (
-                <div key={lesson.id} className={cn("flex items-center gap-2 py-2 px-2.5 rounded-lg border", lesson.isLocked ? "border-border/40 bg-neutral-50/50" : "border-border bg-white")}>
+                <div key={lesson.id} className={cn("flex items-center gap-2 py-2 px-2.5 rounded-lg border", lesson.isLocked ? "border-border/40 bg-muted/50" : "border-border bg-card")}>
                   <div className={cn("w-4 h-4 rounded-full border-[1.5px] flex items-center justify-center flex-shrink-0", lesson.isLocked ? "border-text-3/30" : "border-primary/50")}>
                     {lesson.isLocked ? <Lock className="w-2 h-2 text-text-3" /> : <Play className="w-2 h-2 text-primary" fill="currentColor" />}
                   </div>
@@ -474,7 +462,7 @@ function DesktopCurriculumPanel({ course, visibleModules, totalModules, totalLes
             </div>
             <div className="space-y-1.5 ml-8">
               {(mod.lessons || []).map((lesson: any) => (
-                <div key={lesson.id} className={cn("flex items-center gap-3 p-3 rounded-xl border transition-colors", lesson.isLocked ? "border-border/50 bg-neutral-50/50" : "border-border bg-white hover:bg-surface-3")}>
+                <div key={lesson.id} className={cn("flex items-center gap-3 p-3 rounded-xl border transition-colors", lesson.isLocked ? "border-border/50 bg-muted/50" : "border-border bg-card hover:bg-surface-3")}>
                   <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0", lesson.isLocked ? "border-text-3/40" : lesson.isFreePreview ? "border-primary bg-primary-100" : "border-text-3/50")}>
                     {lesson.isLocked ? <Lock className="w-2.5 h-2.5 text-text-3" /> : lesson.isFreePreview ? <Play className="w-2.5 h-2.5 text-primary" fill="currentColor" /> : null}
                   </div>

@@ -46,7 +46,7 @@ export default function NewCoursePage() {
   return (
     <>
       <div className="flex items-center gap-3 flex-shrink-0">
-        <Link to="/manage-courses" className="w-10 h-10 rounded-[16px] border border-border/95 bg-white/95 grid place-items-center hover:bg-muted transition-colors">
+        <Link to="/manage-courses" className="w-10 h-10 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 grid place-items-center hover:bg-muted transition-colors">
           <ArrowLeft className="w-4 h-4 text-text-1" />
         </Link>
         <div>

@@ -154,11 +154,13 @@ export function MobileSearchSheet({ isOpen, onClose, variant = "learner" }: Mobi
             </div>
             <div className="space-y-1">
               {recentSearches.map((search, index) => (
-                <button
+                <div
                   key={index}
-                  type="button"
+                  role="button"
+                  tabIndex={0}
                   onClick={() => handleSearch(search)}
-                  className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-muted active:scale-[0.98] transition-all"
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(search); }}
+                  className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-muted active:scale-[0.98] transition-all cursor-pointer"
                 >
                   <Clock className="w-4 h-4 text-text-3 flex-shrink-0" />
                   <span className="text-body-sm text-text-1 text-left flex-1">{search}</span>
@@ -174,7 +176,7 @@ export function MobileSearchSheet({ isOpen, onClose, variant = "learner" }: Mobi
                   >
                     <X className="w-3 h-3" />
                   </button>
-                </button>
+                </div>
               ))}
             </div>
           </div>

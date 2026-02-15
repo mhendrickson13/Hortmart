@@ -57,7 +57,7 @@ export function AdminPageHeader({
         {/* Search Input - Desktop */}
         {showSearch && (
           <form onSubmit={handleSearch} className="hidden sm:block">
-            <div className="h-10 w-[380px] rounded-[16px] border border-border/95 bg-white/95 flex items-center gap-2.5 px-3.5 text-text-3 font-bold text-[13px]">
+            <div className="h-10 w-[380px] rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 flex items-center gap-2.5 px-3.5 text-text-3 font-bold text-[13px]">
               <Search className="w-4 h-4 flex-shrink-0" />
               <input
                 type="text"
@@ -106,7 +106,7 @@ interface SegmentSwitcherProps {
 
 export function SegmentSwitcher({ options, value, onChange }: SegmentSwitcherProps) {
   return (
-    <div className="h-10 rounded-[18px] border border-border/95 bg-white/95 p-1 flex gap-0.5">
+    <div className="h-10 rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 p-1 flex gap-0.5">
       {options.map((option) => (
         <button
           key={option.value}
@@ -130,7 +130,7 @@ export function DateRangeButton({ label = "Last 30 days", onClick }: { label?: s
     <Button
       variant="secondary"
       onClick={onClick}
-      className="h-10 rounded-[16px] px-3.5 gap-2 font-bold text-[13px] border border-border/95 bg-white/95"
+      className="h-10 rounded-[16px] px-3.5 gap-2 font-bold text-[13px] border border-border/95 bg-white/95 dark:bg-card/95"
     >
       <Calendar className="w-4 h-4" />
       {label}
@@ -144,7 +144,7 @@ export function ExportButton({ onClick }: { onClick?: () => void }) {
     <Button
       variant="secondary"
       onClick={onClick}
-      className="h-10 rounded-[16px] px-3.5 gap-2 font-bold text-[13px] border border-border/95 bg-white/95"
+      className="h-10 rounded-[16px] px-3.5 gap-2 font-bold text-[13px] border border-border/95 bg-white/95 dark:bg-card/95"
     >
       <Download className="w-4 h-4" />
       Export

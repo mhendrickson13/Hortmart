@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { cn, formatDuration } from "@/lib/utils";
+import { cn, formatDuration, formatPrice } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -237,7 +237,7 @@ export function MobileCourseCard({
             <div className="mt-3 pt-3 border-t border-border/50 flex items-center justify-between">
               <Pill size="sm">{course.level?.replace("_", " ") || "All Levels"}</Pill>
               <span className="text-body-sm font-bold text-text-1">
-                {course.price === 0 ? "Free" : `$${(course.price / 100).toFixed(2)}`}
+                {course.price === 0 ? "Free" : formatPrice(course.price)}
               </span>
             </div>
           )}

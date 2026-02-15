@@ -93,7 +93,7 @@ export default function UserDetailPage() {
         <div className="flex items-center gap-3">
           <Link
             to="/users"
-            className="w-10 h-10 rounded-[16px] border border-border/95 bg-white/95 grid place-items-center hover:bg-muted transition-colors"
+            className="w-10 h-10 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 grid place-items-center hover:bg-muted transition-colors"
           >
             <ArrowLeft className="w-4 h-4 text-text-1" />
           </Link>
@@ -127,7 +127,7 @@ export default function UserDetailPage() {
               </div>
             </div>
             <div className="grid grid-cols-3 gap-2.5 mt-4">
-              <div className="rounded-[16px] border border-border/95 bg-white/95 p-3 text-center">
+              <div className="rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 p-3 text-center">
                 <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">
                   Lifetime spend
                 </div>
@@ -135,7 +135,7 @@ export default function UserDetailPage() {
                   {formatCurrency(kpis.lifetimeSpend)}
                 </div>
               </div>
-              <div className="rounded-[16px] border border-border/95 bg-white/95 p-3 text-center">
+              <div className="rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 p-3 text-center">
                 <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">
                   Avg progress
                 </div>
@@ -143,7 +143,7 @@ export default function UserDetailPage() {
                   {kpis.avgProgress}%
                 </div>
               </div>
-              <div className="rounded-[16px] border border-border/95 bg-white/95 p-3 text-center">
+              <div className="rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 p-3 text-center">
                 <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">
                   Last purchase
                 </div>
@@ -166,7 +166,7 @@ export default function UserDetailPage() {
                 {enrollments.map((enrollment: any) => (
                   <div
                     key={enrollment.id}
-                    className="flex items-center gap-4 p-3 rounded-xl border border-border/95 bg-white/95"
+                    className="flex items-center gap-4 p-3 rounded-xl border border-border/95 bg-white/95 dark:bg-card/95"
                   >
                     <div className="w-10 h-10 rounded-xl gradient-primary flex-shrink-0" />
                     <div className="flex-1 min-w-0">
@@ -189,13 +189,13 @@ export default function UserDetailPage() {
         </div>
 
         {/* Right Column - Activity & Actions */}
-        <div className="rounded-[22px] bg-white/92 border border-border/95 shadow-[0_14px_28px_rgba(21,25,35,0.06)] p-3.5 min-w-0 flex flex-col gap-3 overflow-auto">
+        <div className="rounded-[22px] bg-white/92 dark:bg-card/92 border border-border/95 shadow-[0_14px_28px_rgba(21,25,35,0.06)] dark:shadow-[0_14px_28px_rgba(0,0,0,0.25)] p-3.5 min-w-0 flex flex-col gap-3 overflow-auto">
           <h2 className="text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">
             Activity & actions
           </h2>
 
           {/* Permissions */}
-          <div className="rounded-[18px] border border-border/95 bg-white/95 p-3">
+          <div className="rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Shield className="w-4 h-4 text-text-3" />
@@ -211,7 +211,7 @@ export default function UserDetailPage() {
           </div>
 
           {/* Email Status */}
-          <div className="rounded-[18px] border border-border/95 bg-white/95 p-3">
+          <div className="rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Mail className="w-4 h-4 text-text-3" />
@@ -227,7 +227,7 @@ export default function UserDetailPage() {
           </div>
 
           {/* Refund Eligibility */}
-          <div className="rounded-[18px] border border-border/95 bg-white/95 p-3">
+          <div className="rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-text-3" />

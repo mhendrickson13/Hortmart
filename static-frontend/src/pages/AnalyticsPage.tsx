@@ -95,10 +95,10 @@ export default function AnalyticsPage() {
           <p className="text-[12px] font-extrabold text-text-3 mt-1">Last 30 days &bull; All courses</p>
         </div>
         <div className="flex items-center gap-2">
-          <button className="h-9 px-3 rounded-[16px] border border-border/95 bg-white/95 text-text-1 font-black text-[13px] inline-flex items-center gap-1.5 shadow-[0_14px_28px_rgba(21,25,35,0.06)]" title="Date range filter">
+          <button className="h-9 px-3 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-text-1 font-black text-[13px] inline-flex items-center gap-1.5 shadow-[0_14px_28px_rgba(21,25,35,0.06)] dark:shadow-[0_14px_28px_rgba(0,0,0,0.25)]" title="Date range filter">
             <Calendar className="w-4 h-4" /> 30 days
           </button>
-          <button onClick={() => { toast({ title: "Export started", description: "Analytics data will be ready shortly", variant: "success" }); }} className="h-9 px-3 rounded-[16px] border border-border/95 bg-white/95 text-text-1 font-black text-[13px] inline-flex items-center gap-1.5 shadow-[0_14px_28px_rgba(21,25,35,0.06)]">
+          <button onClick={() => { toast({ title: "Export started", description: "Analytics data will be ready shortly", variant: "success" }); }} className="h-9 px-3 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-text-1 font-black text-[13px] inline-flex items-center gap-1.5 shadow-[0_14px_28px_rgba(21,25,35,0.06)] dark:shadow-[0_14px_28px_rgba(0,0,0,0.25)]">
             <Download className="w-4 h-4" /> Export
           </button>
         </div>
@@ -116,7 +116,7 @@ export default function AnalyticsPage() {
       <div className="flex items-center gap-1 bg-muted/50 p-1 rounded-[16px] w-fit">
         {tabs.map((t) => (
           <button key={t.key} onClick={() => setActiveTab(t.key)}
-            className={`h-8 px-4 rounded-[12px] text-[13px] font-black transition-all ${activeTab === t.key ? "bg-white shadow-sm text-text-1" : "text-text-3 hover:text-text-2"}`}
+            className={`h-8 px-4 rounded-[12px] text-[13px] font-black transition-all ${activeTab === t.key ? "bg-white dark:bg-card shadow-sm text-text-1" : "text-text-3 hover:text-text-2"}`}
           >{t.label}</button>
         ))}
       </div>
@@ -159,7 +159,7 @@ export default function AnalyticsPage() {
               {topLearners.length > 0 ? (
                 <div className="space-y-2">
                   {topLearners.map((l: any, i: number) => (
-                    <div key={i} className="flex items-center gap-3 p-2.5 rounded-[16px] border border-border/95 bg-white/95">
+                    <div key={i} className="flex items-center gap-3 p-2.5 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95">
                       <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-[11px] flex-shrink-0">{l.name?.charAt(0) || "?"}</div>
                       <div className="flex-1 min-w-0">
                         <div className="text-[12px] font-black text-text-1 truncate">{l.email || l.name}</div>
@@ -201,7 +201,7 @@ export default function AnalyticsPage() {
             {topCourses.length === 0 ? (
               <p className="text-body-sm text-text-2 text-center py-8">No courses yet. Create your first course to see analytics.</p>
             ) : topCourses.map((course: any) => (
-              <div key={course.id} className="flex items-center gap-4 p-3 rounded-xl border border-border/95 bg-white/95">
+              <div key={course.id} className="flex items-center gap-4 p-3 rounded-xl border border-border/95 bg-white/95 dark:bg-card/95">
                 <div className="w-10 h-10 rounded-xl gradient-primary flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="text-caption font-bold text-text-1 truncate">{course.title}</div>

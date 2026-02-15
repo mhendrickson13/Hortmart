@@ -305,6 +305,22 @@ router.delete('/:id', auth_js_1.authenticate, async (req, res) => {
         if (req.user.role !== 'ADMIN' && req.user.id !== id) {
             return res.status(403).json({ error: 'Access denied' });
         }
+        // Cascade: delete all user data before deleting user
+        const userEnrollments = await (0, db_js_1.query)('SELECT id FROM enrollments WHERE userId = ?', [id]);
+        for (const enr of userEnrollments) {
+            await (0, db_js_1.execute)('DELETE FROM lesson_progress WHERE enrollmentId = ?', [enr.id]);
+        }
+        await (0, db_js_1.execute)('DELETE FROM enrollments WHERE userId = ?', [id]);
+        await (0, db_js_1.execute)('DELETE FROM reviews WHERE userId = ?', [id]);
+        await (0, db_js_1.execute)('DELETE FROM notes WHERE userId = ?', [id]);
+        const userQuestions = await (0, db_js_1.query)('SELECT id FROM questions WHERE userId = ?', [id]);
+        for (const q of userQuestions) {
+            await (0, db_js_1.execute)('DELETE FROM answers WHERE questionId = ?', [q.id]);
+        }
+        await (0, db_js_1.execute)('DELETE FROM questions WHERE userId = ?', [id]);
+        await (0, db_js_1.execute)('DELETE FROM answers WHERE userId = ?', [id]);
+        await (0, db_js_1.execute)('DELETE FROM notifications WHERE userId = ?', [id]);
+        await (0, db_js_1.execute)('DELETE FROM user_course_saves WHERE userId = ?', [id]);
         await (0, db_js_1.execute)('DELETE FROM users WHERE id = ?', [id]);
         res.json({ message: 'User deleted successfully' });
     }
@@ -339,7 +355,9 @@ router.get('/:id/enrollments', auth_js_1.authenticate, async (req, res) => {
                 const d = lp.lastWatchedAt ?? lp.completedAt ?? lp.updatedAt;
                 if (!d)
                     return max;
-                return !max || d > max ? d : max;
+                const dStr = d instanceof Date ? d.toISOString() : String(d);
+                const maxStr = max instanceof Date ? max.toISOString() : max ? String(max) : null;
+                return !maxStr || dStr > maxStr ? d : max;
             }, null);
             result.push({
                 id: enr.id,
@@ -350,7 +368,7 @@ router.get('/:id/enrollments', auth_js_1.authenticate, async (req, res) => {
                 totalLessons,
                 completedLessons,
                 progressPercent: Math.round(progress * 10) / 10,
-                lastActivityAt: lastActivityAt ? lastActivityAt.toISOString() : null,
+                lastActivityAt: lastActivityAt ? (lastActivityAt instanceof Date ? lastActivityAt.toISOString() : String(lastActivityAt)) : null,
                 isCompleted: totalLessons > 0 && completedLessons === totalLessons,
                 course: {
                     id: enr.c_id,

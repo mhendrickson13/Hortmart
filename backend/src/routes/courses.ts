@@ -91,10 +91,19 @@ router.get('/', optionalAuth, async (req: AuthRequest, res: Response) => {
     const params: any[] = [];
 
     // Visibility
-    if (!req.user || (creatorId && creatorId !== req.user?.id && req.user?.role !== 'ADMIN')) {
+    if (creatorId && creatorId === req.user?.id) {
+      // Creator viewing own courses - apply status filter if provided
+      if (status) {
+        conditions.push('c.status = ?'); params.push(status);
+      }
+    } else if (req.user?.role === 'ADMIN') {
+      // Admin can see all - apply status filter if provided
+      if (status) {
+        conditions.push('c.status = ?'); params.push(status);
+      }
+    } else {
+      // Everyone else sees only PUBLISHED
       conditions.push('c.status = ?'); params.push('PUBLISHED');
-    } else if (status) {
-      conditions.push('c.status = ?'); params.push(status);
     }
 
     if (creatorId) { conditions.push('c.creatorId = ?'); params.push(creatorId); }
@@ -357,6 +366,26 @@ router.delete('/:id', authenticate, async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
+    // Cascade: delete all related data before deleting the course
+    const courseModules = await query<any[]>('SELECT id FROM modules WHERE courseId = ?', [id]);
+    for (const mod of courseModules) {
+      const modLessons = await query<any[]>('SELECT id FROM lessons WHERE moduleId = ?', [mod.id]);
+      for (const lesson of modLessons) {
+        await execute('DELETE FROM lesson_progress WHERE lessonId = ?', [lesson.id]);
+        await execute('DELETE FROM resources WHERE lessonId = ?', [lesson.id]);
+        await execute('DELETE FROM notes WHERE lessonId = ?', [lesson.id]);
+        const lessonQuestions = await query<any[]>('SELECT id FROM questions WHERE lessonId = ?', [lesson.id]);
+        for (const q of lessonQuestions) {
+          await execute('DELETE FROM answers WHERE questionId = ?', [q.id]);
+        }
+        await execute('DELETE FROM questions WHERE lessonId = ?', [lesson.id]);
+      }
+      await execute('DELETE FROM lessons WHERE moduleId = ?', [mod.id]);
+    }
+    await execute('DELETE FROM modules WHERE courseId = ?', [id]);
+    await execute('DELETE FROM enrollments WHERE courseId = ?', [id]);
+    await execute('DELETE FROM reviews WHERE courseId = ?', [id]);
+    await execute('DELETE FROM user_course_saves WHERE courseId = ?', [id]);
     await execute('DELETE FROM courses WHERE id = ?', [id]);
     res.json({ message: 'Course deleted successfully' });
   } catch (error) {
@@ -439,6 +468,8 @@ router.delete('/:id/enroll', authenticate, async (req: AuthRequest, res: Respons
     );
     if (!enrollment) return res.status(404).json({ error: 'Not enrolled in this course' });
 
+    // Cascade: delete lesson_progress for this enrollment before deleting
+    await execute('DELETE FROM lesson_progress WHERE enrollmentId = ?', [enrollment.id]);
     await execute('DELETE FROM enrollments WHERE userId = ? AND courseId = ?', [req.user!.id, id]);
     res.json({ message: 'Unenrolled successfully' });
   } catch (error) {

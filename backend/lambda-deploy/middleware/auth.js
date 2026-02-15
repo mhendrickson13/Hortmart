@@ -15,9 +15,12 @@ const authenticate = async (req, res, next) => {
         }
         const token = authHeader.substring(7);
         const decoded = jsonwebtoken_1.default.verify(token, JWT_SECRET);
-        const user = await (0, db_js_1.queryOne)('SELECT id, email, role FROM users WHERE id = ?', [decoded.userId]);
+        const user = await (0, db_js_1.queryOne)('SELECT id, email, role, blockedAt FROM users WHERE id = ?', [decoded.userId]);
         if (!user) {
             return res.status(401).json({ error: 'User not found' });
+        }
+        if (user.blockedAt) {
+            return res.status(403).json({ error: 'Account is blocked' });
         }
         req.user = user;
         next();
@@ -33,8 +36,8 @@ const optionalAuth = async (req, res, next) => {
         if (authHeader?.startsWith('Bearer ')) {
             const token = authHeader.substring(7);
             const decoded = jsonwebtoken_1.default.verify(token, JWT_SECRET);
-            const user = await (0, db_js_1.queryOne)('SELECT id, email, role FROM users WHERE id = ?', [decoded.userId]);
-            if (user) {
+            const user = await (0, db_js_1.queryOne)('SELECT id, email, role, blockedAt FROM users WHERE id = ?', [decoded.userId]);
+            if (user && !user.blockedAt) {
                 req.user = user;
             }
         }

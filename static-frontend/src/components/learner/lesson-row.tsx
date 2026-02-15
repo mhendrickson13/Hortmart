@@ -42,7 +42,7 @@ export function LessonRow({
         "w-full rounded-xl border p-3 flex items-start gap-3 text-left transition-all",
         status === "now_watching"
           ? "bg-primary text-white border-primary/45 shadow-primary"
-          : "bg-white/92 border-border/95 hover:bg-surface-3",
+          : "bg-white/92 dark:bg-card/92 border-border/95 hover:bg-surface-3",
         status === "locked" && "opacity-55 cursor-not-allowed",
         !isClickable && "cursor-default"
       )}

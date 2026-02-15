@@ -207,7 +207,7 @@ router.get('/learner-stats', auth_js_1.authenticate, async (req, res) => {
             const progressRows = await (0, db_js_1.query)('SELECT progressPercent, completedAt FROM lesson_progress WHERE enrollmentId = ?', [enr.id]);
             const completedLessons = progressRows.filter(lp => lp.completedAt != null).length;
             totalLessonsCompleted += completedLessons;
-            progressRows.forEach(lp => { totalWatchTime += lp.progressPercent / 100; });
+            progressRows.forEach(lp => { totalWatchTime += lp.lastWatchedTimestamp ?? 0; });
             if (totalLessonsInCourse > 0 && completedLessons === totalLessonsInCourse) {
                 completedCourses++;
             }
@@ -226,7 +226,7 @@ router.get('/learner-stats', auth_js_1.authenticate, async (req, res) => {
         }
         res.json({
             totalCourses, completedCourses, inProgressCourses, totalLessonsCompleted,
-            totalWatchHours: Math.round(totalWatchTime),
+            totalWatchHours: Math.round((totalWatchTime / 3600) * 10) / 10,
             enrollments: formattedEnrollments,
         });
     }

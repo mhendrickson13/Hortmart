@@ -18,6 +18,11 @@ router.post('/register', async (req, res) => {
         if (!email || !password || password.length < 6) {
             return res.status(400).json({ error: 'Valid email and password (min 6 chars) are required' });
         }
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            return res.status(400).json({ error: 'Invalid email format' });
+        }
         const existing = await (0, db_js_1.queryOne)('SELECT id FROM users WHERE email = ?', [email]);
         if (existing) {
             return res.status(409).json({ error: 'Email already registered' });
@@ -49,6 +54,9 @@ router.post('/login', async (req, res) => {
         const valid = await bcryptjs_1.default.compare(password, user.password);
         if (!valid) {
             return res.status(401).json({ error: 'Invalid credentials' });
+        }
+        if (user.blockedAt) {
+            return res.status(403).json({ error: 'Account is blocked. Please contact support.' });
         }
         const token = jsonwebtoken_1.default.sign({ userId: user.id }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
         res.json({

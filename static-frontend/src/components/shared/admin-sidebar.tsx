@@ -2,6 +2,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
+import { useAppPreferences } from "@/lib/theme-context";
 import {
   LayoutDashboard,
   GraduationCap,
@@ -23,17 +24,18 @@ interface AdminSidebarProps {
 }
 
 // Matches client_designs/admin_dashboard_desktop.html exactly
-const navItems = [
-  { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/manage-courses", icon: GraduationCap, label: "Courses" },
-  { href: "/analytics", icon: BarChart3, label: "Analytics" },
-  { href: "/users", icon: Users, label: "Users" },
-  { href: "/settings", icon: Settings, label: "Settings" },
+const navItemKeys = [
+  { href: "/dashboard", icon: LayoutDashboard, labelKey: "nav.dashboard" },
+  { href: "/manage-courses", icon: GraduationCap, labelKey: "nav.manageCourses" },
+  { href: "/analytics", icon: BarChart3, labelKey: "nav.analytics" },
+  { href: "/users", icon: Users, labelKey: "nav.users" },
+  { href: "/settings", icon: Settings, labelKey: "nav.settings" },
 ];
 
 export function AdminSidebar({ user }: AdminSidebarProps) {
   const { pathname } = useLocation();
   const { logout } = useAuth();
+  const { t } = useAppPreferences();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -42,7 +44,7 @@ export function AdminSidebar({ user }: AdminSidebarProps) {
   };
 
   return (
-    <aside className="w-[260px] rounded-[22px] bg-white/85 border border-border/90 p-4 flex flex-col gap-3.5 transition-colors duration-200">
+    <aside className="w-[260px] rounded-[22px] bg-white/85 dark:bg-card/85 border border-border/90 p-4 flex flex-col gap-3.5 transition-colors duration-200">
       {/* Brand - matches design */}
       <div className="flex items-center gap-2.5 p-2.5 rounded-[18px] bg-primary/10 border border-primary/14">
         <Logo href="/dashboard" subtitle="Creator Console" />
@@ -50,7 +52,7 @@ export function AdminSidebar({ user }: AdminSidebarProps) {
 
       {/* Navigation - matches design: no section labels, just 5 items */}
       <nav className="flex flex-col gap-1.5 mt-0.5">
-        {navItems.map((item) => {
+        {navItemKeys.map((item) => {
           const isActive = 
             pathname === item.href || 
             (item.href !== "/dashboard" && item.href !== "/settings" && pathname.startsWith(item.href));
@@ -66,7 +68,7 @@ export function AdminSidebar({ user }: AdminSidebarProps) {
               )}
             >
               <item.icon className="w-[18px] h-[18px]" />
-              {item.label}
+              {t(item.labelKey)}
             </Link>
           );
         })}
@@ -77,14 +79,14 @@ export function AdminSidebar({ user }: AdminSidebarProps) {
       {/* Logout */}
       <button
         onClick={handleLogout}
-        className="h-10 rounded-[16px] flex items-center gap-2.5 px-3 font-bold text-[13px] text-text-2 hover:bg-red-50 hover:text-red-600 transition-all border border-transparent"
+        className="h-10 rounded-[16px] flex items-center gap-2.5 px-3 font-bold text-[13px] text-text-2 hover:bg-red-50 dark:hover:bg-red-950 hover:text-red-600 transition-all border border-transparent"
       >
         <LogOut className="w-[18px] h-[18px]" />
-        Sign out
+        {t("nav.signOut")}
       </button>
 
       {/* Profile Card */}
-      <div className="flex items-center gap-3 p-3 rounded-[18px] border border-border/95 bg-white/92">
+      <div className="flex items-center gap-3 p-3 rounded-[18px] border border-border/95 bg-white/92 dark:bg-card/92">
         <Avatar className="w-10 h-10 rounded-[16px] border border-border/95">
           <AvatarImage src={user?.image || undefined} alt={user?.name || "User"} />
           <AvatarFallback className="rounded-[16px] bg-[rgba(21,25,35,0.04)]">

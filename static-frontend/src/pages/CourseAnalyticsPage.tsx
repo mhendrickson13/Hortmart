@@ -53,7 +53,7 @@ export default function CourseAnalyticsPage() {
     <>
       {/* Header */}
       <div className="flex items-center gap-3 flex-shrink-0">
-        <Link to="/manage-courses" className="w-10 h-10 rounded-[16px] border border-border/95 bg-white/95 grid place-items-center hover:bg-muted transition-colors">
+        <Link to="/manage-courses" className="w-10 h-10 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 grid place-items-center hover:bg-muted transition-colors">
           <ArrowLeft className="w-4 h-4 text-text-1" />
         </Link>
         <div>
@@ -76,7 +76,7 @@ export default function CourseAnalyticsPage() {
           const Icon = t.icon;
           return (
             <button key={t.key} onClick={() => setActiveTab(t.key)}
-              className={`h-8 px-4 rounded-[12px] text-[13px] font-black inline-flex items-center gap-1.5 transition-all ${activeTab === t.key ? "bg-white shadow-sm text-text-1" : "text-text-3 hover:text-text-2"}`}>
+              className={`h-8 px-4 rounded-[12px] text-[13px] font-black inline-flex items-center gap-1.5 transition-all ${activeTab === t.key ? "bg-white dark:bg-card shadow-sm text-text-1" : "text-text-3 hover:text-text-2"}`}>
               <Icon className="w-3.5 h-3.5" />{t.label}
             </button>
           );
@@ -112,7 +112,7 @@ export default function CourseAnalyticsPage() {
             <h3 className="text-[14px] font-black text-text-1 mb-4">Lesson Performance</h3>
             <div className="space-y-2.5 max-h-[280px] overflow-y-auto">
               {lessonStats.length > 0 ? lessonStats.map((lesson: any) => (
-                <div key={lesson.lessonId} className="flex items-center gap-3 p-2.5 rounded-xl border border-border/95 bg-white/95">
+                <div key={lesson.lessonId} className="flex items-center gap-3 p-2.5 rounded-xl border border-border/95 bg-white/95 dark:bg-card/95">
                   <div className="flex-1 min-w-0">
                     <div className="text-caption font-bold text-text-1 truncate">{lesson.title}</div>
                   </div>
@@ -134,7 +134,7 @@ export default function CourseAnalyticsPage() {
           <h3 className="text-[14px] font-black text-text-1 mb-4">Top Students</h3>
           <div className="space-y-2.5">
             {topStudents.length > 0 ? topStudents.map((student: any, i: number) => (
-              <div key={student.userId || i} className="flex items-center gap-3 p-3 rounded-[16px] border border-border/95 bg-white/95">
+              <div key={student.userId || i} className="flex items-center gap-3 p-3 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95">
                 <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-[12px] flex-shrink-0">
                   {student.name?.charAt(0) || "#"}
                 </div>

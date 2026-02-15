@@ -62,6 +62,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
   const [showControls, setShowControls] = useState(true);
   const controlsTimeoutRef = useRef<NodeJS.Timeout>();
   const progressIntervalRef = useRef<NodeJS.Timeout>();
+  const completedRef = useRef(false);
 
   const isYouTube = src && isYouTubeUrl(src);
   const youtubeId = src && isYouTube ? getYouTubeId(src) : null;
@@ -79,6 +80,8 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
 
   // Reset and initialize video time when src changes (lesson switch)
   useEffect(() => {
+    // Reset completion guard on source change
+    completedRef.current = false;
     if (!videoRef.current || isYouTube) return;
     const video = videoRef.current;
     // Pause current playback
@@ -175,7 +178,8 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
             onProgress(newProgress, newTime);
           }
           
-          if (newProgress >= 95 && onComplete) {
+          if (newProgress >= 95 && onComplete && !completedRef.current) {
+            completedRef.current = true;
             onComplete();
           }
           
@@ -210,7 +214,8 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
     }
 
     // Mark as complete at 95%
-    if (currentProgress >= 95 && onComplete) {
+    if (currentProgress >= 95 && onComplete && !completedRef.current) {
+      completedRef.current = true;
       onComplete();
     }
   }, [onProgress, onComplete, onTimeUpdate, isYouTube]);
@@ -285,17 +290,29 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
     }, 3000);
   };
 
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (controlsTimeoutRef.current) {
+        clearTimeout(controlsTimeoutRef.current);
+      }
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+      }
+    };
+  }, []);
+
   // If no video URL, show placeholder with message
   if (!src) {
     return (
       <div
         className={cn(
-          "relative aspect-video rounded-3xl bg-gradient-to-br from-neutral-100 to-neutral-50 border border-border/90 overflow-hidden flex flex-col items-center justify-center gap-3",
+          "relative aspect-video rounded-3xl bg-gradient-to-br from-muted to-surface-3 border border-border/90 overflow-hidden flex flex-col items-center justify-center gap-3",
           className
         )}
       >
-        <div className="w-16 h-16 rounded-full bg-neutral-200/60 flex items-center justify-center">
-          <Play className="w-7 h-7 text-neutral-400 ml-0.5" />
+        <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
+          <Play className="w-7 h-7 text-text-3 ml-0.5" />
         </div>
         <p className="text-body-sm font-medium text-text-3">No video available for this lesson</p>
       </div>

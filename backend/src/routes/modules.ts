@@ -1,11 +1,11 @@
 import { Router, Response } from 'express';
 import { query, queryOne, execute, now } from '../db.js';
-import { authenticate, AuthRequest } from '../middleware/auth.js';
+import { authenticate, optionalAuth, AuthRequest } from '../middleware/auth.js';
 
 const router = Router();
 
 // GET /modules/:id
-router.get('/:id', async (req, res) => {
+router.get('/:id', optionalAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const mod = await queryOne<any>('SELECT * FROM modules WHERE id = ?', [id]);
@@ -14,14 +14,21 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Module not found' });
     }
 
+    const course = await queryOne<any>('SELECT id, title, creatorId, status FROM courses WHERE id = ?', [mod.courseId]);
+
+    // Block access to draft course modules for non-owners
+    if (course && course.status !== 'PUBLISHED') {
+      if (!req.user || (req.user.id !== course.creatorId && req.user.role !== 'ADMIN')) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+    }
+
     const lessons = await query<any[]>(
       'SELECT * FROM lessons WHERE moduleId = ? ORDER BY position ASC',
       [id]
     );
     // Convert boolean fields
     lessons.forEach(l => { l.isLocked = !!l.isLocked; l.isFreePreview = !!l.isFreePreview; });
-
-    const course = await queryOne<any>('SELECT id, title, creatorId FROM courses WHERE id = ?', [mod.courseId]);
 
     res.json({ module: { ...mod, lessons, course } });
   } catch (error) {
@@ -79,6 +86,15 @@ router.delete('/:id', authenticate, async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
+    // Cascade: delete lesson_progress and resources for lessons in this module
+    const moduleLessons = await query<any[]>('SELECT id FROM lessons WHERE moduleId = ?', [id]);
+    for (const lesson of moduleLessons) {
+      await execute('DELETE FROM lesson_progress WHERE lessonId = ?', [lesson.id]);
+      await execute('DELETE FROM resources WHERE lessonId = ?', [lesson.id]);
+      await execute('DELETE FROM notes WHERE lessonId = ?', [lesson.id]);
+      await execute('DELETE FROM questions WHERE lessonId = ?', [lesson.id]);
+    }
+    await execute('DELETE FROM lessons WHERE moduleId = ?', [id]);
     await execute('DELETE FROM modules WHERE id = ?', [id]);
     res.json({ message: 'Module deleted successfully' });
   } catch (error) {

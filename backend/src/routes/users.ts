@@ -365,6 +365,22 @@ router.delete('/:id', authenticate, async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
+    // Cascade: delete all user data before deleting user
+    const userEnrollments = await query<any[]>('SELECT id FROM enrollments WHERE userId = ?', [id]);
+    for (const enr of userEnrollments) {
+      await execute('DELETE FROM lesson_progress WHERE enrollmentId = ?', [enr.id]);
+    }
+    await execute('DELETE FROM enrollments WHERE userId = ?', [id]);
+    await execute('DELETE FROM reviews WHERE userId = ?', [id]);
+    await execute('DELETE FROM notes WHERE userId = ?', [id]);
+    const userQuestions = await query<any[]>('SELECT id FROM questions WHERE userId = ?', [id]);
+    for (const q of userQuestions) {
+      await execute('DELETE FROM answers WHERE questionId = ?', [q.id]);
+    }
+    await execute('DELETE FROM questions WHERE userId = ?', [id]);
+    await execute('DELETE FROM answers WHERE userId = ?', [id]);
+    await execute('DELETE FROM notifications WHERE userId = ?', [id]);
+    await execute('DELETE FROM user_course_saves WHERE userId = ?', [id]);
     await execute('DELETE FROM users WHERE id = ?', [id]);
     res.json({ message: 'User deleted successfully' });
   } catch (error) {
@@ -408,10 +424,12 @@ router.get('/:id/enrollments', authenticate, async (req: AuthRequest, res: Respo
       const completedLessons = progressRows.filter(lp => lp.completedAt != null).length;
       const progress = totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0;
 
-      const lastActivityAt = progressRows.reduce<Date | null>((max, lp) => {
+      const lastActivityAt = progressRows.reduce<string | Date | null>((max, lp) => {
         const d = lp.lastWatchedAt ?? lp.completedAt ?? lp.updatedAt;
         if (!d) return max;
-        return !max || d > max ? d : max;
+        const dStr = d instanceof Date ? d.toISOString() : String(d);
+        const maxStr = max instanceof Date ? max.toISOString() : max ? String(max) : null;
+        return !maxStr || dStr > maxStr ? d : max;
       }, null);
 
       result.push({
@@ -423,7 +441,7 @@ router.get('/:id/enrollments', authenticate, async (req: AuthRequest, res: Respo
         totalLessons,
         completedLessons,
         progressPercent: Math.round(progress * 10) / 10,
-        lastActivityAt: lastActivityAt ? lastActivityAt.toISOString() : null,
+        lastActivityAt: lastActivityAt ? (lastActivityAt instanceof Date ? lastActivityAt.toISOString() : String(lastActivityAt)) : null,
         isCompleted: totalLessons > 0 && completedLessons === totalLessons,
         course: {
           id: enr.c_id,

@@ -18,9 +18,11 @@ export function LearnerLayout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         {/* Mobile Layout */}
-        <MobileLayoutWrapper user={user ? { name: user.name, image: user.image, role: user.role } : undefined} variant="learner">
-          {children}
-        </MobileLayoutWrapper>
+        <div className="lg:hidden">
+          <MobileLayoutWrapper user={user ? { name: user.name, image: user.image, role: user.role } : undefined} variant="learner">
+            {children}
+          </MobileLayoutWrapper>
+        </div>
       </div>
     </ProtectedRoute>
   );

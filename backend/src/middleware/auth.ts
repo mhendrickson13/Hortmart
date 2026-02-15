@@ -24,12 +24,16 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
     const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
 
     const user = await queryOne<any>(
-      'SELECT id, email, role FROM users WHERE id = ?',
+      'SELECT id, email, role, blockedAt FROM users WHERE id = ?',
       [decoded.userId]
     );
 
     if (!user) {
       return res.status(401).json({ error: 'User not found' });
+    }
+
+    if (user.blockedAt) {
+      return res.status(403).json({ error: 'Account is blocked' });
     }
 
     req.user = user;
@@ -48,11 +52,11 @@ export const optionalAuth = async (req: AuthRequest, res: Response, next: NextFu
       const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
 
       const user = await queryOne<any>(
-        'SELECT id, email, role FROM users WHERE id = ?',
+        'SELECT id, email, role, blockedAt FROM users WHERE id = ?',
         [decoded.userId]
       );
 
-      if (user) {
+      if (user && !user.blockedAt) {
         req.user = user;
       }
     }

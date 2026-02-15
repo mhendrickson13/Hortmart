@@ -135,7 +135,7 @@ export function UsersList({
       {/* Add User Modal */}
       {showAddUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-[22px] bg-white border border-border/95 shadow-[0_24px_48px_rgba(21,25,35,0.12)] p-5">
+          <div className="w-full max-w-md rounded-[22px] bg-white dark:bg-card border border-border/95 shadow-[0_24px_48px_rgba(21,25,35,0.12)] dark:shadow-[0_24px_48px_rgba(0,0,0,0.4)] p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-[18px] font-black text-text-1">Add new user</h2>
               <button
@@ -184,7 +184,7 @@ export function UsersList({
                   id="add-role"
                   value={addUserForm.role}
                   onChange={(e) => setAddUserForm((f) => ({ ...f, role: e.target.value }))}
-                  className="mt-1.5 w-full h-10 px-3 rounded-lg border border-border text-body-sm text-text-1 bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  className="mt-1.5 w-full h-10 px-3 rounded-lg border border-border text-body-sm text-text-1 bg-card focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
                 >
                   <option value="LEARNER">Learner</option>
                   <option value="CREATOR">Creator</option>
@@ -222,7 +222,7 @@ export function UsersList({
         </div>
         <div className="flex items-center gap-2.5">
           {/* Search Input */}
-          <div className="hidden sm:flex h-10 w-[380px] rounded-[16px] border border-border/95 bg-white/95 items-center gap-2.5 px-3.5 text-text-3 font-bold text-[13px]">
+          <div className="hidden sm:flex h-10 w-[380px] rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 items-center gap-2.5 px-3.5 text-text-3 font-bold text-[13px]">
             <Search className="w-4 h-4 flex-shrink-0" />
             <input
               type="text"
@@ -333,7 +333,7 @@ function UserList({
           return (
             <div
               key={user.id}
-              className="grid grid-cols-[1fr_auto] sm:grid-cols-[1.4fr_0.8fr_0.6fr_0.6fr_0.6fr] gap-2.5 items-center p-3 rounded-[18px] border border-border/95 bg-white/95 mt-2.5 first:mt-0"
+              className="grid grid-cols-[1fr_auto] sm:grid-cols-[1.4fr_0.8fr_0.6fr_0.6fr_0.6fr] gap-2.5 items-center p-3 rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 mt-2.5 first:mt-0"
             >
               {/* User Info */}
               <div className="flex items-center gap-2.5 min-w-0">
@@ -387,7 +387,7 @@ function UserList({
                         variant: "info",
                       })
                     }
-                    className="hidden sm:inline-flex h-[34px] px-3 rounded-[14px] items-center gap-1.5 text-[12px] font-black bg-white/95 border border-border/95 text-text-1 hover:bg-muted transition-colors"
+                    className="hidden sm:inline-flex h-[34px] px-3 rounded-[14px] items-center gap-1.5 text-[12px] font-black bg-white/95 dark:bg-card/95 border border-border/95 text-text-1 hover:bg-muted transition-colors"
                   >
                     <UserPlus className="w-3.5 h-3.5" />
                     Invite
@@ -401,7 +401,7 @@ function UserList({
                         variant: "info",
                       })
                     }
-                    className="hidden sm:inline-flex h-[34px] px-3 rounded-[14px] items-center gap-1.5 text-[12px] font-black bg-white/95 border border-border/95 text-text-1 hover:bg-muted transition-colors"
+                    className="hidden sm:inline-flex h-[34px] px-3 rounded-[14px] items-center gap-1.5 text-[12px] font-black bg-white/95 dark:bg-card/95 border border-border/95 text-text-1 hover:bg-muted transition-colors"
                   >
                     <Mail className="w-3.5 h-3.5" />
                     Message

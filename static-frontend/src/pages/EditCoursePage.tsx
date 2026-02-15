@@ -457,7 +457,7 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Link to="/manage-courses" className="w-10 h-10 rounded-[16px] border border-border/95 bg-white/95 grid place-items-center hover:bg-muted transition-colors">
+          <Link to="/manage-courses" className="w-10 h-10 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 grid place-items-center hover:bg-muted transition-colors">
             <ArrowLeft className="w-4 h-4 text-text-1" />
           </Link>
           <div>
@@ -472,15 +472,15 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
           </div>
         </div>
         <div className="flex items-center gap-2.5">
-          <button onClick={() => window.open(`/course/${course.id}`, "_blank")} className="h-10 px-3.5 rounded-[16px] border border-border/95 bg-white/95 text-text-1 font-black text-[13px] inline-flex items-center gap-2 shadow-[0_14px_28px_rgba(21,25,35,0.06)] whitespace-nowrap">
+          <button onClick={() => window.open(`/course/${course.id}`, "_blank")} className="h-10 px-3.5 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-text-1 font-black text-[13px] inline-flex items-center gap-2 shadow-[0_14px_28px_rgba(21,25,35,0.06)] dark:shadow-[0_14px_28px_rgba(0,0,0,0.25)] whitespace-nowrap">
             Preview
           </button>
           {course.status === "PUBLISHED" ? (
-            <button onClick={unpublishCourse} disabled={isLoading} className="h-10 px-3.5 rounded-[16px] border border-red-200 bg-white text-red-600 font-black text-[13px] inline-flex items-center gap-2 whitespace-nowrap disabled:opacity-50 hover:bg-red-50 transition-colors">
+            <button onClick={unpublishCourse} disabled={isLoading} className="h-10 px-3.5 rounded-[16px] border border-red-200 dark:border-red-800 bg-white dark:bg-card text-red-600 dark:text-red-400 font-black text-[13px] inline-flex items-center gap-2 whitespace-nowrap disabled:opacity-50 hover:bg-red-50 dark:hover:bg-red-950 transition-colors">
               {isLoading ? "Unpublishing..." : "Unpublish"}
             </button>
           ) : (
-            <button onClick={publishCourse} disabled={isLoading} className={`h-10 px-3.5 rounded-[16px] border font-black text-[13px] inline-flex items-center gap-2 whitespace-nowrap disabled:opacity-50 ${isReadyToPublish ? "border-primary/55 bg-primary text-white shadow-[0_16px_34px_rgba(47,111,237,0.22)]" : "border-border/95 bg-white/95 text-text-2"}`}>
+            <button onClick={publishCourse} disabled={isLoading} className={`h-10 px-3.5 rounded-[16px] border font-black text-[13px] inline-flex items-center gap-2 whitespace-nowrap disabled:opacity-50 ${isReadyToPublish ? "border-primary/55 bg-primary text-white shadow-[0_16px_34px_rgba(47,111,237,0.22)]" : "border-border/95 bg-white/95 dark:bg-card/95 text-text-2"}`}>
               {isLoading ? "Publishing..." : "Publish"}
             </button>
           )}
@@ -490,7 +490,7 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-3 flex-1 min-h-0 mt-3">
         {/* Left Panel - Course Details & Curriculum */}
-        <div className="rounded-[22px] bg-white/92 border border-border/95 shadow-[0_14px_28px_rgba(21,25,35,0.06)] p-3.5 min-w-0 flex flex-col gap-3 overflow-auto">
+        <div className="rounded-[22px] bg-white/92 dark:bg-card/92 border border-border/95 shadow-[0_14px_28px_rgba(21,25,35,0.06)] dark:shadow-[0_14px_28px_rgba(0,0,0,0.25)] p-3.5 min-w-0 flex flex-col gap-3 overflow-auto">
           <h2 className="text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">Course details</h2>
 
           {/* Title */}
@@ -500,7 +500,7 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
           <EditableField label="Subtitle" hint="A longer tagline shown below the title." value={course.subtitle || ""} field="subtitle" editingField={editingField} setEditingField={setEditingField} onSave={(v) => updateCourseField("subtitle", v)} placeholder="Add a subtitle..." />
 
           {/* Cover Image */}
-          <div className="rounded-[18px] border border-border/95 bg-white/95 p-3">
+          <div className="rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
             <div className="flex items-center justify-between">
               <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">Cover Image</div>
               {course.coverImage && !uploadingCover && (
@@ -569,7 +569,7 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
 
           {/* Price / Level / Visibility */}
           <div className="grid grid-cols-3 gap-2.5">
-            <div className="rounded-[18px] border border-border/95 bg-white/95 p-3">
+            <div className="rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
               <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">Price</div>
               {editingField === "price" ? (
                 <Input type="number" min="0" step="0.01" defaultValue={course.price} autoFocus className="mt-2"
@@ -577,31 +577,31 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
                   onKeyDown={(e) => { if (e.key === "Enter") { const v = parseFloat(e.currentTarget.value) || 0; if (v !== course.price) updateCourseField("price", v); else setEditingField(null); } else if (e.key === "Escape") setEditingField(null); }}
                 />
               ) : (
-                <div className="mt-2 h-10 rounded-[16px] border border-border/95 bg-white/95 px-3.5 flex items-center text-text-1 font-black text-[13px] cursor-pointer hover:border-primary/40 transition-colors" onClick={() => setEditingField("price")}>
+                <div className="mt-2 h-10 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 px-3.5 flex items-center text-text-1 font-black text-[13px] cursor-pointer hover:border-primary/40 transition-colors" onClick={() => setEditingField("price")}>
                   {course.price === 0 ? "Free" : `$${course.price}`}
                   <Pencil className="w-3.5 h-3.5 ml-auto text-text-3" />
                 </div>
               )}
             </div>
-            <div className="rounded-[18px] border border-border/95 bg-white/95 p-3">
+            <div className="rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
               <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">Level</div>
               {editingField === "level" ? (
-                <select defaultValue={course.level} autoFocus className="mt-2 w-full h-10 px-3 rounded-[16px] border border-border/95 bg-white/95 text-[13px] font-black text-text-1 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" onChange={(e) => updateCourseField("level", e.target.value)} onBlur={() => setEditingField(null)}>
+                <select defaultValue={course.level} autoFocus className="mt-2 w-full h-10 px-3 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-[13px] font-black text-text-1 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" onChange={(e) => updateCourseField("level", e.target.value)} onBlur={() => setEditingField(null)}>
                   <option value="BEGINNER">Beginner</option>
                   <option value="INTERMEDIATE">Intermediate</option>
                   <option value="ADVANCED">Advanced</option>
                   <option value="ALL_LEVELS">All Levels</option>
                 </select>
               ) : (
-                <div className="mt-2 h-10 rounded-[16px] border border-border/95 bg-white/95 px-3.5 flex items-center text-text-1 font-black text-[13px] cursor-pointer hover:border-primary/40 transition-colors" onClick={() => setEditingField("level")}>
+                <div className="mt-2 h-10 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 px-3.5 flex items-center text-text-1 font-black text-[13px] cursor-pointer hover:border-primary/40 transition-colors" onClick={() => setEditingField("level")}>
                   {course.level.replace("_", " ")}
                   <Pencil className="w-3.5 h-3.5 ml-auto text-text-3" />
                 </div>
               )}
             </div>
-            <div className="rounded-[18px] border border-border/95 bg-white/95 p-3">
+            <div className="rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
               <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">Visibility</div>
-              <select value={course.status} onChange={(e) => updateCourseField("status", e.target.value)} className="mt-2 w-full h-10 px-3 rounded-[16px] border border-border/95 bg-white/95 text-[13px] font-black text-text-1 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary">
+              <select value={course.status} onChange={(e) => updateCourseField("status", e.target.value)} className="mt-2 w-full h-10 px-3 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-[13px] font-black text-text-1 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary">
                 <option value="DRAFT">Draft</option>
                 <option value="PUBLISHED">Published</option>
                 <option value="ARCHIVED">Archived</option>
@@ -616,10 +616,10 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
           </div>
 
           {/* Description */}
-          <div className="rounded-[18px] border border-border/95 bg-white/95 p-3">
+          <div className="rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
             <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">Description</div>
             {editingField === "description" ? (
-              <textarea defaultValue={course.description || ""} autoFocus className="mt-2 w-full h-24 px-3.5 py-2.5 rounded-[16px] border border-border/95 bg-white/95 text-[13px] font-black text-text-1 resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+              <textarea defaultValue={course.description || ""} autoFocus className="mt-2 w-full h-24 px-3.5 py-2.5 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-[13px] font-black text-text-1 resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 onBlur={(e) => { if (e.target.value !== (course.description || "")) updateCourseField("description", e.target.value); else setEditingField(null); }}
               />
             ) : (
@@ -631,11 +631,11 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
           </div>
 
           {/* What you'll learn */}
-          <div className="rounded-[18px] border border-border/95 bg-white/95 p-3">
+          <div className="rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
             <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">What you&apos;ll learn</div>
             <div className="mt-1 text-[12px] font-extrabold text-text-3">One learning outcome per line. Shown on the course page.</div>
             {editingField === "whatYouWillLearn" ? (
-              <textarea defaultValue={course.whatYouWillLearn || ""} autoFocus className="mt-2 w-full h-28 px-3.5 py-2.5 rounded-[16px] border border-border/95 bg-white/95 text-[13px] font-black text-text-1 resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" placeholder={"Build full-stack apps with React\nDeploy to AWS Lambda\nManage MySQL databases"}
+              <textarea defaultValue={course.whatYouWillLearn || ""} autoFocus className="mt-2 w-full h-28 px-3.5 py-2.5 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-[13px] font-black text-text-1 resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" placeholder={"Build full-stack apps with React\nDeploy to AWS Lambda\nManage MySQL databases"}
                 onBlur={(e) => { if (e.target.value !== (course.whatYouWillLearn || "")) updateCourseField("whatYouWillLearn", e.target.value); else setEditingField(null); }}
               />
             ) : (
@@ -648,10 +648,10 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
 
           {/* Curriculum Section */}
           <h2 className="mt-1.5 text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">Curriculum</h2>
-          <div className="rounded-[22px] bg-white/95 border border-border/95 p-3">
+          <div className="rounded-[22px] bg-white/95 dark:bg-card/95 border border-border/95 p-3">
             <div className="flex items-center justify-between gap-3">
               <div className="font-black text-text-1">Modules &amp; lessons</div>
-              <button onClick={() => setShowAddModule(true)} className="h-9 px-3 rounded-[16px] border border-border/95 bg-white/95 text-text-1 font-black text-[13px] inline-flex items-center gap-1.5 shadow-[0_14px_28px_rgba(21,25,35,0.06)]">
+              <button onClick={() => setShowAddModule(true)} className="h-9 px-3 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-text-1 font-black text-[13px] inline-flex items-center gap-1.5 shadow-[0_14px_28px_rgba(21,25,35,0.06)] dark:shadow-[0_14px_28px_rgba(0,0,0,0.25)]">
                 <Plus className="w-4 h-4" /> Add module
               </button>
             </div>
@@ -659,7 +659,7 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
             {/* Modules list */}
             <div className="space-y-2.5 mt-2.5">
               {course.modules.map((mod, moduleIdx) => (
-                <div key={mod.id} className="rounded-[18px] border border-border/95 bg-white/95 p-3">
+                <div key={mod.id} className="rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
                   {/* Module header */}
                   <div className="flex items-center justify-between gap-2">
                     <button onClick={() => toggleModule(mod.id)} className="flex-1 text-left flex items-center gap-2 min-w-0">
@@ -678,7 +678,7 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
                       <button onClick={() => moveModule(mod.id, "up")} disabled={moduleIdx === 0} className="w-7 h-7 rounded-lg hover:bg-muted grid place-items-center disabled:opacity-30" title="Move up"><ArrowUp className="w-3.5 h-3.5 text-text-3" /></button>
                       <button onClick={() => moveModule(mod.id, "down")} disabled={moduleIdx === course.modules.length - 1} className="w-7 h-7 rounded-lg hover:bg-muted grid place-items-center disabled:opacity-30" title="Move down"><ArrowDown className="w-3.5 h-3.5 text-text-3" /></button>
                       <button onClick={() => setEditingModule(mod.id)} className="w-7 h-7 rounded-lg hover:bg-muted grid place-items-center" title="Edit title"><Pencil className="w-3.5 h-3.5 text-text-3" /></button>
-                      <button onClick={() => deleteModule(mod.id)} className="w-7 h-7 rounded-lg hover:bg-red-50 grid place-items-center" title="Delete module"><Trash2 className="w-3.5 h-3.5 text-red-400" /></button>
+                      <button onClick={() => deleteModule(mod.id)} className="w-7 h-7 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 grid place-items-center" title="Delete module"><Trash2 className="w-3.5 h-3.5 text-red-400" /></button>
                     </div>
                   </div>
 
@@ -686,7 +686,7 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
                   {expandedModules.has(mod.id) && (
                     <div className="space-y-2 mt-2">
                       {mod.lessons.map((lesson, lessonIdx) => (
-                        <div key={lesson.id} className="rounded-[16px] border border-border/95 bg-white/95 p-2.5">
+                        <div key={lesson.id} className="rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 p-2.5">
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-2.5 min-w-0">
                               <div className={`w-[34px] h-[34px] rounded-[14px] border grid place-items-center flex-shrink-0 ${lesson.videoUrl ? "border-success/30 bg-success/10 text-green-600" : "border-border/95 bg-primary/10 text-primary-600"}`}>
@@ -717,7 +717,7 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
                               <button onClick={() => moveLesson(mod.id, lesson.id, "up")} disabled={lessonIdx === 0} className="w-6 h-6 rounded-md hover:bg-muted grid place-items-center disabled:opacity-30" title="Move up"><ArrowUp className="w-3 h-3 text-text-3" /></button>
                               <button onClick={() => moveLesson(mod.id, lesson.id, "down")} disabled={lessonIdx === mod.lessons.length - 1} className="w-6 h-6 rounded-md hover:bg-muted grid place-items-center disabled:opacity-30" title="Move down"><ArrowDown className="w-3 h-3 text-text-3" /></button>
                               <button onClick={() => setEditingLesson(lesson.id)} className="w-6 h-6 rounded-md hover:bg-muted grid place-items-center" title="Rename"><Pencil className="w-3 h-3 text-text-3" /></button>
-                              <button onClick={() => deleteLesson(lesson.id, mod.id)} className="w-6 h-6 rounded-md hover:bg-red-50 grid place-items-center" title="Delete lesson"><Trash2 className="w-3 h-3 text-red-400" /></button>
+                              <button onClick={() => deleteLesson(lesson.id, mod.id)} className="w-6 h-6 rounded-md hover:bg-red-50 dark:hover:bg-red-950 grid place-items-center" title="Delete lesson"><Trash2 className="w-3 h-3 text-red-400" /></button>
                             </div>
                           </div>
                           {/* Edit lesson button - prominent link to lesson editor for video, resources etc. */}
@@ -730,7 +730,7 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
                           </Link>
                         </div>
                       ))}
-                      <button onClick={() => addLesson(mod.id)} className="w-full h-9 rounded-[16px] border border-border/95 bg-white/95 text-text-2 font-black text-[13px] inline-flex items-center justify-center gap-1.5">
+                      <button onClick={() => addLesson(mod.id)} className="w-full h-9 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-text-2 font-black text-[13px] inline-flex items-center justify-center gap-1.5">
                         <Plus className="w-4 h-4" /> Add lesson
                       </button>
                     </div>
@@ -747,7 +747,7 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
                   className="flex-1"
                 />
                 <button onClick={addModule} disabled={!newModuleTitle.trim()} className="h-10 px-3 rounded-[16px] border border-primary/55 bg-primary text-white font-black text-[13px] disabled:opacity-50">Add</button>
-                <button onClick={() => { setNewModuleTitle(""); setShowAddModule(false); }} className="h-10 px-3 rounded-[16px] border border-border/95 bg-white/95 text-text-2 font-black text-[13px]">Cancel</button>
+                <button onClick={() => { setNewModuleTitle(""); setShowAddModule(false); }} className="h-10 px-3 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-text-2 font-black text-[13px]">Cancel</button>
               </div>
             )}
 
@@ -758,9 +758,9 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
         </div>
 
         {/* Right Panel - Checklist & Actions */}
-        <div className="rounded-[22px] bg-white/92 border border-border/95 shadow-[0_14px_28px_rgba(21,25,35,0.06)] p-3.5 min-w-0 flex flex-col gap-3">
+        <div className="rounded-[22px] bg-white/92 dark:bg-card/92 border border-border/95 shadow-[0_14px_28px_rgba(21,25,35,0.06)] dark:shadow-[0_14px_28px_rgba(0,0,0,0.25)] p-3.5 min-w-0 flex flex-col gap-3">
           <h2 className="text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">Publish checklist</h2>
-          <div className="rounded-[22px] border border-border/95 bg-white/95 p-3">
+          <div className="rounded-[22px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
             <div className="font-black text-text-1">Ready to publish?</div>
             <div className="mt-1.5 text-[12px] font-extrabold text-text-3">Complete these items to enable publishing.</div>
             <ChecklistItem label="Title & cover image" hint={course.title && course.coverImage ? "Looks good" : !course.title ? "Add a title" : "Add a cover image"} checked={!!course.title && !!course.coverImage} />
@@ -771,7 +771,7 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
           </div>
 
           <h2 className="mt-1.5 text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">How it works</h2>
-          <div className="rounded-[22px] border border-border/95 bg-white/95 p-3 space-y-3">
+          <div className="rounded-[22px] border border-border/95 bg-white/95 dark:bg-card/95 p-3 space-y-3">
             <div className="flex items-start gap-2.5">
               <div className="w-6 h-6 rounded-full bg-primary/10 text-primary font-black text-[11px] grid place-items-center flex-shrink-0 mt-0.5">1</div>
               <div>
@@ -797,18 +797,18 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
 
           <div className="grid gap-2.5">
             {course.status === "PUBLISHED" ? (
-              <button onClick={unpublishCourse} disabled={isLoading} className="h-10 rounded-[16px] border border-red-200 bg-white text-red-600 font-black text-[13px] inline-flex items-center justify-center disabled:opacity-50 hover:bg-red-50 transition-colors">
+              <button onClick={unpublishCourse} disabled={isLoading} className="h-10 rounded-[16px] border border-red-200 dark:border-red-800 bg-white dark:bg-card text-red-600 dark:text-red-400 font-black text-[13px] inline-flex items-center justify-center disabled:opacity-50 hover:bg-red-50 dark:hover:bg-red-950 transition-colors">
                 {isLoading ? "Unpublishing..." : "Unpublish course"}
               </button>
             ) : (
-              <button onClick={publishCourse} disabled={isLoading} className={`h-10 rounded-[16px] border font-black text-[13px] inline-flex items-center justify-center disabled:opacity-50 ${isReadyToPublish ? "border-primary/55 bg-primary text-white shadow-[0_16px_34px_rgba(47,111,237,0.22)]" : "border-border/95 bg-white/95 text-text-2"}`}>
+              <button onClick={publishCourse} disabled={isLoading} className={`h-10 rounded-[16px] border font-black text-[13px] inline-flex items-center justify-center disabled:opacity-50 ${isReadyToPublish ? "border-primary/55 bg-primary text-white shadow-[0_16px_34px_rgba(47,111,237,0.22)]" : "border-border/95 bg-white/95 dark:bg-card/95 text-text-2"}`}>
                 {isReadyToPublish ? "Publish now" : "Complete checklist to publish"}
               </button>
             )}
           </div>
 
           <h2 className="mt-auto text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">Status</h2>
-          <div className="rounded-[22px] border border-border/95 bg-white/95 p-3">
+          <div className="rounded-[22px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
             <div className="flex items-center justify-between">
               <div className="font-black text-text-1">{course.status === "PUBLISHED" ? "Published" : "Draft"}</div>
               <span className="h-[22px] px-2.5 rounded-full inline-flex items-center text-[11px] font-black tracking-[0.2px] bg-primary/10 text-primary-600 border border-primary/14">
@@ -838,7 +838,7 @@ function EditableField({ label, hint, value, field, editingField, setEditingFiel
   placeholder?: string;
 }) {
   return (
-    <div className="rounded-[18px] border border-border/95 bg-white/95 p-3">
+    <div className="rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
       <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">{label}</div>
       {editingField === field ? (
         <Input defaultValue={value} autoFocus className="mt-2"
@@ -846,7 +846,7 @@ function EditableField({ label, hint, value, field, editingField, setEditingFiel
           onKeyDown={(e) => { if (e.key === "Enter") { if (e.currentTarget.value !== value) onSave(e.currentTarget.value); else setEditingField(null); } else if (e.key === "Escape") setEditingField(null); }}
         />
       ) : (
-        <div className="mt-2 h-10 rounded-[16px] border border-border/95 bg-white/95 px-3.5 flex items-center text-text-1 font-black text-[13px] cursor-pointer hover:border-primary/40 transition-colors" onClick={() => setEditingField(field)}>
+        <div className="mt-2 h-10 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 px-3.5 flex items-center text-text-1 font-black text-[13px] cursor-pointer hover:border-primary/40 transition-colors" onClick={() => setEditingField(field)}>
           {value || placeholder || "Not set"}
           <Pencil className="w-3.5 h-3.5 ml-auto text-text-3" />
         </div>
@@ -860,7 +860,7 @@ function EditableField({ label, hint, value, field, editingField, setEditingFiel
 
 function ChecklistItem({ label, hint, checked }: { label: string; hint: string; checked: boolean }) {
   return (
-    <div className="flex items-center gap-2.5 p-2.5 rounded-[16px] border border-border/95 bg-white/95 mt-2">
+    <div className="flex items-center gap-2.5 p-2.5 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 mt-2">
       <div className={`w-[18px] h-[18px] rounded-full border-2 grid place-items-center flex-shrink-0 ${checked ? "border-success/65 bg-success/14" : "border-text-3/55"}`}>
         {checked && (
           <svg viewBox="0 0 10 8" width="7" height="4" className="text-text-1/65">

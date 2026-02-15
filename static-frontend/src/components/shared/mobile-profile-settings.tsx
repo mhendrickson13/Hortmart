@@ -79,7 +79,7 @@ export function MobileProfileSettings({ user, stats }: MobileProfileProps) {
           <h1 className="text-lg font-black tracking-tight text-text-1">Profile</h1>
           <Link
             to="/settings"
-            className="w-10 h-10 rounded-2xl border border-border/95 bg-white/95 dark:bg-card/95 flex items-center justify-center text-text-2 shadow-[0_14px_28px_rgba(21,25,35,0.05)] hover:bg-muted transition-colors"
+            className="w-10 h-10 rounded-2xl border border-border/95 bg-white/95 dark:bg-card/95 flex items-center justify-center text-text-2 shadow-[0_14px_28px_rgba(21,25,35,0.05)] dark:shadow-[0_14px_28px_rgba(0,0,0,0.25)] hover:bg-muted transition-colors"
             title="Settings"
           >
             <Settings className="w-[18px] h-[18px]" />

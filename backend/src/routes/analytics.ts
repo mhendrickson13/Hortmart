@@ -271,7 +271,7 @@ router.get('/learner-stats', authenticate, async (req: AuthRequest, res: Respons
 
       const completedLessons = progressRows.filter(lp => lp.completedAt != null).length;
       totalLessonsCompleted += completedLessons;
-      progressRows.forEach(lp => { totalWatchTime += lp.progressPercent / 100; });
+      progressRows.forEach(lp => { totalWatchTime += lp.lastWatchedTimestamp ?? 0; });
 
       if (totalLessonsInCourse > 0 && completedLessons === totalLessonsInCourse) {
         completedCourses++;
@@ -292,7 +292,7 @@ router.get('/learner-stats', authenticate, async (req: AuthRequest, res: Respons
 
     res.json({
       totalCourses, completedCourses, inProgressCourses, totalLessonsCompleted,
-      totalWatchHours: Math.round(totalWatchTime),
+      totalWatchHours: Math.round((totalWatchTime / 3600) * 10) / 10,
       enrollments: formattedEnrollments,
     });
   } catch (error) {

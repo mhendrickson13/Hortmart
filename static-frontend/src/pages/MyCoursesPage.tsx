@@ -125,7 +125,7 @@ export default function MyCoursesPage() {
         favCourses.length === 0 ? (
           <div className="flex-1 flex items-center justify-center min-h-[300px]">
             <div className="text-center max-w-md mx-auto px-4">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-red-50 flex items-center justify-center">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-red-50 dark:bg-red-950 flex items-center justify-center">
                 <Heart className="w-8 h-8 text-red-400" />
               </div>
               <h3 className="text-h3 font-semibold text-text-1 mb-2">No favourites yet</h3>

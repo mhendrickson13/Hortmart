@@ -270,7 +270,7 @@ export function NotesSection({ lessonId, currentTime, onSeek }: NotesSectionProp
                       size="icon-sm"
                       onClick={() => handleDeleteNote(note.id)}
                       title="Delete note"
-                      className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                      className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>

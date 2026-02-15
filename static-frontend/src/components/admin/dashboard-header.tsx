@@ -37,7 +37,7 @@ export function DashboardHeader({ userName, currentDate }: DashboardHeaderProps)
       <div className="flex items-center gap-2.5">
         {/* Search Input - Desktop */}
         <form onSubmit={handleSearch} className="hidden sm:block">
-          <div className="h-10 w-[380px] rounded-[16px] border border-border/95 bg-white/95 flex items-center gap-2.5 px-3.5 text-text-3 font-bold text-[13px]">
+          <div className="h-10 w-[380px] rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 flex items-center gap-2.5 px-3.5 text-text-3 font-bold text-[13px]">
             <Search className="w-4 h-4 flex-shrink-0" />
             <input
               type="text"
