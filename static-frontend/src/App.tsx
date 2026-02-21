@@ -18,6 +18,7 @@ import ManageCoursesPage from "@/pages/ManageCoursesPage";
 import NewCoursePage from "@/pages/NewCoursePage";
 import EditCoursePage from "@/pages/EditCoursePage";
 import CourseAnalyticsPage from "@/pages/CourseAnalyticsPage";
+import AdminCoursePreviewPage from "@/pages/AdminCoursePreviewPage";
 import LessonEditPage from "@/pages/LessonEditPage";
 import UsersPage from "@/pages/UsersPage";
 import UserDetailPage from "@/pages/UserDetailPage";
@@ -47,6 +48,7 @@ export default function App() {
           <Route path="/manage-courses/new" element={<AdminLayout><NewCoursePage /></AdminLayout>} />
           <Route path="/manage-courses/:id/edit" element={<AdminLayout><EditCoursePage /></AdminLayout>} />
           <Route path="/manage-courses/:id/analytics" element={<AdminLayout><CourseAnalyticsPage /></AdminLayout>} />
+          <Route path="/manage-courses/:id/preview" element={<AdminCoursePreviewPage />} />
           <Route path="/manage-courses/:id/lessons/:lessonId/edit" element={<AdminLayout><LessonEditPage /></AdminLayout>} />
           <Route path="/users" element={<AdminLayout><UsersPage /></AdminLayout>} />
           <Route path="/users/:id" element={<AdminLayout><UserDetailPage /></AdminLayout>} />

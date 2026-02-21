@@ -1,13 +1,14 @@
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { courses as coursesApi, favourites as favouritesApi, type CourseWithDetails } from "@/lib/api-client";
+import { courses as coursesApi, favourites as favouritesApi, video as videoApi, type CourseWithDetails } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ReviewsSection } from "@/components/learner/reviews-section";
-import { Play, Clock, Users, Globe, BarChart3, Lock, Star, CheckCircle2, Loader2, ChevronDown, ChevronUp, Heart, Share2, Bookmark, BookOpen } from "lucide-react";
+import { VideoPlayer } from "@/components/learner/video-player";
+import { Play, Clock, Users, Globe, BarChart3, Lock, Star, CheckCircle2, Loader2, ChevronDown, ChevronUp, Heart, Share2, Bookmark, BookOpen, X } from "lucide-react";
 import { formatDuration, formatPrice, getInitials, cn } from "@/lib/utils";
 import { toast } from "@/components/ui/toaster";
 
@@ -22,6 +23,14 @@ export default function CourseOverviewPage() {
   const [enrolling, setEnrolling] = useState(false);
   const [isFavourite, setIsFavourite] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(false);
+
+  // Preview video inline state
+  const [previewLessonId, setPreviewLessonId] = useState<string | null>(null);
+  const [previewVideoSrc, setPreviewVideoSrc] = useState<string | null>(null);
+  const [previewSigningParams, setPreviewSigningParams] = useState<any>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewLessonTitle, setPreviewLessonTitle] = useState<string>("");
+  const coverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -48,7 +57,7 @@ export default function CourseOverviewPage() {
     fetchData();
   }, [id, token, authLoading]);
 
-  const handleToggleFavourite = async () => {
+  const handleToggleFavourite = useCallback(async () => {
     if (!user || !token) { navigate("/login", { state: { from: { pathname: `/course/${id}` } } }); return; }
     const prev = isFavourite;
     setIsFavourite(!prev);
@@ -60,9 +69,9 @@ export default function CourseOverviewPage() {
       setIsFavourite(prev);
       toast({ title: "Failed to update", variant: "error" });
     }
-  };
+  }, [user, token, id, navigate, isFavourite]);
 
-  const handleToggleBookmark = async () => {
+  const handleToggleBookmark = useCallback(async () => {
     if (!user || !token) { navigate("/login", { state: { from: { pathname: `/course/${id}` } } }); return; }
     const prev = isBookmarked;
     setIsBookmarked(!prev);
@@ -74,16 +83,44 @@ export default function CourseOverviewPage() {
       setIsBookmarked(prev);
       toast({ title: "Failed to update", variant: "error" });
     }
-  };
+  }, [user, token, id, navigate, isBookmarked]);
 
-  const handleEnroll = async () => {
+  const handleEnroll = useCallback(async () => {
     if (!user || !token) { navigate("/login", { state: { from: { pathname: `/course/${id}` } } }); return; }
     setEnrolling(true);
     try { await coursesApi.enroll(id!, token); setIsEnrolled(true); toast({ title: "Enrolled successfully!", variant: "success" }); }
     catch (error: any) { toast({ title: "Enrollment failed", description: error?.message || "Please try again", variant: "error" }); }
     finally { setEnrolling(false); }
-  };
+  }, [user, token, id, navigate]);
 
+  const handlePreviewLesson = useCallback(async (lessonId: string, lessonTitle: string) => {
+    if (!token) { navigate("/login", { state: { from: { pathname: `/course/${id}` } } }); return; }
+    setPreviewLessonId(lessonId);
+    setPreviewLessonTitle(lessonTitle);
+    setPreviewLoading(true);
+    setPreviewVideoSrc(null);
+    setPreviewSigningParams(null);
+    // Scroll to cover image area
+    setTimeout(() => coverRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+    try {
+      const data = await videoApi.getSignedUrl(lessonId);
+      setPreviewVideoSrc(data.signedManifestUrl);
+      setPreviewSigningParams(data.signingParams);
+    } catch {
+      toast({ title: "Preview not available", description: "This video is not ready yet.", variant: "warning" });
+      setPreviewLessonId(null);
+    } finally {
+      setPreviewLoading(false);
+    }
+  }, [token, id, navigate]);
+
+  const closePreview = useCallback(() => {
+    setPreviewLessonId(null);
+    setPreviewVideoSrc(null);
+    setPreviewSigningParams(null);
+  }, []);
+
+  // Early returns AFTER all hooks
   if (loading) return <div className="flex items-center justify-center min-h-[50vh]"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
   if (!course) return <div className="text-center py-8"><p className="text-text-2">Course not found</p><Link to="/courses" className="text-primary font-bold">Browse courses</Link></div>;
 
@@ -107,25 +144,46 @@ export default function CourseOverviewPage() {
     <>
       {/* ========== MOBILE LAYOUT ========== */}
       <div className="lg:hidden flex flex-col gap-3 pb-36 overflow-x-hidden">
-        {/* Cover Image - full width within parent padding */}
-        <div className="aspect-video rounded-2xl overflow-hidden relative">
-          {course.coverImage ? (
-            <img src={course.coverImage} alt={course.title} className="w-full h-full object-cover" />
+        {/* Cover Image / Preview Video */}
+        <div ref={coverRef} className="rounded-2xl overflow-hidden relative">
+          {previewLessonId ? (
+            <div className="relative">
+              {previewLoading && !previewVideoSrc ? (
+                <div className="aspect-video bg-black flex items-center justify-center">
+                  <Loader2 className="w-8 h-8 animate-spin text-white" />
+                </div>
+              ) : (
+                <VideoPlayer
+                  src={previewVideoSrc}
+                  signingParams={previewSigningParams}
+                  className="rounded-2xl"
+                  previewMode
+                />
+              )}
+              <div className="absolute top-2 left-2 right-2 flex items-center justify-between z-10">
+                <span className="px-2.5 py-1 rounded-lg bg-black/70 backdrop-blur-sm text-[11px] font-semibold text-white truncate max-w-[70%]">{previewLessonTitle}</span>
+                <button onClick={closePreview} className="w-7 h-7 rounded-full bg-black/70 backdrop-blur-sm flex items-center justify-center hover:bg-black/90 transition-colors">
+                  <X className="w-4 h-4 text-white" />
+                </button>
+              </div>
+            </div>
           ) : (
-            <div className="w-full h-full gradient-primary" />
-          )}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent" />
-          {isEnrolled ? (
-            <Link to={`/player/${course.id}`} className="absolute inset-0 flex items-center justify-center">
-              <span className="w-14 h-14 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-lg"><Play className="w-6 h-6 text-primary ml-0.5" fill="currentColor" /></span>
-            </Link>
-          ) : (
-            <button onClick={() => document.getElementById("m-curriculum")?.scrollIntoView({ behavior: "smooth" })} className="absolute inset-0 flex items-center justify-center">
-              <span className="w-14 h-14 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-lg"><Play className="w-6 h-6 text-primary ml-0.5" fill="currentColor" /></span>
-            </button>
-          )}
-          {course.category && (
-            <span className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-lg bg-white/90 backdrop-blur-sm text-[11px] font-semibold text-primary-600">{course.category}</span>
+            <div className="aspect-video relative">
+              {course.coverImage ? (
+                <img src={course.coverImage} alt={course.title} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full gradient-primary" />
+              )}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent" />
+              {isEnrolled && (
+                <Link to={`/player/${course.id}`} className="absolute inset-0 flex items-center justify-center">
+                  <span className="w-14 h-14 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-lg"><Play className="w-6 h-6 text-primary ml-0.5" fill="currentColor" /></span>
+                </Link>
+              )}
+              {course.category && (
+                <span className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-lg bg-white/90 backdrop-blur-sm text-[11px] font-semibold text-primary-600">{course.category}</span>
+              )}
+            </div>
           )}
         </div>
 
@@ -247,6 +305,9 @@ export default function CourseOverviewPage() {
           hasMoreModules={hasMoreModules}
           showAllModules={showAllModules}
           onToggle={() => setShowAllModules(!showAllModules)}
+          isEnrolled={isEnrolled}
+          onPreviewLesson={handlePreviewLesson}
+          previewLessonId={previewLessonId}
         />
 
         {/* Reviews */}
@@ -261,7 +322,7 @@ export default function CourseOverviewPage() {
                 <Button asChild className="w-full h-10"><Link to={`/player/${course.id}`}>Continue Learning</Link></Button>
               ) : (
                 <Button onClick={handleEnroll} disabled={enrolling} className="w-full h-10">
-                  {enrolling ? <Loader2 className="w-4 h-4 animate-spin" /> : course.price === 0 ? "Enroll Free" : "Buy Now"}
+                  {enrolling ? <Loader2 className="w-4 h-4 animate-spin" /> : course.price === 0 ? "Enroll Free" : "Subscribe to this course"}
                 </Button>
               )}
             </div>
@@ -279,69 +340,111 @@ export default function CourseOverviewPage() {
               <h1 className="text-display font-bold text-text-1 leading-tight">{course.title}</h1>
               {course.subtitle && <p className="text-h3 text-text-2">{course.subtitle}</p>}
 
-              <div className="flex items-center justify-between">
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                  <div className="flex items-center gap-2">
-                    <Avatar className="w-8 h-8"><AvatarImage src={course.creator?.image || undefined} /><AvatarFallback className="text-xs">{getInitials(course.creator?.name || "I")}</AvatarFallback></Avatar>
-                    <span className="text-body-sm text-text-2">by <a href="#instructor" className="text-primary-600 font-semibold hover:underline">{course.creator?.name || "Instructor"}</a></span>
-                  </div>
-                  {enrollmentCount > 0 && <span className="text-body-sm text-text-3">{enrollmentCount.toLocaleString()} students</span>}
+              {/* Instructor · Rating · Students · Actions — single row */}
+              <div className="flex items-center flex-wrap gap-x-4 gap-y-2">
+                {/* Instructor */}
+                <div className="flex items-center gap-2">
+                  <Avatar className="w-7 h-7"><AvatarImage src={course.creator?.image || undefined} /><AvatarFallback className="text-[10px]">{getInitials(course.creator?.name || "I")}</AvatarFallback></Avatar>
+                  <span className="text-body-sm text-text-2">by <a href="#instructor" className="text-primary-600 font-semibold hover:underline">{course.creator?.name || "Instructor"}</a></span>
                 </div>
+
+                {/* Divider */}
+                {reviewCount > 0 && <span className="text-border">|</span>}
+
+                {/* Rating */}
                 {reviewCount > 0 && (
-                  <div className="flex items-center gap-1.5">
-                    <div className="flex items-center gap-0.5">
-                      {[1,2,3,4,5].map((star) => <Star key={star} className={cn("w-4 h-4", avgRating >= star ? "fill-yellow-400 text-yellow-400" : "text-text-3/40")} />)}
-                    </div>
+                  <div className="flex items-center gap-1">
+                    <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
                     <span className="text-body-sm font-semibold text-text-1">{Number(avgRating).toFixed(1)}</span>
-                    <span className="text-body-sm text-text-3">({reviewCount} reviews)</span>
+                    <span className="text-body-sm text-text-3">({reviewCount})</span>
                   </div>
                 )}
-              </div>
 
-              {enrollmentCount > 1 && (
-                <div className="flex items-center gap-2 pt-1">
-                  <div className="flex -space-x-2">
-                    {[1,2,3,4,5].slice(0, Math.min(5, enrollmentCount)).map((i) => (
-                      <div key={i} className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-100 to-primary-200 border-2 border-white flex items-center justify-center">
-                        <span className="text-xs font-semibold text-primary-600">{String.fromCharCode(64 + i)}</span>
+                {/* Divider */}
+                {enrollmentCount > 0 && <span className="text-border">|</span>}
+
+                {/* Enrolled Students */}
+                {enrollmentCount > 0 && (
+                  <div className="flex items-center gap-2">
+                    {course.enrolledStudents && course.enrolledStudents.length > 0 && (
+                      <div className="flex -space-x-1.5">
+                        {course.enrolledStudents.slice(0, Math.min(3, enrollmentCount)).map((student: any, idx: number) => (
+                          <div key={student.id} className="w-6 h-6 rounded-full border-2 border-white overflow-hidden flex-shrink-0" title={student.name || 'Student'}>
+                            {student.image ? (
+                              <img src={student.image} alt={student.name || 'Student'} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-[9px] font-bold text-white" style={{ background: idx % 3 === 0 ? 'linear-gradient(135deg, #2f6fed, #38bdf8)' : idx % 3 === 1 ? 'linear-gradient(135deg, #38bdf8, #8cffcb)' : 'linear-gradient(135deg, #8cffcb, #2f6fed)' }}>
+                                {(student.name || 'S').charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        {enrollmentCount > 3 && (
+                          <div className="w-6 h-6 rounded-full border-2 border-white bg-muted flex items-center justify-center text-[8px] font-bold text-text-2 flex-shrink-0">
+                            +{(enrollmentCount - 3).toLocaleString()}
+                          </div>
+                        )}
                       </div>
-                    ))}
+                    )}
+                    <span className="text-body-sm text-text-3">{enrollmentCount.toLocaleString()} {enrollmentCount === 1 ? 'student' : 'students'}</span>
                   </div>
-                  {enrollmentCount > 5 && <span className="text-caption text-text-2">+{(enrollmentCount - 5).toLocaleString()} other students</span>}
-                </div>
-              )}
+                )}
 
-              <div className="flex items-center gap-2 pt-2">
-                <button type="button" onClick={handleToggleFavourite} className={cn("p-2.5 rounded-xl border transition-all duration-200 active:scale-90", isFavourite ? "border-red-300 bg-red-50 dark:bg-red-950 hover:bg-red-100 dark:border-red-800 dark:bg-red-950 dark:hover:bg-red-900" : "border-border bg-card hover:bg-surface-3")}>
-                  <Heart className={cn("w-5 h-5", isFavourite ? "text-red-500" : "text-text-2")} fill={isFavourite ? "currentColor" : "none"} />
-                </button>
-                <button type="button" onClick={handleToggleBookmark} className={cn("p-2.5 rounded-xl border transition-all duration-200 active:scale-90", isBookmarked ? "border-blue-300 bg-blue-50 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950 dark:hover:bg-blue-900" : "border-border bg-card hover:bg-surface-3")}>
-                  <Bookmark className={cn("w-5 h-5", isBookmarked ? "text-blue-500" : "text-text-2")} fill={isBookmarked ? "currentColor" : "none"} />
-                </button>
-                <button type="button" onClick={() => { navigator.clipboard.writeText(window.location.href); toast({ title: "Link copied!", variant: "success" }); }} className="p-2.5 rounded-xl border border-border bg-card hover:bg-surface-3 transition-all duration-200 active:scale-90">
-                  <Share2 className="w-5 h-5 text-text-2" />
-                </button>
+                {/* Divider */}
+                <span className="text-border">|</span>
+
+                {/* Favourite · Bookmark · Share */}
+                <div className="flex items-center gap-1">
+                  <button type="button" onClick={handleToggleFavourite} className={cn("p-1.5 rounded-lg border transition-all duration-200 active:scale-90", isFavourite ? "border-red-300 bg-red-50 dark:bg-red-950 hover:bg-red-100 dark:border-red-800 dark:hover:bg-red-900" : "border-border bg-card hover:bg-surface-3")} title="Favourite">
+                    <Heart className={cn("w-4 h-4", isFavourite ? "text-red-500" : "text-text-2")} fill={isFavourite ? "currentColor" : "none"} />
+                  </button>
+                  <button type="button" onClick={handleToggleBookmark} className={cn("p-1.5 rounded-lg border transition-all duration-200 active:scale-90", isBookmarked ? "border-blue-300 bg-blue-50 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950 dark:hover:bg-blue-900" : "border-border bg-card hover:bg-surface-3")} title="Bookmark">
+                    <Bookmark className={cn("w-4 h-4", isBookmarked ? "text-blue-500" : "text-text-2")} fill={isBookmarked ? "currentColor" : "none"} />
+                  </button>
+                  <button type="button" onClick={() => { navigator.clipboard.writeText(window.location.href); toast({ title: "Link copied!", variant: "success" }); }} className="p-1.5 rounded-lg border border-border bg-card hover:bg-surface-3 transition-all duration-200 active:scale-90" title="Share">
+                    <Share2 className="w-4 h-4 text-text-2" />
+                  </button>
+                </div>
               </div>
             </div>
 
-            <Card className="aspect-video overflow-hidden relative shadow-soft-2">
-              {course.coverImage ? <img src={course.coverImage} alt={course.title} className="w-full h-full object-cover" /> : <div className="w-full h-full gradient-primary" />}
-              <div className="absolute inset-0 bg-black/20" />
-              {isEnrolled ? (
-                <Link to={`/player/${course.id}`} className="absolute inset-0 flex items-center justify-center">
-                  <span className="w-20 h-20 rounded-full bg-white/90 backdrop-blur-sm border border-white flex items-center justify-center shadow-soft-3 hover:scale-105 transition-transform"><Play className="w-8 h-8 text-primary ml-1" fill="currentColor" /></span>
-                </Link>
+            <Card ref={coverRef} className="aspect-video overflow-hidden relative shadow-soft-2">
+              {previewLessonId ? (
+                <div className="relative w-full h-full">
+                  {previewLoading && !previewVideoSrc ? (
+                    <div className="w-full h-full bg-black flex items-center justify-center">
+                      <Loader2 className="w-10 h-10 animate-spin text-white" />
+                    </div>
+                  ) : (
+                    <VideoPlayer
+                      src={previewVideoSrc}
+                      signingParams={previewSigningParams}
+                      previewMode
+                    />
+                  )}
+                  <div className="absolute top-3 left-3 right-3 flex items-center justify-between z-10">
+                    <span className="px-3 py-1.5 rounded-lg bg-black/70 backdrop-blur-sm text-caption font-semibold text-white truncate max-w-[70%]">{previewLessonTitle}</span>
+                    <button onClick={closePreview} className="w-8 h-8 rounded-full bg-black/70 backdrop-blur-sm flex items-center justify-center hover:bg-black/90 transition-colors">
+                      <X className="w-4 h-4 text-white" />
+                    </button>
+                  </div>
+                </div>
               ) : (
-                <button onClick={() => document.getElementById("curriculum")?.scrollIntoView({ behavior: "smooth" })} className="absolute inset-0 flex items-center justify-center">
-                  <span className="w-20 h-20 rounded-full bg-white/90 backdrop-blur-sm border border-white flex items-center justify-center shadow-soft-3 hover:scale-105 transition-transform"><Play className="w-8 h-8 text-primary ml-1" fill="currentColor" /></span>
-                </button>
+                <>
+                  {course.coverImage ? <img src={course.coverImage} alt={course.title} className="w-full h-full object-cover" /> : <div className="w-full h-full gradient-primary" />}
+                  <div className="absolute inset-0 bg-black/20" />
+                  {isEnrolled && (
+                    <Link to={`/player/${course.id}`} className="absolute inset-0 flex items-center justify-center">
+                      <span className="w-20 h-20 rounded-full bg-white/90 backdrop-blur-sm border border-white flex items-center justify-center shadow-soft-3 hover:scale-105 transition-transform"><Play className="w-8 h-8 text-primary ml-1" fill="currentColor" /></span>
+                    </Link>
+                  )}
+                </>
               )}
             </Card>
 
             <div className="flex flex-wrap gap-3">
               <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-card border border-border shadow-soft-1"><BarChart3 className="w-4 h-4 text-primary" /><span className="text-body-sm font-medium text-text-1">{(course.level || "ALL_LEVELS").replace("_", " ")}</span></div>
               <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-card border border-border shadow-soft-1"><Clock className="w-4 h-4 text-primary" /><span className="text-body-sm font-medium text-text-1">{formatDuration(totalDuration)}</span></div>
-              <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-card border border-border shadow-soft-1"><Users className="w-4 h-4 text-primary" /><span className="text-body-sm font-medium text-text-1">{enrollmentCount} students</span></div>
               <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-card border border-border shadow-soft-1"><Globe className="w-4 h-4 text-primary" /><span className="text-body-sm font-medium text-text-1">{course.language || "English"}</span></div>
             </div>
 
@@ -384,7 +487,7 @@ export default function CourseOverviewPage() {
                   <Button asChild className="w-full h-12 text-body font-semibold"><Link to={`/player/${course.id}`}>Continue Learning</Link></Button>
                 ) : (
                   <Button onClick={handleEnroll} disabled={enrolling} className="w-full h-12 text-body font-semibold">
-                    {enrolling ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Enrolling...</> : course.price === 0 ? "Enroll for Free" : "Buy Now"}
+                    {enrolling ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Enrolling...</> : course.price === 0 ? "Enroll for Free" : "Subscribe to this course"}
                   </Button>
                 )}
                 <div className="mt-5 pt-5 border-t border-border space-y-3">
@@ -397,7 +500,7 @@ export default function CourseOverviewPage() {
                   </div>
                 </div>
               </Card>
-              <DesktopCurriculumPanel course={course} visibleModules={visibleModules} totalModules={totalModules} totalLessons={totalLessons} hasMoreModules={hasMoreModules} showAllModules={showAllModules} onToggle={() => setShowAllModules(!showAllModules)} />
+              <DesktopCurriculumPanel course={course} visibleModules={visibleModules} totalModules={totalModules} totalLessons={totalLessons} hasMoreModules={hasMoreModules} showAllModules={showAllModules} onToggle={() => setShowAllModules(!showAllModules)} isEnrolled={isEnrolled} onPreviewLesson={handlePreviewLesson} previewLessonId={previewLessonId} />
             </div>
           </div>
         </div>
@@ -408,7 +511,7 @@ export default function CourseOverviewPage() {
 }
 
 /* ---- Mobile Curriculum (compact) ---- */
-function MobileCurriculumPanel({ id, course, visibleModules, totalModules, totalLessons, hasMoreModules, showAllModules, onToggle }: any) {
+function MobileCurriculumPanel({ id, course, visibleModules, totalModules, totalLessons, hasMoreModules, showAllModules, onToggle, isEnrolled, onPreviewLesson, previewLessonId }: any) {
   return (
     <Card id={id} className="p-4 scroll-mt-4">
       <div className="flex items-center justify-between mb-3">
@@ -423,15 +526,33 @@ function MobileCurriculumPanel({ id, course, visibleModules, totalModules, total
               <span className="text-caption font-semibold text-text-1 truncate">{mod.title}</span>
             </div>
             <div className="space-y-1 ml-7">
-              {(mod.lessons || []).map((lesson: any) => (
-                <div key={lesson.id} className={cn("flex items-center gap-2 py-2 px-2.5 rounded-lg border", lesson.isLocked ? "border-border/40 bg-muted/50" : "border-border bg-card")}>
-                  <div className={cn("w-4 h-4 rounded-full border-[1.5px] flex items-center justify-center flex-shrink-0", lesson.isLocked ? "border-text-3/30" : "border-primary/50")}>
-                    {lesson.isLocked ? <Lock className="w-2 h-2 text-text-3" /> : <Play className="w-2 h-2 text-primary" fill="currentColor" />}
+              {(mod.lessons || []).map((lesson: any) => {
+                const progress = lesson.progressPercent || 0;
+                const isCompleted = !!lesson.completedAt;
+                const showProgress = isEnrolled && !lesson.isLocked;
+                const isClickable = (isEnrolled && !lesson.isLocked) || (!isEnrolled && lesson.isFreePreview);
+                const isPreviewing = previewLessonId === lesson.id;
+                const content = (
+                  <div className={cn("flex items-center gap-2 py-2 px-2.5 rounded-lg border", lesson.isLocked ? "border-border/40 bg-muted/50" : isPreviewing ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-border bg-card", isClickable && "cursor-pointer hover:bg-surface-3 transition-colors")}>
+                    <div className={cn("w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0", isCompleted ? "bg-success" : lesson.isLocked ? "border-[1.5px] border-text-3/30" : showProgress && progress > 0 ? "border-[1.5px] border-primary" : "border-[1.5px] border-primary/50")}>
+                      {isCompleted ? <CheckCircle2 className="w-4 h-4 text-white" /> : lesson.isLocked ? <Lock className="w-2 h-2 text-text-3" /> : <Play className="w-2 h-2 text-primary" fill="currentColor" />}
+                    </div>
+                    <span className={cn("text-[11px] font-medium truncate flex-1", lesson.isLocked ? "text-text-3" : isCompleted ? "text-success line-through" : isPreviewing ? "text-primary font-semibold" : "text-text-1")}>{lesson.title}</span>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {showProgress && !isCompleted && progress > 0 && <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">{progress}%</span>}
+                      {showProgress && isCompleted && <span className="text-[9px] font-bold text-success">Done</span>}
+                      <span className="text-[10px] text-text-3">{formatDuration(lesson.durationSeconds || 0)}</span>
+                    </div>
                   </div>
-                  <span className={cn("text-[11px] font-medium truncate flex-1", lesson.isLocked ? "text-text-3" : "text-text-1")}>{lesson.title}</span>
-                  <span className="text-[10px] text-text-3 flex-shrink-0">{formatDuration(lesson.durationSeconds || 0)}</span>
-                </div>
-              ))}
+                );
+                if (isEnrolled && !lesson.isLocked) {
+                  return <Link key={lesson.id} to={`/player/${course.id}?lesson=${lesson.id}`}>{content}</Link>;
+                }
+                if (!isEnrolled && lesson.isFreePreview) {
+                  return <div key={lesson.id} onClick={() => onPreviewLesson(lesson.id, lesson.title)}>{content}</div>;
+                }
+                return <div key={lesson.id}>{content}</div>;
+              })}
             </div>
           </div>
         ))}
@@ -446,7 +567,7 @@ function MobileCurriculumPanel({ id, course, visibleModules, totalModules, total
 }
 
 /* ---- Desktop Curriculum ---- */
-function DesktopCurriculumPanel({ course, visibleModules, totalModules, totalLessons, hasMoreModules, showAllModules, onToggle }: any) {
+function DesktopCurriculumPanel({ course, visibleModules, totalModules, totalLessons, hasMoreModules, showAllModules, onToggle, isEnrolled, onPreviewLesson, previewLessonId }: any) {
   return (
     <Card id="curriculum" className="p-5 scroll-mt-4 shadow-soft-1">
       <div className="flex items-center justify-between mb-4">
@@ -461,18 +582,39 @@ function DesktopCurriculumPanel({ course, visibleModules, totalModules, totalLes
               <span className="text-body-sm font-semibold text-text-1">{mod.title}</span>
             </div>
             <div className="space-y-1.5 ml-8">
-              {(mod.lessons || []).map((lesson: any) => (
-                <div key={lesson.id} className={cn("flex items-center gap-3 p-3 rounded-xl border transition-colors", lesson.isLocked ? "border-border/50 bg-muted/50" : "border-border bg-card hover:bg-surface-3")}>
-                  <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0", lesson.isLocked ? "border-text-3/40" : lesson.isFreePreview ? "border-primary bg-primary-100" : "border-text-3/50")}>
-                    {lesson.isLocked ? <Lock className="w-2.5 h-2.5 text-text-3" /> : lesson.isFreePreview ? <Play className="w-2.5 h-2.5 text-primary" fill="currentColor" /> : null}
+              {(mod.lessons || []).map((lesson: any) => {
+                const progress = lesson.progressPercent || 0;
+                const isCompleted = !!lesson.completedAt;
+                const showProgress = isEnrolled && !lesson.isLocked;
+                const isClickable = (isEnrolled && !lesson.isLocked) || (!isEnrolled && lesson.isFreePreview);
+                const isPreviewing = previewLessonId === lesson.id;
+                const content = (
+                  <div className={cn("flex items-center gap-3 p-3 rounded-xl border transition-colors", lesson.isLocked ? "border-border/50 bg-muted/50" : isPreviewing ? "border-primary bg-primary/5 ring-1 ring-primary/30" : lesson.isFreePreview || !lesson.isLocked ? "border-border bg-card hover:bg-surface-3" : "border-border bg-card", isClickable && "cursor-pointer")}>
+                    <div className={cn("w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0", isCompleted ? "bg-success" : lesson.isLocked ? "border-2 border-text-3/40" : showProgress && progress > 0 ? "border-2 border-primary" : lesson.isFreePreview ? "border-2 border-primary bg-primary-100" : "border-2 border-text-3/50")}>
+                      {isCompleted ? <CheckCircle2 className="w-5 h-5 text-white" /> : lesson.isLocked ? <Lock className="w-2.5 h-2.5 text-text-3" /> : lesson.isFreePreview ? <Play className="w-2.5 h-2.5 text-primary" fill="currentColor" /> : showProgress && progress > 0 ? <span className="text-[8px] font-bold text-primary">{progress}</span> : null}
+                    </div>
+                    <p className={cn("text-caption font-medium truncate flex-1", lesson.isLocked ? "text-text-3" : isCompleted ? "text-success" : isPreviewing ? "text-primary font-semibold" : "text-text-1")}>{lesson.title}</p>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {showProgress && !isCompleted && progress > 0 && (
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden"><div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} /></div>
+                          <span className="text-[10px] font-semibold text-primary">{progress}%</span>
+                        </div>
+                      )}
+                      {showProgress && isCompleted && <span className="text-[10px] font-bold text-success">Completed</span>}
+                      <span className="text-[11px] text-text-3">{formatDuration(lesson.durationSeconds || 0)}</span>
+                      {lesson.isFreePreview && <Pill size="sm" className="text-[10px] px-1.5 py-0.5">Preview</Pill>}
+                    </div>
                   </div>
-                  <p className={cn("text-caption font-medium truncate flex-1", lesson.isLocked ? "text-text-3" : "text-text-1")}>{lesson.title}</p>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="text-[11px] text-text-3">{formatDuration(lesson.durationSeconds || 0)}</span>
-                    {lesson.isFreePreview && <Pill size="sm" className="text-[10px] px-1.5 py-0.5">Preview</Pill>}
-                  </div>
-                </div>
-              ))}
+                );
+                if (isEnrolled && !lesson.isLocked) {
+                  return <Link key={lesson.id} to={`/player/${course.id}?lesson=${lesson.id}`}>{content}</Link>;
+                }
+                if (!isEnrolled && lesson.isFreePreview) {
+                  return <div key={lesson.id} onClick={() => onPreviewLesson(lesson.id, lesson.title)}>{content}</div>;
+                }
+                return <div key={lesson.id}>{content}</div>;
+              })}
             </div>
           </div>
         ))}

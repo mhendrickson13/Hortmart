@@ -87,6 +87,34 @@ router.patch('/:id', auth_js_1.authenticate, async (req, res) => {
             updated.isLocked = !!updated.isLocked;
             updated.isFreePreview = !!updated.isFreePreview;
         }
+        // ── Auto-trigger encoding when a new S3 video is set ──
+        if (videoUrl && typeof videoUrl === 'string' && videoUrl !== lesson.videoUrl) {
+            const isS3Url = videoUrl.includes('cxflowio') && videoUrl.includes('amazonaws.com');
+            if (isS3Url) {
+                // Fire-and-forget: submit encoding in background
+                (async () => {
+                    try {
+                        const videoMod = await import('./video.js');
+                        const sourceKey = videoMod.extractS3Key(videoUrl);
+                        if (!sourceKey)
+                            return;
+                        console.log(`[LESSONS] Auto-encoding lesson ${id}, key: ${sourceKey}`);
+                        const jobId = await videoMod.submitEncodingJob(sourceKey, id);
+                        // hlsUrl set to NULL — will be populated by checkAndFinalizeEncoding on completion
+                        await (0, db_js_1.execute)('UPDATE lessons SET videoStatus = ?, encodingJobId = ?, hlsUrl = NULL, updatedAt = ? WHERE id = ?', ['encoding', jobId, (0, db_js_1.now)(), id]);
+                        console.log(`[LESSONS] Auto-encoding started, job: ${jobId}`);
+                    }
+                    catch (err) {
+                        console.error(`[LESSONS] Auto-encoding failed for lesson ${id}:`, err);
+                        // Update status so frontend can show the error (instead of polling forever)
+                        try {
+                            await (0, db_js_1.execute)('UPDATE lessons SET videoStatus = ?, updatedAt = ? WHERE id = ?', ['error', (0, db_js_1.now)(), id]);
+                        }
+                        catch { /* ignore secondary error */ }
+                    }
+                })();
+            }
+        }
         res.json({ lesson: updated });
     }
     catch (error) {
@@ -150,6 +178,8 @@ router.post('/:id/progress', auth_js_1.authenticate, async (req, res) => {
         }
         // Clamp progressPercent to 0-100
         const progressPercent = Math.max(0, Math.min(100, Number(rawProgress) || 0));
+        // Validate lastWatchedTimestamp
+        const validTimestamp = Math.max(0, Math.floor(Number(lastWatchedTimestamp) || 0));
         const lesson = await (0, db_js_1.queryOne)('SELECT moduleId FROM lessons WHERE id = ?', [id]);
         if (!lesson)
             return res.status(404).json({ error: 'Lesson not found' });
@@ -162,11 +192,11 @@ router.post('/:id/progress', auth_js_1.authenticate, async (req, res) => {
         // Upsert: try update first, then insert
         const existing = await (0, db_js_1.queryOne)('SELECT id FROM lesson_progress WHERE enrollmentId = ? AND lessonId = ?', [enrollment.id, id]);
         if (existing) {
-            await (0, db_js_1.execute)(`UPDATE lesson_progress SET progressPercent = ?, lastWatchedTimestamp = ?, lastWatchedAt = ?, completedAt = COALESCE(completedAt, ?), updatedAt = ? WHERE id = ?`, [progressPercent, lastWatchedTimestamp, ts, completedAt, ts, existing.id]);
+            await (0, db_js_1.execute)(`UPDATE lesson_progress SET progressPercent = GREATEST(progressPercent, ?), lastWatchedTimestamp = ?, lastWatchedAt = ?, completedAt = COALESCE(completedAt, ?), updatedAt = ? WHERE id = ?`, [progressPercent, validTimestamp, ts, completedAt, ts, existing.id]);
         }
         else {
             const progressId = (0, db_js_1.genId)();
-            await (0, db_js_1.execute)(`INSERT INTO lesson_progress (id, enrollmentId, lessonId, progressPercent, lastWatchedTimestamp, lastWatchedAt, completedAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [progressId, enrollment.id, id, progressPercent, lastWatchedTimestamp, ts, completedAt, ts]);
+            await (0, db_js_1.execute)(`INSERT INTO lesson_progress (id, enrollmentId, lessonId, progressPercent, lastWatchedTimestamp, lastWatchedAt, completedAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [progressId, enrollment.id, id, progressPercent, validTimestamp, ts, completedAt, ts]);
         }
         const progress = await (0, db_js_1.queryOne)('SELECT * FROM lesson_progress WHERE enrollmentId = ? AND lessonId = ?', [enrollment.id, id]);
         res.json({ progress });
@@ -195,6 +225,14 @@ router.post('/:id/notes', auth_js_1.authenticate, async (req, res) => {
         const { content, timestampSeconds } = req.body;
         if (!content)
             return res.status(400).json({ error: 'content is required' });
+        // Enrollment check: user must be enrolled in the course
+        const lesson = await (0, db_js_1.queryOne)('SELECT moduleId FROM lessons WHERE id = ?', [id]);
+        if (!lesson)
+            return res.status(404).json({ error: 'Lesson not found' });
+        const mod = await (0, db_js_1.queryOne)('SELECT courseId FROM modules WHERE id = ?', [lesson.moduleId]);
+        const enrollment = await (0, db_js_1.queryOne)('SELECT id FROM enrollments WHERE userId = ? AND courseId = ?', [req.user.id, mod?.courseId]);
+        if (!enrollment)
+            return res.status(403).json({ error: 'Not enrolled in this course' });
         const noteId = (0, db_js_1.genId)();
         const ts = (0, db_js_1.now)();
         await (0, db_js_1.execute)('INSERT INTO notes (id, content, timestampSeconds, userId, lessonId, updatedAt) VALUES (?, ?, ?, ?, ?, ?)', [noteId, content, timestampSeconds || 0, req.user.id, id, ts]);
@@ -207,7 +245,7 @@ router.post('/:id/notes', auth_js_1.authenticate, async (req, res) => {
     }
 });
 // GET /lessons/:id/questions
-router.get('/:id/questions', async (req, res) => {
+router.get('/:id/questions', auth_js_1.optionalAuth, async (req, res) => {
     try {
         const { id } = req.params;
         const page = parseInt(req.query.page) || 1;
@@ -266,6 +304,18 @@ router.post('/:id/questions', auth_js_1.authenticate, async (req, res) => {
         const { content } = req.body;
         if (!content)
             return res.status(400).json({ error: 'content is required' });
+        // Enrollment check: user must be enrolled (or be admin/creator)
+        const lessonRow = await (0, db_js_1.queryOne)('SELECT moduleId FROM lessons WHERE id = ?', [id]);
+        if (!lessonRow)
+            return res.status(404).json({ error: 'Lesson not found' });
+        const modRow = await (0, db_js_1.queryOne)('SELECT courseId FROM modules WHERE id = ?', [lessonRow.moduleId]);
+        const courseRow = modRow ? await (0, db_js_1.queryOne)('SELECT creatorId FROM courses WHERE id = ?', [modRow.courseId]) : null;
+        const isCreatorOrAdmin = courseRow && (courseRow.creatorId === req.user.id || req.user.role === 'ADMIN');
+        if (!isCreatorOrAdmin) {
+            const enrollment = await (0, db_js_1.queryOne)('SELECT id FROM enrollments WHERE userId = ? AND courseId = ?', [req.user.id, modRow?.courseId]);
+            if (!enrollment)
+                return res.status(403).json({ error: 'Must be enrolled to post questions' });
+        }
         const qId = (0, db_js_1.genId)();
         const ts = (0, db_js_1.now)();
         await (0, db_js_1.execute)('INSERT INTO questions (id, content, userId, lessonId, updatedAt) VALUES (?, ?, ?, ?, ?)', [qId, content, req.user.id, id, ts]);

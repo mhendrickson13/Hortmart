@@ -23,7 +23,6 @@ interface AdminSidebarProps {
   };
 }
 
-// Matches client_designs/admin_dashboard_desktop.html exactly
 const navItemKeys = [
   { href: "/dashboard", icon: LayoutDashboard, labelKey: "nav.dashboard" },
   { href: "/manage-courses", icon: GraduationCap, labelKey: "nav.manageCourses" },
@@ -50,7 +49,7 @@ export function AdminSidebar({ user }: AdminSidebarProps) {
         <Logo href="/dashboard" subtitle="Creator Console" />
       </div>
 
-      {/* Navigation - matches design: no section labels, just 5 items */}
+      {/* Navigation */}
       <nav className="flex flex-col gap-1.5 mt-0.5">
         {navItemKeys.map((item) => {
           const isActive = 

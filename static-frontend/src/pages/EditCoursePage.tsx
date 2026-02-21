@@ -50,6 +50,8 @@ interface EditorLesson {
   title: string;
   description: string | null;
   videoUrl: string | null;
+  hlsUrl?: string | null;
+  videoStatus?: string | null;
   durationSeconds: number;
   isLocked: boolean;
   isFreePreview: boolean;
@@ -107,6 +109,8 @@ export default function EditCoursePage() {
         title: les.title,
         description: les.description ?? null,
         videoUrl: les.videoUrl ?? null,
+        hlsUrl: les.hlsUrl ?? null,
+        videoStatus: les.videoStatus ?? null,
         durationSeconds: les.durationSeconds ?? 0,
         isLocked: les.isLocked ?? false,
         isFreePreview: les.isFreePreview ?? false,
@@ -443,7 +447,7 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
   };
 
   const totalLessons = course.modules.reduce((sum, m) => sum + m.lessons.length, 0);
-  const lessonsWithVideo = course.modules.reduce((sum, m) => sum + m.lessons.filter(l => l.videoUrl).length, 0);
+  const lessonsWithVideo = course.modules.reduce((sum, m) => sum + m.lessons.filter(l => l.videoUrl || l.hlsUrl || l.videoStatus === 'ready').length, 0);
   const allLessonsHaveVideo = totalLessons > 0 && lessonsWithVideo === totalLessons;
   const isReadyToPublish =
     !!course.title &&
@@ -472,7 +476,7 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
           </div>
         </div>
         <div className="flex items-center gap-2.5">
-          <button onClick={() => window.open(`/course/${course.id}`, "_blank")} className="h-10 px-3.5 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-text-1 font-black text-[13px] inline-flex items-center gap-2 shadow-[0_14px_28px_rgba(21,25,35,0.06)] dark:shadow-[0_14px_28px_rgba(0,0,0,0.25)] whitespace-nowrap">
+          <button onClick={() => window.open(`/manage-courses/${course.id}/preview`, "_blank")} className="h-10 px-3.5 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-text-1 font-black text-[13px] inline-flex items-center gap-2 shadow-[0_14px_28px_rgba(21,25,35,0.06)] dark:shadow-[0_14px_28px_rgba(0,0,0,0.25)] whitespace-nowrap">
             Preview
           </button>
           {course.status === "PUBLISHED" ? (
@@ -689,8 +693,8 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
                         <div key={lesson.id} className="rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 p-2.5">
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-2.5 min-w-0">
-                              <div className={`w-[34px] h-[34px] rounded-[14px] border grid place-items-center flex-shrink-0 ${lesson.videoUrl ? "border-success/30 bg-success/10 text-green-600" : "border-border/95 bg-primary/10 text-primary-600"}`}>
-                                {lesson.videoUrl ? <Play className="w-4 h-4" /> : <Upload className="w-4 h-4" />}
+                              <div className={`w-[34px] h-[34px] rounded-[14px] border grid place-items-center flex-shrink-0 ${(lesson.videoUrl || lesson.hlsUrl || lesson.videoStatus === 'ready') ? "border-success/30 bg-success/10 text-green-600" : "border-border/95 bg-primary/10 text-primary-600"}`}>
+                                {(lesson.videoUrl || lesson.hlsUrl || lesson.videoStatus === 'ready') ? <Play className="w-4 h-4" /> : <Upload className="w-4 h-4" />}
                               </div>
                               <div className="min-w-0">
                                 {editingLesson === lesson.id ? (
@@ -702,8 +706,10 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
                                   <span className="text-[13px] font-black text-text-1 truncate block">{lesson.title}</span>
                                 )}
                                 <div className="mt-0.5 flex items-center gap-2 text-[12px] font-extrabold text-text-3">
-                                  {lesson.videoUrl ? (
-                                    <span className="text-green-600">Video ready</span>
+                                  {(lesson.videoUrl || lesson.hlsUrl || lesson.videoStatus === 'ready') ? (
+                                    <span className="text-green-600">{lesson.videoStatus === 'encoding' ? 'Encoding…' : 'Video ready'}</span>
+                                  ) : lesson.videoStatus === 'encoding' ? (
+                                    <span className="text-blue-500">Encoding…</span>
                                   ) : (
                                     <span className="text-amber-600">No video</span>
                                   )}
@@ -713,7 +719,7 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
                               </div>
                             </div>
                             <div className="flex items-center gap-1 flex-shrink-0">
-                              {!lesson.videoUrl && !lesson.isFreePreview && <span className="h-[22px] px-2.5 rounded-full inline-flex items-center text-[11px] font-black tracking-[0.2px] bg-warning/14 text-amber-700 border border-warning/22">NEEDS VIDEO</span>}
+                              {!lesson.videoUrl && !lesson.hlsUrl && lesson.videoStatus !== 'ready' && lesson.videoStatus !== 'encoding' && !lesson.isFreePreview && <span className="h-[22px] px-2.5 rounded-full inline-flex items-center text-[11px] font-black tracking-[0.2px] bg-warning/14 text-amber-700 border border-warning/22">NEEDS VIDEO</span>}
                               <button onClick={() => moveLesson(mod.id, lesson.id, "up")} disabled={lessonIdx === 0} className="w-6 h-6 rounded-md hover:bg-muted grid place-items-center disabled:opacity-30" title="Move up"><ArrowUp className="w-3 h-3 text-text-3" /></button>
                               <button onClick={() => moveLesson(mod.id, lesson.id, "down")} disabled={lessonIdx === mod.lessons.length - 1} className="w-6 h-6 rounded-md hover:bg-muted grid place-items-center disabled:opacity-30" title="Move down"><ArrowDown className="w-3 h-3 text-text-3" /></button>
                               <button onClick={() => setEditingLesson(lesson.id)} className="w-6 h-6 rounded-md hover:bg-muted grid place-items-center" title="Rename"><Pencil className="w-3 h-3 text-text-3" /></button>
@@ -726,7 +732,7 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
                             className="mt-2 w-full h-8 rounded-[12px] border border-primary/20 bg-primary/5 text-primary font-black text-[12px] inline-flex items-center justify-center gap-1.5 hover:bg-primary/10 transition-colors"
                           >
                             <Pencil className="w-3 h-3" />
-                            {lesson.videoUrl ? "Edit video, resources & settings" : "Add video, resources & settings"}
+                            {(lesson.videoUrl || lesson.hlsUrl || lesson.videoStatus === 'ready') ? "Edit video, resources & settings" : "Add video, resources & settings"}
                           </Link>
                         </div>
                       ))}

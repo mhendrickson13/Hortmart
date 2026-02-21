@@ -50,22 +50,38 @@ export function QASection({ lessonId, courseCreatorId }: QASectionProps) {
   const [expandedQuestions, setExpandedQuestions] = useState<Set<string>>(new Set());
   const [answerText, setAnswerText] = useState<Record<string, string>>({});
   const [answeringId, setAnsweringId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
-    fetchQuestions();
+    setLoading(true);
+    setFetchError(false);
+    setExpandedQuestions(new Set());
+    setPage(1);
+    setQuestions([]);
+    fetchQuestions(1, false);
   }, [lessonId]);
 
-  const fetchQuestions = async () => {
+  const fetchQuestions = async (p: number = 1, append: boolean = false) => {
     setFetchError(false);
+    if (append) setLoadingMore(true);
     try {
-      const data = await lessons.getQuestions(lessonId);
-      setQuestions(data.questions);
+      const data = await lessons.getQuestions(lessonId, { page: p, limit: 20 });
+      setQuestions(prev => append ? [...prev, ...data.questions] : data.questions);
+      setPage(p);
+      setHasMore(data.pagination.page < data.pagination.totalPages);
     } catch (error) {
       console.error("Failed to fetch questions:", error);
-      setFetchError(true);
+      if (!append) setFetchError(true);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
+  };
+
+  const handleLoadMore = () => {
+    fetchQuestions(page + 1, true);
   };
 
   const handleSubmitQuestion = async () => {
@@ -176,7 +192,7 @@ export function QASection({ lessonId, courseCreatorId }: QASectionProps) {
       <Card className="p-6 text-center">
         <MessageCircle className="w-10 h-10 text-text-3 mx-auto mb-2" />
         <p className="text-body-sm text-text-2 mb-3">Failed to load questions</p>
-        <Button size="sm" variant="secondary" onClick={fetchQuestions}>Try again</Button>
+        <Button size="sm" variant="secondary" onClick={() => fetchQuestions(1, false)}>Try again</Button>
       </Card>
     );
   }
@@ -380,7 +396,22 @@ export function QASection({ lessonId, courseCreatorId }: QASectionProps) {
               )}
             </Card>
           ))}
-        </div>
+          {hasMore && (
+            <div className="flex justify-center pt-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleLoadMore}
+                disabled={loadingMore}
+              >
+                {loadingMore ? (
+                  <><Loader2 className="w-4 h-4 animate-spin mr-1" /> Loading...</>
+                ) : (
+                  "Load more questions"
+                )}
+              </Button>
+            </div>
+          )}        </div>
       )}
     </div>
   );

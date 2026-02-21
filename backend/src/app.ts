@@ -18,6 +18,7 @@ import analyticsRoutes from './routes/analytics.js';
 import uploadsRoutes from './routes/uploads.js';
 import notificationsRoutes from './routes/notifications.js';
 import favouritesRoutes from './routes/favourites.js';
+import videoRoutes from './routes/video.js';
 
 export const app = express();
 
@@ -235,6 +236,19 @@ app.post('/e/migrate', async (req, res) => {
       await execute(sql);
     }
 
+    // ── Add video encoding columns (idempotent ALTER TABLE) ──
+    const alterStatements = [
+      `ALTER TABLE lessons ADD COLUMN videoStatus VARCHAR(20) NULL DEFAULT NULL`,
+      `ALTER TABLE lessons ADD COLUMN encodingJobId VARCHAR(191) NULL DEFAULT NULL`,
+      `ALTER TABLE lessons ADD COLUMN hlsUrl TEXT NULL DEFAULT NULL`,
+    ];
+    for (const sql of alterStatements) {
+      try { await execute(sql); } catch (e: any) {
+        // Ignore "Duplicate column name" error (errno 1060) — column already exists
+        if (e?.errno !== 1060 && !(e?.message || '').includes('Duplicate column')) throw e;
+      }
+    }
+
     console.log('[MIGRATE] Tables created successfully');
     res.json({
       message: 'Migration complete - all tables created',
@@ -311,6 +325,7 @@ app.use('/e/analytics', analyticsRoutes);
 app.use('/e/uploads', uploadsRoutes);
 app.use('/e/notifications', notificationsRoutes);
 app.use('/e/favourites', favouritesRoutes);
+app.use('/e/video', videoRoutes);
 
 // Error handling
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {

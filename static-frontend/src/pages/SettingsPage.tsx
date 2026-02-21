@@ -117,55 +117,18 @@ function SettingsItem({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between p-3 rounded-xl border border-border bg-card">
+    <div className="flex items-center justify-between gap-3 p-3 rounded-xl lg:rounded-[18px] border border-border lg:border-border/95 bg-card lg:bg-white/95 dark:lg:bg-card/95">
       <div className="flex items-center gap-3 min-w-0 flex-1 mr-3">
         <div
-          className={`w-9 h-9 rounded-lg flex items-center justify-center ${
-            iconActive ? "bg-primary/10" : "bg-surface-3"
-          }`}
-        >
-          <Icon
-            className={`w-4 h-4 ${iconActive ? "text-primary" : "text-text-2"}`}
-          />
-        </div>
-        <div>
-          <div className="text-body-sm font-semibold text-text-1">{title}</div>
-          <div className="text-caption text-text-3">{description}</div>
-        </div>
-      </div>
-      {action}
-    </div>
-  );
-}
-
-function DesktopSettingsItem({
-  icon: Icon,
-  title,
-  description,
-  iconActive = true,
-  action,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  description: string;
-  iconActive?: boolean;
-  action?: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3 p-3 rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95">
-      <div className="flex items-center gap-3">
-        <div
-          className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+          className={`w-9 lg:w-10 h-9 lg:h-10 rounded-lg lg:rounded-xl flex items-center justify-center ${
             iconActive ? "bg-primary/10 text-primary" : "bg-surface-3 text-text-2"
           }`}
         >
-          <Icon className="w-5 h-5" />
+          <Icon className="w-4 lg:w-5 h-4 lg:h-5" />
         </div>
         <div>
-          <div className="font-bold text-text-1">{title}</div>
-          <p className="mt-0.5 text-[12px] font-medium text-text-3">
-            {description}
-          </p>
+          <div className="text-body-sm lg:text-body-sm font-semibold lg:font-bold text-text-1">{title}</div>
+          <div className="text-caption lg:text-[12px] text-text-3 lg:font-medium">{description}</div>
         </div>
       </div>
       {action}
@@ -222,10 +185,6 @@ export default function SettingsPage() {
   // Notification prefs (persisted to localStorage)
   const [notifPrefs, setNotifPrefs] = useState<Record<string, boolean>>({});
 
-  // Security toggles
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(true);
-  const [autoSaveNotes, setAutoSaveNotes] = useState(true);
-
   // Avatar upload
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -252,19 +211,16 @@ export default function SettingsPage() {
 
   // Clock update
   useEffect(() => {
+    if (activeTab !== "appearance") return;
     const interval = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [activeTab]);
 
   // Load all preferences from localStorage
   useEffect(() => {
     try {
       const savedNotifications = localStorage.getItem("notificationPrefs");
-      const savedAutoSave = localStorage.getItem("autoSaveNotes");
-      const saved2FA = localStorage.getItem("twoFactorEnabled");
       if (savedNotifications) setNotifPrefs(JSON.parse(savedNotifications));
-      if (savedAutoSave !== null) setAutoSaveNotes(JSON.parse(savedAutoSave));
-      if (saved2FA !== null) setTwoFactorEnabled(JSON.parse(saved2FA));
     } catch (e) {
       console.error("Failed to load preferences:", e);
     }
@@ -380,26 +336,6 @@ export default function SettingsPage() {
       return next;
     });
   }, []);
-
-  const handleAutoSaveToggle = (enabled: boolean) => {
-    setAutoSaveNotes(enabled);
-    localStorage.setItem("autoSaveNotes", JSON.stringify(enabled));
-    toast({
-      title: enabled ? "Auto-save enabled" : "Auto-save disabled",
-      description: enabled ? "Notes saved automatically" : "Auto-save turned off",
-      variant: "success",
-    });
-  };
-
-  const handleTwoFactorToggle = (enabled: boolean) => {
-    setTwoFactorEnabled(enabled);
-    localStorage.setItem("twoFactorEnabled", JSON.stringify(enabled));
-    toast({
-      title: enabled ? "2FA Enabled" : "2FA Disabled",
-      description: enabled ? "Two-factor authentication active" : "Two-factor authentication disabled",
-      variant: enabled ? "success" : "default",
-    });
-  };
 
   const handleThemeChange = (newTheme: Theme) => {
     setTheme(newTheme);
@@ -652,41 +588,6 @@ export default function SettingsPage() {
               {/* Account Tab */}
               {activeTab === "account" && (
                 <>
-                  <Card className="p-5">
-                    <h2 className="text-h3 font-semibold text-text-1 mb-4">
-                      Security
-                    </h2>
-                    <div className="space-y-3">
-                      <SettingsItem
-                        icon={Lock}
-                        title="Two-factor authentication"
-                        description={
-                          twoFactorEnabled
-                            ? "Your account is protected"
-                            : "Recommended for security"
-                        }
-                        iconActive={twoFactorEnabled}
-                        action={
-                          <ToggleSwitch
-                            checked={twoFactorEnabled}
-                            onChange={handleTwoFactorToggle}
-                          />
-                        }
-                      />
-                      <SettingsItem
-                        icon={Edit}
-                        title="Auto-save notes"
-                        description="Save timestamped notes while watching"
-                        iconActive={autoSaveNotes}
-                        action={
-                          <ToggleSwitch
-                            checked={autoSaveNotes}
-                            onChange={handleAutoSaveToggle}
-                          />
-                        }
-                      />
-                    </div>
-                  </Card>
                   <Card className="p-5">
                     <h2 className="text-h3 font-semibold text-text-1 mb-2">
                       {t("settings.changePassword")}
@@ -1185,61 +1086,13 @@ export default function SettingsPage() {
                           Member Since
                         </div>
                         <div className="font-bold text-text-1">
-                          {new Date().getFullYear()}
+                          {profile?.createdAt ? new Date(profile.createdAt as string).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '—'}
                         </div>
                       </div>
                     </div>
                   </Card>
 
-                  {/* Payouts & Billing - Only for CREATOR/ADMIN */}
-                  {isCreator && (
-                    <Card className="p-5">
-                      <div className="text-[12px] font-bold text-text-3 tracking-wider uppercase mb-4">
-                        Payouts & Billing
-                      </div>
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between p-3 rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95">
-                          <div>
-                            <div className="font-bold text-text-1">
-                              Payout method
-                            </div>
-                            <p className="mt-1 text-[12px] font-medium text-text-3">
-                              Bank transfer (default)
-                            </p>
-                          </div>
-                          <button className="h-[34px] px-3 rounded-[14px] text-[12px] font-bold border border-border/95 bg-white/95 dark:bg-card/95 text-text-1 hover:bg-muted transition-colors">
-                            Edit
-                          </button>
-                        </div>
-                        <div className="flex items-center justify-between p-3 rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95">
-                          <div>
-                            <div className="font-bold text-text-1">
-                              Currency
-                            </div>
-                            <p className="mt-1 text-[12px] font-medium text-text-3">
-                              USD (US Dollar)
-                            </p>
-                          </div>
-                          <button className="h-[34px] px-3 rounded-[14px] text-[12px] font-bold border border-border/95 bg-white/95 dark:bg-card/95 text-text-1 hover:bg-muted transition-colors">
-                            Change
-                          </button>
-                        </div>
-                        <div className="flex items-center justify-between p-3 rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95">
-                          <div>
-                            <div className="font-bold text-text-1">
-                              Tax information
-                            </div>
-                            <p className="mt-1 text-[12px] font-medium text-text-3">
-                              Not submitted
-                            </p>
-                          </div>
-                          <button className="h-[34px] px-3 rounded-[14px] text-[12px] font-bold border border-primary/55 bg-primary text-white hover:bg-primary/90 transition-colors">
-                            Submit
-                          </button>
-                        </div>
-                      </div>
-                    </Card>
-                  )}
+
                 </div>
               </>
             )}
@@ -1247,42 +1100,6 @@ export default function SettingsPage() {
             {/* Account Tab */}
             {activeTab === "account" && (
               <>
-                <Card className="p-5">
-                  <div className="text-[12px] font-bold text-text-3 tracking-wider uppercase mb-4">
-                    Security
-                  </div>
-                  <div className="space-y-3">
-                    <DesktopSettingsItem
-                      icon={Lock}
-                      title="Two-factor authentication"
-                      description={
-                        twoFactorEnabled
-                          ? "Your account is protected"
-                          : "Recommended for security"
-                      }
-                      iconActive={twoFactorEnabled}
-                      action={
-                        <ToggleSwitch
-                          checked={twoFactorEnabled}
-                          onChange={handleTwoFactorToggle}
-                        />
-                      }
-                    />
-                    <DesktopSettingsItem
-                      icon={Edit}
-                      title="Auto-save notes"
-                      description="Save timestamped notes while watching"
-                      iconActive={autoSaveNotes}
-                      action={
-                        <ToggleSwitch
-                          checked={autoSaveNotes}
-                          onChange={handleAutoSaveToggle}
-                        />
-                      }
-                    />
-                  </div>
-                </Card>
-
                 <Card className="p-5">
                   <div className="text-[12px] font-bold text-text-3 tracking-wider uppercase mb-4">
                     {t("settings.changePassword")}
@@ -1369,7 +1186,7 @@ export default function SettingsPage() {
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   {notificationItems.map((item) => (
-                    <DesktopSettingsItem
+                    <SettingsItem
                       key={item.key}
                       icon={Bell}
                       title={item.title}

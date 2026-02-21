@@ -95,22 +95,24 @@ router.get('/', auth_js_1.authenticate, auth_js_1.requireAdmin, async (req, res)
         const categoryDistribution = catRows.map(r => ({ category: r.category, count: Number(r.cnt) }));
         // Progress distribution buckets
         const progressBuckets = { '0-25': 0, '25-50': 0, '50-75': 0, '75-100': 0, 'completed': 0 };
+        let totalLessonsMap2 = new Map();
         // Use the already-computed enrollment data
         if (enrollmentsForCompletion.length > 0) {
             const courseIds = [...new Set(enrollmentsForCompletion.map(e => e.courseId))];
             const cp2 = (0, db_js_1.inPlaceholders)(courseIds);
             const lessonCounts2 = await (0, db_js_1.query)(`SELECT m.courseId, COUNT(l.id) as cnt FROM modules m JOIN lessons l ON l.moduleId = m.id WHERE m.courseId IN (${cp2}) GROUP BY m.courseId`, courseIds);
-            const totalLessonsMap2 = new Map(lessonCounts2.map(r => [r.courseId, Number(r.cnt)]));
+            totalLessonsMap2 = new Map(lessonCounts2.map(r => [r.courseId, Number(r.cnt)]));
             const eIds2 = enrollmentsForCompletion.map(e => e.enrollmentId);
             const ep2 = (0, db_js_1.inPlaceholders)(eIds2);
-            const completedCounts2 = await (0, db_js_1.query)(`SELECT enrollmentId, COUNT(*) as cnt FROM lesson_progress WHERE enrollmentId IN (${ep2}) AND completedAt IS NOT NULL GROUP BY enrollmentId`, eIds2);
-            const completedMap2 = new Map(completedCounts2.map(r => [r.enrollmentId, Number(r.cnt)]));
+            // Use SUM of individual progressPercent for accurate partial-progress tracking
+            const progressSums2 = await (0, db_js_1.query)(`SELECT enrollmentId, SUM(progressPercent) as totalProgress FROM lesson_progress WHERE enrollmentId IN (${ep2}) GROUP BY enrollmentId`, eIds2);
+            const progressMap2 = new Map(progressSums2.map(r => [r.enrollmentId, Number(r.totalProgress)]));
             for (const enr of enrollmentsForCompletion) {
                 const tl = totalLessonsMap2.get(enr.courseId) ?? 0;
                 if (tl === 0)
                     continue;
-                const cl = completedMap2.get(enr.enrollmentId) ?? 0;
-                const pct = (cl / tl) * 100;
+                // Average progressPercent across all lessons (untracked lessons count as 0%)
+                const pct = (progressMap2.get(enr.enrollmentId) ?? 0) / tl;
                 if (pct >= 100)
                     progressBuckets['completed']++;
                 else if (pct >= 75)
@@ -124,17 +126,39 @@ router.get('/', auth_js_1.authenticate, auth_js_1.requireAdmin, async (req, res)
             }
         }
         // Top learners
-        const topLearners = await (0, db_js_1.query)(`SELECT e.id as enrollmentId, u.email, u.name, c.title as course,
+        const topLearners = await (0, db_js_1.query)(`SELECT e.id as enrollmentId, e.courseId, u.email, u.name, c.title as course,
               (SELECT MAX(lp2.lastWatchedAt) FROM lesson_progress lp2 WHERE lp2.enrollmentId = e.id) as lastActive
        FROM enrollments e
        JOIN users u ON e.userId = u.id
        JOIN courses c ON e.courseId = c.id
        ORDER BY e.enrolledAt DESC LIMIT 10`);
-        const topLearnersData = topLearners.map(e => ({
-            email: e.email, name: e.name,
-            lastActive: e.lastActive ? (e.lastActive instanceof Date ? e.lastActive.toISOString() : e.lastActive) : null,
-            course: e.course, progress: 0,
-        }));
+        // Calculate actual progress for top learners
+        let topLearnerProgressMap = new Map();
+        if (topLearners.length > 0) {
+            const tlIds = topLearners.map(e => e.enrollmentId);
+            const tlp = (0, db_js_1.inPlaceholders)(tlIds);
+            const tlProgressRows = await (0, db_js_1.query)(`SELECT enrollmentId, SUM(progressPercent) as totalProgress FROM lesson_progress WHERE enrollmentId IN (${tlp}) GROUP BY enrollmentId`, tlIds);
+            for (const r of tlProgressRows)
+                topLearnerProgressMap.set(r.enrollmentId, Number(r.totalProgress));
+            // Get lesson counts for courses not yet in totalLessonsMap2
+            const missingCourseIds = topLearners.map(e => e.courseId).filter(cid => !totalLessonsMap2.has(cid));
+            if (missingCourseIds.length > 0) {
+                const mc = (0, db_js_1.inPlaceholders)(missingCourseIds);
+                const missingCounts = await (0, db_js_1.query)(`SELECT m.courseId, COUNT(l.id) as cnt FROM modules m JOIN lessons l ON l.moduleId = m.id WHERE m.courseId IN (${mc}) GROUP BY m.courseId`, missingCourseIds);
+                for (const r of missingCounts)
+                    totalLessonsMap2.set(r.courseId, Number(r.cnt));
+            }
+        }
+        const topLearnersData = topLearners.map(e => {
+            const tl = totalLessonsMap2.get(e.courseId) ?? 0;
+            const tp = topLearnerProgressMap.get(e.enrollmentId) ?? 0;
+            const progress = tl > 0 ? Math.round(tp / tl) : 0;
+            return {
+                email: e.email, name: e.name,
+                lastActive: e.lastActive ? (e.lastActive instanceof Date ? e.lastActive.toISOString() : e.lastActive) : null,
+                course: e.course, progress: Math.min(progress, 100),
+            };
+        });
         res.json({
             analytics: {
                 overview: {
@@ -193,6 +217,33 @@ router.get('/learner-stats', auth_js_1.authenticate, async (req, res) => {
         const enrollments = await (0, db_js_1.query)(`SELECT e.id, e.userId, e.courseId, e.enrolledAt, c.id as c_id, c.title, c.coverImage
        FROM enrollments e JOIN courses c ON e.courseId = c.id
        WHERE e.userId = ?`, [userId]);
+        if (enrollments.length === 0) {
+            return res.json({
+                totalCourses: 0, completedCourses: 0, inProgressCourses: 0,
+                totalLessonsCompleted: 0, totalWatchHours: 0, enrollments: [],
+            });
+        }
+        // Batch: lesson counts per course
+        const courseIds = enrollments.map(e => e.courseId);
+        const coursePh = courseIds.map(() => '?').join(',');
+        const lessonCounts = await (0, db_js_1.query)(`SELECT m.courseId, COUNT(l.id) as cnt
+       FROM modules m JOIN lessons l ON l.moduleId = m.id
+       WHERE m.courseId IN (${coursePh})
+       GROUP BY m.courseId`, courseIds);
+        const lessonCountMap = {};
+        for (const row of lessonCounts)
+            lessonCountMap[row.courseId] = Number(row.cnt);
+        // Batch: all progress for all enrollments
+        const enrollmentIds = enrollments.map(e => e.id);
+        const enrPh = enrollmentIds.map(() => '?').join(',');
+        const allProgress = await (0, db_js_1.query)(`SELECT enrollmentId, progressPercent, completedAt, lastWatchedTimestamp
+       FROM lesson_progress WHERE enrollmentId IN (${enrPh})`, enrollmentIds);
+        const progressByEnrollment = {};
+        for (const p of allProgress) {
+            if (!progressByEnrollment[p.enrollmentId])
+                progressByEnrollment[p.enrollmentId] = [];
+            progressByEnrollment[p.enrollmentId].push(p);
+        }
         let totalCourses = enrollments.length;
         let completedCourses = 0;
         let inProgressCourses = 0;
@@ -200,24 +251,25 @@ router.get('/learner-stats', auth_js_1.authenticate, async (req, res) => {
         let totalWatchTime = 0;
         const formattedEnrollments = [];
         for (const enr of enrollments) {
-            // Total lessons
-            const lessonCountRow = await (0, db_js_1.queryOne)('SELECT COUNT(*) as cnt FROM modules m JOIN lessons l ON l.moduleId = m.id WHERE m.courseId = ?', [enr.courseId]);
-            const totalLessonsInCourse = Number(lessonCountRow?.cnt ?? 0);
-            // Progress
-            const progressRows = await (0, db_js_1.query)('SELECT progressPercent, completedAt FROM lesson_progress WHERE enrollmentId = ?', [enr.id]);
+            const totalLessonsInCourse = lessonCountMap[enr.courseId] ?? 0;
+            const progressRows = progressByEnrollment[enr.id] || [];
             const completedLessons = progressRows.filter(lp => lp.completedAt != null).length;
             totalLessonsCompleted += completedLessons;
-            progressRows.forEach(lp => { totalWatchTime += lp.lastWatchedTimestamp ?? 0; });
+            progressRows.forEach(lp => { totalWatchTime += Number(lp.lastWatchedTimestamp ?? 0); });
+            const courseProgress = totalLessonsInCourse > 0
+                ? Math.round((completedLessons / totalLessonsInCourse) * 100)
+                : 0;
             if (totalLessonsInCourse > 0 && completedLessons === totalLessonsInCourse) {
                 completedCourses++;
             }
-            else if (completedLessons > 0) {
+            else if (progressRows.length > 0) {
                 inProgressCourses++;
             }
             formattedEnrollments.push({
                 id: enr.id, userId: enr.userId, courseId: enr.courseId,
                 enrolledAt: enr.enrolledAt instanceof Date ? enr.enrolledAt.toISOString() : enr.enrolledAt,
-                course: { id: enr.c_id, title: enr.title, thumbnail: enr.coverImage },
+                course: { id: enr.c_id, title: enr.title, coverImage: enr.coverImage },
+                progress: courseProgress,
                 lessonProgress: progressRows.map(lp => ({
                     progressPercent: lp.progressPercent,
                     completedAt: lp.completedAt ? (lp.completedAt instanceof Date ? lp.completedAt.toISOString() : lp.completedAt) : null,

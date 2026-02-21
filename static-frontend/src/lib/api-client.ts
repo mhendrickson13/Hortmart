@@ -160,6 +160,8 @@ export const courses = {
   },
   createReview: (id: string, data: { rating: number; comment?: string }, token?: string) =>
     request<{ review: Review }>(`/courses/${id}/reviews`, { method: 'POST', body: data, token }),
+  getMyReview: (id: string, token?: string) =>
+    request<{ review: Review | null }>(`/courses/${id}/my-review`, { token }),
   getAnalytics: (id: string, token?: string) =>
     request<{ analytics: CourseAnalytics }>(`/courses/${id}/analytics`, { token }),
 };
@@ -254,6 +256,35 @@ export const reviews = {
     request<{ review: Review }>(`/reviews/${id}`, { method: 'PATCH', body: data, token }),
   delete: (id: string, token?: string) =>
     request<{ message: string }>(`/reviews/${id}`, { method: 'DELETE', token }),
+};
+
+// ==================== Video Encoding ====================
+
+export interface VideoSignedUrlResponse {
+  signedManifestUrl: string;
+  signingParams: {
+    Policy: string;
+    Signature: string;
+    KeyPairId: string;
+    expires: number;
+  };
+  cfDomain: string;
+}
+
+export interface VideoStatusResponse {
+  videoStatus: 'none' | 'encoding' | 'ready' | 'error';
+  hlsUrl?: string;
+  jobProgress?: number;
+  errorMessage?: string;
+}
+
+export const video = {
+  encode: (lessonId: string, token?: string) =>
+    request<{ message: string; jobId: string; videoStatus: string }>(`/video/encode/${lessonId}`, { method: 'POST', token }),
+  getStatus: (lessonId: string, token?: string) =>
+    request<VideoStatusResponse>(`/video/status/${lessonId}`, { token }),
+  getSignedUrl: (lessonId: string, token?: string) =>
+    request<VideoSignedUrlResponse>(`/video/signed-url/${lessonId}`, { token }),
 };
 
 // ==================== Uploads ====================
@@ -363,6 +394,7 @@ export interface CourseWithStats extends Course {
 
 export interface CourseWithDetails extends CourseWithStats {
   modules: ModuleWithLessons[]; totalLessons: number;
+  enrolledStudents?: Array<{ id: string; name: string | null; image: string | null }>;
 }
 
 export interface Module {
@@ -374,6 +406,7 @@ export interface ModuleWithLessons extends Module { lessons: Lesson[]; }
 
 export interface Lesson {
   id: string; title: string; description: string | null; videoUrl: string | null;
+  hlsUrl?: string | null; videoStatus?: string | null;
   durationSeconds: number; position: number; isLocked: boolean; isFreePreview: boolean;
   moduleId: string; createdAt: string; updatedAt: string;
 }
@@ -448,5 +481,5 @@ export interface CreateCourseData { title: string; subtitle?: string; descriptio
 export interface CreateLessonData { title: string; description?: string; videoUrl?: string; durationSeconds?: number; position?: number; isLocked?: boolean; isFreePreview?: boolean; moduleId: string; }
 export interface CreateResourceData { title: string; type: string; url: string; fileSize?: number; }
 
-export const apiClient = { auth, users, courses, modules, lessons, questions, answers, notes, resources, reviews, analytics, uploads, notifications };
+export const apiClient = { auth, users, courses, modules, lessons, questions, answers, notes, resources, reviews, analytics, uploads, notifications, video };
 export default apiClient;

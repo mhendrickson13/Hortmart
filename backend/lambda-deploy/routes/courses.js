@@ -263,18 +263,56 @@ router.get('/:id', auth_js_1.optionalAuth, async (req, res) => {
         const creator = await (0, db_js_1.queryOne)('SELECT id, name, image, bio FROM users WHERE id = ?', [course.creatorId]);
         // Modules with lessons and resources
         const modules = await (0, db_js_1.query)('SELECT * FROM modules WHERE courseId = ? ORDER BY position ASC', [id]);
+        // Collect all lesson IDs first, then batch-fetch resources and progress
+        const allModuleLessons = {};
+        const allLessonIds = [];
         for (const mod of modules) {
             const lessons = await (0, db_js_1.query)('SELECT * FROM lessons WHERE moduleId = ? ORDER BY position ASC', [mod.id]);
             for (const lesson of lessons) {
                 lesson.isLocked = !!lesson.isLocked;
                 lesson.isFreePreview = !!lesson.isFreePreview;
-                lesson.resources = await (0, db_js_1.query)('SELECT * FROM resources WHERE lessonId = ? ORDER BY createdAt ASC', [lesson.id]);
+                allLessonIds.push(lesson.id);
             }
-            mod.lessons = lessons;
+            allModuleLessons[mod.id] = lessons;
+        }
+        // Batch fetch resources for all lessons
+        let resourcesByLesson = {};
+        if (allLessonIds.length > 0) {
+            const placeholders = allLessonIds.map(() => '?').join(',');
+            const allResources = await (0, db_js_1.query)(`SELECT * FROM resources WHERE lessonId IN (${placeholders}) ORDER BY createdAt ASC`, allLessonIds);
+            for (const r of allResources) {
+                if (!resourcesByLesson[r.lessonId])
+                    resourcesByLesson[r.lessonId] = [];
+                resourcesByLesson[r.lessonId].push(r);
+            }
+        }
+        // Batch fetch progress for all lessons (if authenticated)
+        let progressByLesson = {};
+        if (req.user && allLessonIds.length > 0) {
+            const placeholders = allLessonIds.map(() => '?').join(',');
+            const allProgress = await (0, db_js_1.query)(`SELECT lp.lessonId, lp.progressPercent, lp.completedAt, lp.lastWatchedTimestamp FROM lesson_progress lp JOIN enrollments e ON lp.enrollmentId = e.id WHERE lp.lessonId IN (${placeholders}) AND e.userId = ? AND e.courseId = ?`, [...allLessonIds, req.user.id, id]);
+            for (const p of allProgress) {
+                progressByLesson[p.lessonId] = p;
+            }
+        }
+        // Assign resources and progress to each lesson
+        for (const mod of modules) {
+            mod.lessons = allModuleLessons[mod.id] || [];
+            for (const lesson of mod.lessons) {
+                lesson.resources = resourcesByLesson[lesson.id] || [];
+                if (req.user) {
+                    const prog = progressByLesson[lesson.id];
+                    lesson.progressPercent = prog ? Number(prog.progressPercent) : 0;
+                    lesson.completedAt = prog?.completedAt || null;
+                    lesson.lastWatchedTimestamp = prog ? Number(prog.lastWatchedTimestamp ?? 0) : 0;
+                }
+            }
         }
         // Counts
         const enrollRow = await (0, db_js_1.queryOne)('SELECT COUNT(*) as cnt FROM enrollments WHERE courseId = ?', [id]);
         const reviewRows = await (0, db_js_1.query)('SELECT rating FROM reviews WHERE courseId = ?', [id]);
+        // Enrolled students (for avatar display)
+        const enrolledStudents = await (0, db_js_1.query)('SELECT u.id, u.name, u.image FROM enrollments e JOIN users u ON e.userId = u.id WHERE e.courseId = ? ORDER BY e.enrolledAt DESC LIMIT 5', [id]);
         const totalLessons = modules.reduce((a, m) => a + (m.lessons?.length ?? 0), 0);
         const totalDuration = modules.reduce((a, m) => a + (m.lessons?.reduce((b, l) => b + l.durationSeconds, 0) ?? 0), 0);
         const avgRating = reviewRows.length > 0
@@ -290,6 +328,7 @@ router.get('/:id', auth_js_1.optionalAuth, async (req, res) => {
                 },
                 avgRating: avgRating ? Math.round(avgRating * 10) / 10 : null,
                 totalDuration, totalLessons,
+                enrolledStudents,
             },
         });
     }
@@ -446,19 +485,43 @@ router.get('/:id/progress', auth_js_1.authenticate, async (req, res) => {
             return res.status(404).json({ error: 'Not enrolled in this course' });
         const course = await (0, db_js_1.queryOne)('SELECT * FROM courses WHERE id = ?', [id]);
         const creator = await (0, db_js_1.queryOne)('SELECT id, name, image FROM users WHERE id = ?', [course?.creatorId]);
-        // Modules with lessons + resources
+        // Modules with lessons + resources — batch queries to avoid N+1
         const modulesRaw = await (0, db_js_1.query)('SELECT * FROM modules WHERE courseId = ? ORDER BY position ASC', [id]);
         // All lesson progress for this enrollment
         const allProgress = await (0, db_js_1.query)('SELECT * FROM lesson_progress WHERE enrollmentId = ?', [enrollment.id]);
         const progressMap = new Map(allProgress.map(p => [p.lessonId, p]));
-        const modules = [];
-        for (const mod of modulesRaw) {
-            const lessons = await (0, db_js_1.query)('SELECT * FROM lessons WHERE moduleId = ? ORDER BY position ASC', [mod.id]);
-            const enrichedLessons = [];
-            for (const lesson of lessons) {
-                const resources = await (0, db_js_1.query)('SELECT * FROM resources WHERE lessonId = ? ORDER BY createdAt ASC', [lesson.id]);
+        // Batch: all lessons for all modules at once
+        const moduleIds = modulesRaw.map(m => m.id);
+        let allLessons = [];
+        if (moduleIds.length > 0) {
+            const ph = moduleIds.map(() => '?').join(', ');
+            allLessons = await (0, db_js_1.query)(`SELECT * FROM lessons WHERE moduleId IN (${ph}) ORDER BY position ASC`, moduleIds);
+        }
+        // Batch: all resources for all lessons at once
+        const lessonIds = allLessons.map(l => l.id);
+        let allResources = [];
+        if (lessonIds.length > 0) {
+            const ph2 = lessonIds.map(() => '?').join(', ');
+            allResources = await (0, db_js_1.query)(`SELECT * FROM resources WHERE lessonId IN (${ph2}) ORDER BY createdAt ASC`, lessonIds);
+        }
+        // Build lookup maps
+        const lessonsByModule = new Map();
+        for (const lesson of allLessons) {
+            if (!lessonsByModule.has(lesson.moduleId))
+                lessonsByModule.set(lesson.moduleId, []);
+            lessonsByModule.get(lesson.moduleId).push(lesson);
+        }
+        const resourcesByLesson = new Map();
+        for (const res of allResources) {
+            if (!resourcesByLesson.has(res.lessonId))
+                resourcesByLesson.set(res.lessonId, []);
+            resourcesByLesson.get(res.lessonId).push(res);
+        }
+        const modules = modulesRaw.map(mod => {
+            const lessons = (lessonsByModule.get(mod.id) || []).map(lesson => {
+                const resources = resourcesByLesson.get(lesson.id) || [];
                 const progress = progressMap.get(lesson.id);
-                enrichedLessons.push({
+                return {
                     id: lesson.id, title: lesson.title, description: lesson.description,
                     videoUrl: lesson.videoUrl, durationSeconds: lesson.durationSeconds,
                     position: lesson.position, isLocked: !!lesson.isLocked, isFreePreview: !!lesson.isFreePreview,
@@ -470,10 +533,10 @@ router.get('/:id/progress', auth_js_1.authenticate, async (req, res) => {
                         completedAt: progress.completedAt ? (progress.completedAt instanceof Date ? progress.completedAt.toISOString() : progress.completedAt) : null,
                         lastWatchedAt: progress.lastWatchedAt ? (progress.lastWatchedAt instanceof Date ? progress.lastWatchedAt.toISOString() : progress.lastWatchedAt) : null,
                     } : null,
-                });
-            }
-            modules.push({ id: mod.id, title: mod.title, position: mod.position, lessons: enrichedLessons });
-        }
+                };
+            });
+            return { id: mod.id, title: mod.title, position: mod.position, lessons };
+        });
         // Find current lesson (last watched or first available)
         const lastProgress = allProgress
             .filter(lp => lp.lastWatchedAt)
@@ -512,6 +575,139 @@ router.get('/:id/progress', auth_js_1.authenticate, async (req, res) => {
     catch (error) {
         console.error('Get progress error:', error);
         res.status(500).json({ error: 'Failed to get progress' });
+    }
+});
+// GET /courses/:id/free-preview — Learner free preview (any authenticated user, only free preview lessons playable)
+router.get('/:id/free-preview', auth_js_1.authenticate, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const course = await (0, db_js_1.queryOne)('SELECT * FROM courses WHERE id = ?', [id]);
+        if (!course)
+            return res.status(404).json({ error: 'Course not found' });
+        if (course.status !== 'PUBLISHED')
+            return res.status(404).json({ error: 'Course not found' });
+        const creator = await (0, db_js_1.queryOne)('SELECT id, name, image, bio FROM users WHERE id = ?', [course.creatorId]);
+        const modulesRaw = await (0, db_js_1.query)('SELECT * FROM modules WHERE courseId = ? ORDER BY position ASC', [id]);
+        const moduleIds = modulesRaw.map(m => m.id);
+        let allLessons = [];
+        if (moduleIds.length > 0) {
+            const ph = moduleIds.map(() => '?').join(', ');
+            allLessons = await (0, db_js_1.query)(`SELECT * FROM lessons WHERE moduleId IN (${ph}) ORDER BY position ASC`, moduleIds);
+        }
+        // Build modules — only isFreePreview lessons are unlocked, rest are locked
+        const lessonsByModule = new Map();
+        for (const lesson of allLessons) {
+            if (!lessonsByModule.has(lesson.moduleId))
+                lessonsByModule.set(lesson.moduleId, []);
+            lessonsByModule.get(lesson.moduleId).push(lesson);
+        }
+        const modules = modulesRaw.map(mod => {
+            const lessons = (lessonsByModule.get(mod.id) || []).map(lesson => ({
+                id: lesson.id, title: lesson.title, description: lesson.description,
+                videoUrl: lesson.isFreePreview ? lesson.videoUrl : null,
+                durationSeconds: lesson.durationSeconds,
+                position: lesson.position,
+                isLocked: !lesson.isFreePreview,
+                isFreePreview: !!lesson.isFreePreview,
+                resources: [],
+                progress: null,
+            }));
+            return { id: mod.id, title: mod.title, position: mod.position, lessons };
+        });
+        const firstFreeLesson = modules.flatMap(m => m.lessons).find(l => l.isFreePreview);
+        res.json({
+            course: {
+                ...course, creator, modules,
+                level: course.level || 'ALL_LEVELS',
+                language: course.language || 'English',
+            },
+            currentLessonId: firstFreeLesson?.id || null,
+            isPreview: true,
+            enrollmentId: '',
+            otherStudents: [],
+            totalOtherStudents: 0,
+        });
+    }
+    catch (error) {
+        console.error('Get free-preview error:', error);
+        res.status(500).json({ error: 'Failed to get free preview' });
+    }
+});
+// GET /courses/:id/preview — Admin/Creator preview (no enrollment required)
+router.get('/:id/preview', auth_js_1.authenticate, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const course = await (0, db_js_1.queryOne)('SELECT * FROM courses WHERE id = ?', [id]);
+        if (!course)
+            return res.status(404).json({ error: 'Course not found' });
+        // Only ADMIN or the course creator may preview
+        if (req.user.role !== 'ADMIN' && course.creatorId !== req.user.id) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+        const creator = await (0, db_js_1.queryOne)('SELECT id, name, image, bio FROM users WHERE id = ?', [course.creatorId]);
+        const modulesRaw = await (0, db_js_1.query)('SELECT * FROM modules WHERE courseId = ? ORDER BY position ASC', [id]);
+        const moduleIds = modulesRaw.map(m => m.id);
+        let allLessons = [];
+        if (moduleIds.length > 0) {
+            const ph = moduleIds.map(() => '?').join(', ');
+            allLessons = await (0, db_js_1.query)(`SELECT * FROM lessons WHERE moduleId IN (${ph}) ORDER BY position ASC`, moduleIds);
+        }
+        const lessonIds = allLessons.map(l => l.id);
+        let allResources = [];
+        if (lessonIds.length > 0) {
+            const ph2 = lessonIds.map(() => '?').join(', ');
+            allResources = await (0, db_js_1.query)(`SELECT * FROM resources WHERE lessonId IN (${ph2}) ORDER BY createdAt ASC`, lessonIds);
+        }
+        const lessonsByModule = new Map();
+        for (const lesson of allLessons) {
+            if (!lessonsByModule.has(lesson.moduleId))
+                lessonsByModule.set(lesson.moduleId, []);
+            lessonsByModule.get(lesson.moduleId).push(lesson);
+        }
+        const resourcesByLesson = new Map();
+        for (const r of allResources) {
+            if (!resourcesByLesson.has(r.lessonId))
+                resourcesByLesson.set(r.lessonId, []);
+            resourcesByLesson.get(r.lessonId).push(r);
+        }
+        const modules = modulesRaw.map(mod => {
+            const lessons = (lessonsByModule.get(mod.id) || []).map(lesson => ({
+                id: lesson.id, title: lesson.title, description: lesson.description,
+                videoUrl: lesson.videoUrl, durationSeconds: lesson.durationSeconds,
+                position: lesson.position, isLocked: false, isFreePreview: !!lesson.isFreePreview,
+                resources: resourcesByLesson.get(lesson.id) || [],
+                progress: null,
+            }));
+            return { id: mod.id, title: mod.title, position: mod.position, lessons };
+        });
+        const firstLesson = modules.flatMap(m => m.lessons)[0];
+        // Counts for overview display
+        const enrollRow = await (0, db_js_1.queryOne)('SELECT COUNT(*) as cnt FROM enrollments WHERE courseId = ?', [id]);
+        const reviewRows = await (0, db_js_1.query)('SELECT rating FROM reviews WHERE courseId = ?', [id]);
+        const enrolledStudents = await (0, db_js_1.query)('SELECT u.id, u.name, u.image FROM enrollments e JOIN users u ON e.userId = u.id WHERE e.courseId = ? ORDER BY e.enrolledAt DESC LIMIT 5', [id]);
+        const avgRating = reviewRows.length > 0
+            ? Math.round((reviewRows.reduce((a, r) => a + r.rating, 0) / reviewRows.length) * 10) / 10
+            : null;
+        res.json({
+            course: {
+                ...course, creator, modules,
+                level: course.level || 'ALL_LEVELS',
+                language: course.language || 'English',
+                _count: {
+                    enrollments: Number(enrollRow?.cnt ?? 0),
+                    reviews: reviewRows.length,
+                    modules: modules.length,
+                },
+                avgRating,
+                enrolledStudents,
+            },
+            currentLessonId: firstLesson?.id || null,
+            isPreview: true,
+        });
+    }
+    catch (error) {
+        console.error('Get preview error:', error);
+        res.status(500).json({ error: 'Failed to get preview' });
     }
 });
 // POST /courses/:id/modules
@@ -672,6 +868,17 @@ router.get('/:id/reviews', async (req, res) => {
     catch (error) {
         console.error('Get reviews error:', error);
         res.status(500).json({ error: 'Failed to get reviews' });
+    }
+});
+// GET /courses/:id/my-review
+router.get('/:id/my-review', auth_js_1.authenticate, async (req, res) => {
+    try {
+        const review = await (0, db_js_1.queryOne)('SELECT * FROM reviews WHERE userId = ? AND courseId = ?', [req.user.id, req.params.id]);
+        res.json({ review: review || null });
+    }
+    catch (error) {
+        console.error('Get my review error:', error);
+        res.status(500).json({ error: 'Failed to get review' });
     }
 });
 // POST /courses/:id/reviews

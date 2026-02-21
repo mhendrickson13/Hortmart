@@ -29,8 +29,10 @@ export function BottomSheet({
   const [mounted, setMounted] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const sheetRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const startYRef = useRef<number>(0);
   const currentYRef = useRef<number>(0);
+  const swipingRef = useRef<boolean>(false);
 
   useEffect(() => {
     setMounted(true);
@@ -58,25 +60,30 @@ export function BottomSheet({
   // Touch handlers for swipe to close
   const handleTouchStart = (e: React.TouchEvent) => {
     startYRef.current = e.touches[0].clientY;
+    currentYRef.current = e.touches[0].clientY;
+    // Only allow swipe if content is at the top
+    const scrollTop = contentRef.current?.scrollTop ?? 0;
+    swipingRef.current = scrollTop <= 0;
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
     currentYRef.current = e.touches[0].clientY;
     const diff = currentYRef.current - startYRef.current;
-    if (diff > 0 && sheetRef.current) {
+    if (diff > 0 && swipingRef.current && sheetRef.current) {
       sheetRef.current.style.transform = `translateY(${diff}px)`;
     }
   };
 
   const handleTouchEnd = () => {
     const diff = currentYRef.current - startYRef.current;
-    if (diff > 100) {
+    if (diff > 100 && swipingRef.current) {
       handleClose();
     } else if (sheetRef.current) {
       sheetRef.current.style.transform = '';
     }
     startYRef.current = 0;
     currentYRef.current = 0;
+    swipingRef.current = false;
   };
 
   if (!mounted || !isOpen) return null;
@@ -138,7 +145,7 @@ export function BottomSheet({
         )}
         
         {/* Content */}
-        <div className="overflow-y-auto overscroll-contain" style={{ maxHeight: `calc(${maxHeight} - 80px)` }}>
+        <div ref={contentRef} className="overflow-y-auto overscroll-contain" style={{ maxHeight: `calc(${maxHeight} - 80px)` }}>
           {children}
         </div>
       </div>

@@ -252,20 +252,13 @@ export default function ProfilePage() {
                 <Separator />
                 <div className="flex items-center justify-between">
                   <span className="text-caption text-text-3">
-                    Email Verified
+                    Member Since
                   </span>
-                  <Pill size="sm" variant="completed">
-                    Verified
-                  </Pill>
-                </div>
-                <Separator />
-                <div className="flex items-center justify-between">
-                  <span className="text-caption text-text-3">
-                    Account Status
+                  <span className="text-caption font-medium text-text-1">
+                    {profile?.createdAt
+                      ? new Date(profile.createdAt as string).toLocaleDateString("en-US", { month: "long", year: "numeric" })
+                      : "—"}
                   </span>
-                  <Pill size="sm" variant="completed">
-                    Active
-                  </Pill>
                 </div>
               </div>
             </Card>
@@ -278,8 +271,8 @@ export default function ProfilePage() {
               <p className="text-caption text-text-2 mb-3">
                 Check our creator resources or contact support for assistance.
               </p>
-              <Button variant="ghost" size="sm" className="w-full">
-                View Help Center
+              <Button variant="ghost" size="sm" className="w-full" asChild>
+                <a href="mailto:support@cxflow.io">Contact Support</a>
               </Button>
             </Card>
           </div>
@@ -515,56 +508,26 @@ export default function ProfilePage() {
             </div>
           </Card>
 
-          {/* Learning Streak */}
-          <Card className="p-4 bg-primary/5 border-primary/20">
-            <h3 className="text-body font-bold text-text-1 mb-2">
-              Learning Streak
-            </h3>
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                <span className="text-h3 font-bold text-primary">7</span>
-              </div>
-              <div>
-                <div className="text-body-sm font-semibold text-text-1">
-                  Days
-                </div>
-                <div className="text-caption text-text-3">Keep it up!</div>
-              </div>
-            </div>
-            <div className="flex gap-1">
-              {["M", "T", "W", "T", "F", "S", "S"].map((day, i) => (
-                <div
-                  key={i}
-                  className={`flex-1 h-8 rounded-lg flex items-center justify-center text-[10px] font-bold ${
-                    i < 5
-                      ? "bg-primary text-white"
-                      : "bg-primary/10 text-primary"
-                  }`}
-                >
-                  {day}
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          {/* Account Status */}
+          {/* Account Info */}
           <Card className="p-4">
             <h3 className="text-body font-bold text-text-1 mb-3">
-              Account Status
+              Account Information
             </h3>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-caption text-text-3">Account Type</span>
-                <Pill size="sm" variant="default">
-                  Free
+                <Pill size="sm" variant="published">
+                  Learner
                 </Pill>
               </div>
               <Separator />
               <div className="flex items-center justify-between">
-                <span className="text-caption text-text-3">Email Verified</span>
-                <Pill size="sm" variant="completed">
-                  Verified
-                </Pill>
+                <span className="text-caption text-text-3">Member Since</span>
+                <span className="text-caption font-medium text-text-1">
+                  {profile?.createdAt
+                    ? new Date(profile.createdAt as string).toLocaleDateString("en-US", { month: "long", year: "numeric" })
+                    : "—"}
+                </span>
               </div>
             </div>
           </Card>

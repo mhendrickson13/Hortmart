@@ -17,6 +17,7 @@
     "mysql2": "^3.17.0"
   },
   "devDependencies": {
+    "@aws-sdk/client-mediaconvert": "^3.994.0",
     "@aws-sdk/client-s3": "^3.989.0",
     "@aws-sdk/rds-signer": "^3.987.0",
     "@aws-sdk/s3-request-presigner": "^3.989.0",

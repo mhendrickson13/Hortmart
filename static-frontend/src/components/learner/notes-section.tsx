@@ -35,6 +35,12 @@ export function NotesSection({ lessonId, currentTime, onSeek }: NotesSectionProp
 
   useEffect(() => {
     if (user) {
+      setLoading(true);
+      setFetchError(false);
+      setShowAddForm(false);
+      setEditingId(null);
+      setEditContent("");
+      setNewNote("");
       fetchNotes();
     } else {
       setLoading(false);

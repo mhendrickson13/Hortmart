@@ -29,16 +29,18 @@ interface CourseCardProps {
     progressPercent: number;
   };
   variant?: "catalog" | "enrolled" | "featured";
+  linkTo?: string;
 }
 
-export function CourseCard({ course, progress, variant = "catalog" }: CourseCardProps) {
+export function CourseCard({ course, progress, variant = "catalog", linkTo }: CourseCardProps) {
   const isCompleted = progress?.progressPercent === 100;
   const levelDisplay = course.level?.replace("_", " ") || "All Levels";
+  const href = linkTo || `/course/${course.id}`;
 
   // Featured variant - horizontal card for "Continue Learning"
   if (variant === "featured") {
     return (
-      <Link to={`/player/${course.id}`}>
+      <Link to={href}>
         <Card className="overflow-hidden hover:shadow-card-hover transition-all group">
           <div className="flex flex-col sm:flex-row">
             {/* Cover Image */}
@@ -123,7 +125,7 @@ export function CourseCard({ course, progress, variant = "catalog" }: CourseCard
 
   // Default and enrolled variants - vertical card
   return (
-    <Link to={variant === "enrolled" ? `/player/${course.id}` : `/course/${course.id}`}>
+    <Link to={href}>
       <Card className={cn(
         "overflow-hidden hover:shadow-card-hover transition-all group h-full flex flex-col",
         isCompleted && "ring-2 ring-success/30"

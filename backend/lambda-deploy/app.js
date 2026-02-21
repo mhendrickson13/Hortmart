@@ -23,6 +23,7 @@ const analytics_js_1 = __importDefault(require("./routes/analytics.js"));
 const uploads_js_1 = __importDefault(require("./routes/uploads.js"));
 const notifications_js_1 = __importDefault(require("./routes/notifications.js"));
 const favourites_js_1 = __importDefault(require("./routes/favourites.js"));
+const video_js_1 = __importDefault(require("./routes/video.js"));
 exports.app = (0, express_1.default)();
 // CORS - allow S3, CloudFront, and local development origins
 const allowedOrigins = [
@@ -226,6 +227,22 @@ exports.app.post('/e/migrate', async (req, res) => {
         for (const sql of tableStatements) {
             await (0, db_js_1.execute)(sql);
         }
+        // ── Add video encoding columns (idempotent ALTER TABLE) ──
+        const alterStatements = [
+            `ALTER TABLE lessons ADD COLUMN videoStatus VARCHAR(20) NULL DEFAULT NULL`,
+            `ALTER TABLE lessons ADD COLUMN encodingJobId VARCHAR(191) NULL DEFAULT NULL`,
+            `ALTER TABLE lessons ADD COLUMN hlsUrl TEXT NULL DEFAULT NULL`,
+        ];
+        for (const sql of alterStatements) {
+            try {
+                await (0, db_js_1.execute)(sql);
+            }
+            catch (e) {
+                // Ignore "Duplicate column name" error (errno 1060) — column already exists
+                if (e?.errno !== 1060 && !(e?.message || '').includes('Duplicate column'))
+                    throw e;
+            }
+        }
         console.log('[MIGRATE] Tables created successfully');
         res.json({
             message: 'Migration complete - all tables created',
@@ -293,6 +310,7 @@ exports.app.use('/e/analytics', analytics_js_1.default);
 exports.app.use('/e/uploads', uploads_js_1.default);
 exports.app.use('/e/notifications', notifications_js_1.default);
 exports.app.use('/e/favourites', favourites_js_1.default);
+exports.app.use('/e/video', video_js_1.default);
 // Error handling
 exports.app.use((err, req, res, next) => {
     console.error(err.stack);

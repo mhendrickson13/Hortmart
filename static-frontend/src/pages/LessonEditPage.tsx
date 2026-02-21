@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { lessons as lessonsApi, apiClient, uploads as uploadsApi } from "@/lib/api-client";
+import { lessons as lessonsApi, apiClient, uploads as uploadsApi, video as videoApi } from "@/lib/api-client";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/toaster";
@@ -36,6 +36,8 @@ interface LessonData {
   title: string;
   description: string;
   videoUrl: string;
+  hlsUrl?: string | null;
+  videoStatus?: string | null;
   durationSeconds: number;
   position: number;
   isLocked: boolean;
@@ -91,6 +93,8 @@ export default function LessonEditPage() {
     title: raw.title || "",
     description: raw.description || "",
     videoUrl: raw.videoUrl || "",
+    hlsUrl: raw.hlsUrl || null,
+    videoStatus: raw.videoStatus || null,
     durationSeconds: raw.durationSeconds || 0,
     position: raw.position ?? 0,
     isLocked: raw.isLocked ?? false,
@@ -160,6 +164,48 @@ function LessonEditor({
   const [videoUploadProgress, setVideoUploadProgress] = useState(0);
   const [isDraggingVideo, setIsDraggingVideo] = useState(false);
   const videoInputRef = useRef<HTMLInputElement>(null);
+
+  // Video encoding status
+  const [encodingStatus, setEncodingStatus] = useState<'none' | 'encoding' | 'ready' | 'error'>('none');
+  const [encodingProgress, setEncodingProgress] = useState(0);
+  const encodingPollRef = useRef<ReturnType<typeof setInterval>>();
+
+  // Poll encoding status when encoding is in progress
+  useEffect(() => {
+    if (encodingStatus !== 'encoding') {
+      if (encodingPollRef.current) clearInterval(encodingPollRef.current);
+      return;
+    }
+    const poll = async () => {
+      try {
+        const status = await videoApi.getStatus(lesson.id);
+        setEncodingStatus(status.videoStatus);
+        setEncodingProgress(status.jobProgress ?? 0);
+        if (status.videoStatus === 'ready' || status.videoStatus === 'error') {
+          if (encodingPollRef.current) clearInterval(encodingPollRef.current);
+          if (status.videoStatus === 'ready') {
+            toast({ title: "Video encoded!", description: "HLS streaming is now available.", variant: "success" });
+          } else {
+            toast({ title: "Encoding failed", description: status.errorMessage || "Please try again.", variant: "error" });
+          }
+        }
+      } catch { /* ignore poll errors */ }
+    };
+    poll(); // immediate first check
+    encodingPollRef.current = setInterval(poll, 8000);
+    return () => { if (encodingPollRef.current) clearInterval(encodingPollRef.current); };
+  }, [encodingStatus, lesson.id]);
+
+  // Check initial encoding status on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const status = await videoApi.getStatus(lesson.id);
+        setEncodingStatus(status.videoStatus);
+        setEncodingProgress(status.jobProgress ?? 0);
+      } catch { /* no encoding info available */ }
+    })();
+  }, [lesson.id]);
 
   // Resource file upload
   const [uploadingResource, setUploadingResource] = useState(false);
@@ -290,6 +336,9 @@ function LessonEditor({
         setVideoUploadProgress(100);
         setLastSaved(new Date());
         toast({ title: "Video uploaded", variant: "success" });
+        // Backend auto-triggers encoding — start polling
+        setEncodingStatus('encoding');
+        setEncodingProgress(0);
         // Wait for duration detection (runs in parallel)
         await durationDetect;
       } catch (err: any) {
@@ -391,23 +440,17 @@ function LessonEditor({
         <div className="flex items-center gap-2.5">
           <div className="flex items-center gap-2">
             <span className="h-[26px] px-2.5 rounded-full inline-flex items-center text-[11px] font-black tracking-[0.2px] bg-warning/14 text-amber-700 border border-warning/22">
-              {lesson.isFreePreview ? "FREE PREVIEW" : lesson.videoUrl ? "READY" : "DRAFT"}
+              {lesson.isFreePreview ? "FREE PREVIEW" : (lesson.videoUrl || lesson.hlsUrl || lesson.videoStatus === 'ready') ? "READY" : "DRAFT"}
             </span>
             <span className="text-[12px] font-extrabold text-text-3 hidden sm:inline">
               {saving ? "Saving..." : lastSavedText}
             </span>
           </div>
           <button
-            onClick={() => window.open(`/course/${courseId}`, "_blank")}
-            className="h-10 px-3.5 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-text-1 font-black text-[13px] inline-flex items-center gap-2 shadow-[0_14px_28px_rgba(21,25,35,0.06)] dark:shadow-[0_14px_28px_rgba(0,0,0,0.25)] whitespace-nowrap"
-          >
-            Preview
-          </button>
-          <button
             onClick={async () => {
               setIsSavingAll(true);
               try {
-                if (!lesson.videoUrl) {
+                if (!lesson.videoUrl && !lesson.hlsUrl && lesson.videoStatus !== 'ready') {
                   toast({
                     title: "Add a video first",
                     description: "Lessons need a video URL before they can be published.",
@@ -553,23 +596,71 @@ function LessonEditor({
                   <div className="h-full bg-primary rounded-full transition-all duration-300" style={{ width: `${videoUploadProgress}%` }} />
                 </div>
               </div>
-            ) : lesson.videoUrl ? (
+            ) : (lesson.videoUrl || lesson.hlsUrl || lesson.videoStatus === 'ready' || lesson.videoStatus === 'encoding') ? (
               <div>
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-[14px] bg-success/10 grid place-items-center text-green-600 flex-shrink-0">
-                    <Play className="w-5 h-5" />
-                  </div>
+                  {encodingStatus === 'encoding' && (
+                    <div className="w-12 h-12 rounded-[14px] grid place-items-center flex-shrink-0 bg-amber-50 text-amber-600">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    </div>
+                  )}
+                  {encodingStatus === 'error' && (
+                    <div className="w-12 h-12 rounded-[14px] grid place-items-center flex-shrink-0 bg-red-50 text-red-500">
+                      <Film className="w-5 h-5" />
+                    </div>
+                  )}
+                  {encodingStatus !== 'encoding' && encodingStatus !== 'error' && (
+                    <div className="w-12 h-12 rounded-[14px] grid place-items-center flex-shrink-0 bg-success/10 text-green-600">
+                      <Film className="w-5 h-5" />
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
-                    <div className="text-[13px] font-black text-green-700">Video ready</div>
+                    <div className={`text-[13px] font-black ${
+                      encodingStatus === 'encoding' ? 'text-amber-700' :
+                      encodingStatus === 'ready' ? 'text-green-700' :
+                      encodingStatus === 'error' ? 'text-red-600' :
+                      'text-green-700'
+                    }`}>
+                      {encodingStatus === 'encoding' ? `Encoding to HLS... ${encodingProgress}%` :
+                       encodingStatus === 'ready' ? 'Video ready \u2022 HLS streaming' :
+                       encodingStatus === 'error' ? 'Encoding failed' :
+                       'Video uploaded'}
+                    </div>
                     <div className="text-[12px] font-extrabold text-text-3 mt-1 truncate">
                       {lesson.durationSeconds > 0 ? formatDuration(lesson.durationSeconds) : "Duration not set"}
                       {" \u2022 "}
-                      <a href={lesson.videoUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                        View video
-                      </a>
+                      {lesson.videoUrl ? (
+                        <a href={lesson.videoUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                          View source video
+                        </a>
+                      ) : lesson.hlsUrl ? (
+                        <span className="text-green-600">HLS encoded</span>
+                      ) : null}
                     </div>
+                    {encodingStatus === 'encoding' && (
+                      <div className="mt-1.5 w-full h-1.5 bg-border/50 rounded-full overflow-hidden">
+                        <div className="h-full bg-amber-500 rounded-full transition-all duration-500" style={{ width: `${Math.max(5, encodingProgress)}%` }} />
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-1.5">
+                    {encodingStatus === 'error' && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            await videoApi.encode(lesson.id);
+                            setEncodingStatus('encoding');
+                            setEncodingProgress(0);
+                            toast({ title: "Re-encoding started", variant: "success" });
+                          } catch (err: any) {
+                            toast({ title: "Failed to start encoding", description: err.message, variant: "error" });
+                          }
+                        }}
+                        className="h-8 px-3 rounded-[14px] text-[12px] font-black border border-amber-300 text-amber-700 hover:bg-amber-50 transition-colors"
+                      >
+                        Retry
+                      </button>
+                    )}
                     <button
                       onClick={() => videoInputRef.current?.click()}
                       className="h-8 px-3 rounded-[14px] text-[12px] font-black border border-primary/30 text-primary hover:bg-primary/5 transition-colors"

@@ -205,8 +205,8 @@ router.patch('/profile', auth_js_1.authenticate, async (req, res) => {
 router.patch('/password', auth_js_1.authenticate, async (req, res) => {
     try {
         const { currentPassword, newPassword } = req.body;
-        if (!currentPassword || !newPassword || newPassword.length < 6) {
-            return res.status(400).json({ error: 'Valid currentPassword and newPassword (min 6 chars) required' });
+        if (!currentPassword || !newPassword || newPassword.length < 8) {
+            return res.status(400).json({ error: 'Valid currentPassword and newPassword (min 8 chars) required' });
         }
         const user = await (0, db_js_1.queryOne)('SELECT password FROM users WHERE id = ?', [req.user.id]);
         if (!user || !user.password) {

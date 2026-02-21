@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { lessons as lessonsApi, favourites as favouritesApi } from "@/lib/api-client";
+import { lessons as lessonsApi, favourites as favouritesApi, video as videoApi } from "@/lib/api-client";
+import { useAuth } from "@/lib/auth-context";
 import {
   ChevronLeft,
   Star,
@@ -29,6 +30,8 @@ import {
   CheckCircle,
   Circle,
   Lock,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { toast } from "@/components/ui/toaster";
 
@@ -52,6 +55,8 @@ interface CoursePlayerProps {
         title: string;
         description?: string | null;
         videoUrl?: string | null;
+        hlsUrl?: string | null;
+        videoStatus?: string | null;
         durationSeconds: number;
         isLocked: boolean;
         resources: Array<{
@@ -78,6 +83,7 @@ interface CoursePlayerProps {
     image: string | null;
   }>;
   totalOtherStudents: number;
+  isPreview?: boolean;
 }
 
 // --- Activity Chart Component ---
@@ -241,7 +247,9 @@ export function CoursePlayer({
   enrollmentId,
   otherStudents,
   totalOtherStudents,
+  isPreview = false,
 }: CoursePlayerProps) {
+  const { token } = useAuth();
   const videoRef = useRef<VideoPlayerRef>(null);
   const allLessons = course.modules.flatMap((m) => m.lessons);
   
@@ -256,6 +264,86 @@ export function CoursePlayer({
   // Track whether this is the first lesson load (use initialTime from API)
   const isFirstLoadRef = useRef(true);
   const autoAdvanceTimerRef = useRef<NodeJS.Timeout>();
+
+  // Video signed URL state
+  const [videoSrc, setVideoSrc] = useState<string | undefined>(undefined);
+  const [videoSigningParams, setVideoSigningParams] = useState<{ Policy: string; Signature: string; KeyPairId: string; expires: number } | undefined>(undefined);
+  const [loadingSignedUrl, setLoadingSignedUrl] = useState(false);
+  const [videoEncoding, setVideoEncoding] = useState(false);
+  const [videoError, setVideoError] = useState<string | null>(null);
+  const videoAreaRef = useRef<HTMLDivElement>(null);
+
+  // Fetch signed URL when lesson changes
+  useEffect(() => {
+    if (!currentLessonId || !token) return;
+    const lesson = allLessons.find(l => l.id === currentLessonId);
+    
+    // Reset video state
+    setVideoSrc(undefined);
+    setVideoSigningParams(undefined);
+    setVideoError(null);
+    setVideoEncoding(false);
+
+    // Check if lesson has an encoded HLS video
+    const hasHls = lesson?.hlsUrl && lesson?.videoStatus === 'ready';
+    const hasVideo = lesson?.videoUrl;
+    
+    if (!hasHls && !hasVideo) {
+      // No video at all
+      return;
+    }
+
+    if (lesson?.videoStatus === 'encoding') {
+      setVideoEncoding(true);
+      // Poll for status
+      const pollInterval = setInterval(async () => {
+        try {
+          const status = await videoApi.getStatus(currentLessonId, token);
+          if (status.videoStatus === 'ready') {
+            clearInterval(pollInterval);
+            setVideoEncoding(false);
+            // Now fetch signed URL
+            try {
+              const data = await videoApi.getSignedUrl(currentLessonId, token);
+              setVideoSrc(data.signedManifestUrl);
+              setVideoSigningParams(data.signingParams);
+            } catch {
+              setVideoError('Failed to load video');
+            }
+          } else if (status.videoStatus === 'error') {
+            clearInterval(pollInterval);
+            setVideoEncoding(false);
+            setVideoError(status.errorMessage || 'Encoding failed');
+          }
+        } catch {
+          clearInterval(pollInterval);
+        }
+      }, 5000);
+      return () => clearInterval(pollInterval);
+    }
+
+    if (lesson?.videoStatus === 'error') {
+      setVideoError('Video encoding failed');
+      return;
+    }
+
+    // Fetch signed URL for ready video
+    setLoadingSignedUrl(true);
+    videoApi.getSignedUrl(currentLessonId, token)
+      .then(data => {
+        setVideoSrc(data.signedManifestUrl);
+        setVideoSigningParams(data.signingParams);
+      })
+      .catch(() => {
+        // Fallback to raw videoUrl if signed URL fails
+        if (hasVideo) {
+          setVideoSrc(lesson!.videoUrl!);
+        } else {
+          setVideoError('Failed to load video');
+        }
+      })
+      .finally(() => setLoadingSignedUrl(false));
+  }, [currentLessonId, token, allLessons]);
 
   // Load favourite/bookmark status from API
   useEffect(() => {
@@ -486,18 +574,41 @@ export function CoursePlayer({
         </div>
 
         {/* Video Player */}
-        <VideoPlayer
-          ref={videoRef}
-          src={currentLesson?.videoUrl}
-          initialTime={
-            isFirstLoadRef.current && initialTime > 0
-              ? initialTime
-              : (currentLesson?.progress?.lastWatchedTimestamp || 0)
-          }
-          onProgress={handleProgress}
-          onComplete={handleComplete}
-          onTimeUpdate={handleVideoTimeUpdate}
-        />
+        <div ref={videoAreaRef}>
+        {loadingSignedUrl && !videoSrc ? (
+          <div className="aspect-video rounded-2xl bg-surface-2 flex items-center justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        ) : videoError && !videoSrc ? (
+          <div className="aspect-video rounded-2xl bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950/20 dark:to-red-900/10 border border-red-200 dark:border-red-800/50 flex flex-col items-center justify-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+              <AlertCircle className="w-6 h-6 text-red-500" />
+            </div>
+            <p className="text-body-sm font-semibold text-red-700 dark:text-red-400">Video processing failed</p>
+            <p className="text-caption text-red-600/70 dark:text-red-400/60 max-w-xs text-center">{videoError}</p>
+          </div>
+        ) : videoEncoding && !videoSrc ? (
+          <div className="aspect-video rounded-2xl bg-gradient-to-br from-muted to-surface-3 border border-border/90 flex flex-col items-center justify-center gap-3">
+            <Loader2 className="w-10 h-10 animate-spin text-primary" />
+            <p className="text-body-sm font-semibold text-text-2">Video is being processed...</p>
+            <p className="text-caption text-text-3">This usually takes a few minutes. It will appear automatically when ready.</p>
+          </div>
+        ) : (
+          <VideoPlayer
+            ref={videoRef}
+            src={videoSrc}
+            signingParams={videoSigningParams}
+            initialTime={
+              isFirstLoadRef.current && initialTime > 0
+                ? initialTime
+                : (currentLesson?.progress?.lastWatchedTimestamp || 0)
+            }
+            onProgress={handleProgress}
+            onComplete={handleComplete}
+            onTimeUpdate={handleVideoTimeUpdate}
+          />
+        )}
+        </div>
 
         {/* Mobile Lesson Info & Controls */}
         <div className="lg:hidden space-y-3">

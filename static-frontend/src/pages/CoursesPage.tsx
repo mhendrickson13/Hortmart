@@ -1,11 +1,12 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { courses as coursesApi } from "@/lib/api-client";
+import { courses as coursesApi, users as usersApi } from "@/lib/api-client";
 import { CourseCard } from "@/components/learner/course-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search, SlidersHorizontal, X, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppPreferences } from "@/lib/theme-context";
+import { useAuth } from "@/lib/auth-context";
 
 function CourseSkeleton() {
   return (
@@ -44,6 +45,7 @@ function FilterOption({ selected, label, onClick }: { selected: boolean; label: 
 
 export default function CoursesPage() {
   const { t } = useAppPreferences();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [levelFilter, setLevelFilter] = useState("all");
@@ -73,6 +75,34 @@ export default function CoursesPage() {
 
   const categories = categoriesData?.categories || [];
   const allCourses = data?.courses || [];
+
+  // Fetch user enrollments to show progress on catalog cards
+  const { data: enrollmentData } = useQuery({
+    queryKey: ["my-enrollments"],
+    queryFn: () => usersApi.getProfileEnrollments(),
+    enabled: !!user,
+  });
+
+  // Build a map of courseId -> progress for enrolled courses
+  const progressMap = useMemo(() => {
+    const map: Record<string, { completedLessons: number; totalLessons: number; progressPercent: number }> = {};
+    if (!enrollmentData?.enrollments) return map;
+    for (const enrollment of enrollmentData.enrollments) {
+      const course = (enrollment as any).course;
+      if (!course?.id) continue;
+      const modules = course.modules || [];
+      const allLessons = modules.flatMap((m: any) => m.lessons || []);
+      const totalLessons = allLessons.length;
+      const lessonProgress = (enrollment as any).lessonProgress || [];
+      const completedLessons = lessonProgress.filter((p: any) => p.completedAt !== null).length;
+      map[course.id] = {
+        completedLessons,
+        totalLessons,
+        progressPercent: totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0,
+      };
+    }
+    return map;
+  }, [enrollmentData]);
 
   // Apply filters
   let courses = allCourses;
@@ -278,7 +308,7 @@ export default function CoursesPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-          {courses.map((course) => <CourseCard key={course.id} course={course} variant="catalog" />)}
+          {courses.map((course) => <CourseCard key={course.id} course={course} variant={progressMap[course.id] ? "enrolled" : "catalog"} progress={progressMap[course.id]} />)}
         </div>
       )}
     </>

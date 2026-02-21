@@ -192,7 +192,7 @@ export default function MyCoursesPage() {
                 </div>
                 <div className="space-y-3">
                   {inProgress.map((course: any) => (
-                    <CourseCard key={course.id} course={course} progress={course.progress} variant="featured" />
+                    <CourseCard key={course.id} course={course} progress={course.progress} variant="featured" linkTo={`/player/${course.id}`} />
                   ))}
                 </div>
               </section>
@@ -208,7 +208,7 @@ export default function MyCoursesPage() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {notStarted.map((course: any) => (
-                    <CourseCard key={course.id} course={course} progress={course.progress} variant="enrolled" />
+                    <CourseCard key={course.id} course={course} progress={course.progress} variant="enrolled" linkTo={`/player/${course.id}`} />
                   ))}
                 </div>
               </section>
@@ -224,7 +224,7 @@ export default function MyCoursesPage() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {completed.map((course: any) => (
-                    <CourseCard key={course.id} course={course} progress={course.progress} variant="enrolled" />
+                    <CourseCard key={course.id} course={course} progress={course.progress} variant="enrolled" linkTo={`/player/${course.id}`} />
                   ))}
                 </div>
               </section>

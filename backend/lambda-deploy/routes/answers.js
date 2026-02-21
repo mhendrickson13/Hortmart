@@ -75,8 +75,20 @@ router.post('/:id/accept', auth_js_1.authenticate, async (req, res) => {
             return res.status(404).json({ error: 'Answer not found' });
         }
         const question = await (0, db_js_1.queryOne)('SELECT * FROM questions WHERE id = ?', [answer.questionId]);
-        if (!question || question.userId !== req.user.id) {
-            return res.status(403).json({ error: 'Only question author can accept answers' });
+        if (!question) {
+            return res.status(404).json({ error: 'Question not found' });
+        }
+        // Allow question author OR course creator/admin to accept answers
+        let canAccept = question.userId === req.user.id || req.user.role === 'ADMIN';
+        if (!canAccept) {
+            const lesson = await (0, db_js_1.queryOne)('SELECT moduleId FROM lessons WHERE id = ?', [question.lessonId]);
+            const mod = lesson ? await (0, db_js_1.queryOne)('SELECT courseId FROM modules WHERE id = ?', [lesson.moduleId]) : null;
+            const course = mod ? await (0, db_js_1.queryOne)('SELECT creatorId FROM courses WHERE id = ?', [mod.courseId]) : null;
+            if (course && course.creatorId === req.user.id)
+                canAccept = true;
+        }
+        if (!canAccept) {
+            return res.status(403).json({ error: 'Only question author or course creator can accept answers' });
         }
         const ts = (0, db_js_1.now)();
         // Unaccept any other accepted answers for this question

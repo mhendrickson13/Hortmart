@@ -81,9 +81,19 @@ router.post('/:id/answers', auth_js_1.authenticate, async (req, res) => {
         if (!content) {
             return res.status(400).json({ error: 'content is required' });
         }
-        const question = await (0, db_js_1.queryOne)('SELECT id FROM questions WHERE id = ?', [id]);
+        const question = await (0, db_js_1.queryOne)('SELECT * FROM questions WHERE id = ?', [id]);
         if (!question) {
             return res.status(404).json({ error: 'Question not found' });
+        }
+        // Enrollment check: user must be enrolled (or be admin/creator)
+        const lessonRow = await (0, db_js_1.queryOne)('SELECT moduleId FROM lessons WHERE id = ?', [question.lessonId]);
+        const modRow = lessonRow ? await (0, db_js_1.queryOne)('SELECT courseId FROM modules WHERE id = ?', [lessonRow.moduleId]) : null;
+        const courseRow = modRow ? await (0, db_js_1.queryOne)('SELECT creatorId FROM courses WHERE id = ?', [modRow.courseId]) : null;
+        const isCreatorOrAdmin = courseRow && (courseRow.creatorId === req.user.id || req.user.role === 'ADMIN');
+        if (!isCreatorOrAdmin) {
+            const enrollment = await (0, db_js_1.queryOne)('SELECT id FROM enrollments WHERE userId = ? AND courseId = ?', [req.user.id, modRow?.courseId]);
+            if (!enrollment)
+                return res.status(403).json({ error: 'Must be enrolled to post answers' });
         }
         const answerId = (0, db_js_1.genId)();
         const ts = (0, db_js_1.now)();

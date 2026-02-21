@@ -54,7 +54,7 @@ export function MobileCourseCard({
   if (isCompact) {
     return (
       <Link 
-        to={isEnrolled ? `/player/${course.id}` : `/course/${course.id}`}
+        to={`/course/${course.id}`}
         className={cn("block", className)}
       >
         <div className="mobile-card-interactive flex gap-3">
@@ -114,7 +114,7 @@ export function MobileCourseCard({
 
   return (
     <Link 
-      to={isEnrolled ? `/player/${course.id}` : `/course/${course.id}`}
+      to={`/course/${course.id}`}
       className={cn("block", className)}
     >
       <Card className="overflow-hidden active:scale-[0.98] transition-transform">
