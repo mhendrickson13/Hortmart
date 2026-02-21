@@ -181,9 +181,9 @@ export function CoursePlayer({
   }, []);
 
   return (
-    <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 h-full overflow-x-hidden">
+    <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 lg:h-full overflow-x-hidden">
       {/* Main Content */}
-      <div className="flex-1 min-w-0 flex flex-col gap-3 lg:gap-4 overflow-x-hidden">
+      <div className="flex-1 min-w-0 flex flex-col gap-3 lg:gap-4 overflow-x-hidden overflow-y-auto">
         {/* Mobile Top Bar */}
         <div className="flex items-center gap-2 lg:gap-3">
           <Button asChild variant="secondary" size="icon" className="h-10 w-10 lg:h-11 lg:w-11 flex-shrink-0">
@@ -297,14 +297,16 @@ export function CoursePlayer({
         </div>
 
         {/* Video Player */}
-        <VideoPlayer
-          ref={videoRef}
-          src={currentLesson?.videoUrl}
-          initialTime={currentLesson?.progress?.lastWatchedTimestamp || 0}
-          onProgress={handleProgress}
-          onComplete={handleComplete}
-          onTimeUpdate={handleVideoTimeUpdate}
-        />
+        <div className="w-full flex-shrink-0">
+          <VideoPlayer
+            ref={videoRef}
+            src={currentLesson?.videoUrl}
+            initialTime={currentLesson?.progress?.lastWatchedTimestamp || 0}
+            onProgress={handleProgress}
+            onComplete={handleComplete}
+            onTimeUpdate={handleVideoTimeUpdate}
+          />
+        </div>
 
         {/* Mobile Lesson Info & Controls */}
         <div className="lg:hidden space-y-3">

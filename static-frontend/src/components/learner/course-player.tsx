@@ -1,5 +1,5 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { useState, useCallback, useRef, useEffect, useMemo, useId } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { VideoPlayer, VideoPlayerRef } from "@/components/learner/video-player";
 import { LessonRow } from "@/components/learner/lesson-row";
@@ -12,7 +12,7 @@ import { Pill } from "@/components/ui/pill";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { lessons as lessonsApi, favourites as favouritesApi, video as videoApi } from "@/lib/api-client";
-import { useAuth } from "@/lib/auth-context";
+import type { VideoSignedUrlResponse } from "@/lib/api-client";
 import {
   ChevronLeft,
   Star,
@@ -55,8 +55,6 @@ interface CoursePlayerProps {
         title: string;
         description?: string | null;
         videoUrl?: string | null;
-        hlsUrl?: string | null;
-        videoStatus?: string | null;
         durationSeconds: number;
         isLocked: boolean;
         resources: Array<{
@@ -90,13 +88,14 @@ interface CoursePlayerProps {
 type LessonLike = {
   progress: {
     progressPercent: number;
-    completedAt: Date | null;
+    completedAt: Date | string | null;
     lastWatchedTimestamp: number;
+    lastWatchedAt?: Date | string | null;
   } | null;
   durationSeconds: number;
 };
 
-function ActivityChart({ lessons }: { lessons: LessonLike[] }) {
+function ActivityChart({ lessons, gradientId }: { lessons: LessonLike[]; gradientId?: string }) {
   // Get last 7 days labels and compute activity per day
   const { dayLabels, values, maxVal } = useMemo(() => {
     const now = new Date();
@@ -129,13 +128,12 @@ function ActivityChart({ lessons }: { lessons: LessonLike[] }) {
         }
       }
 
-      // Use lastWatchedTimestamp (seconds into video) as indicator of recent watch
-      // We treat the progress update date as "today" if no completedAt
-      if (prog.lastWatchedTimestamp > 0 && !prog.completedAt) {
-        const todayStr = now.toISOString().slice(0, 10);
-        if (activityMap[todayStr] !== undefined) {
+      // For in-progress lessons, use lastWatchedAt to determine the actual day
+      if (prog.progressPercent > 0 && !prog.completedAt) {
+        const watchDate = prog.lastWatchedAt ? new Date(prog.lastWatchedAt).toISOString().slice(0, 10) : now.toISOString().slice(0, 10);
+        if (activityMap[watchDate] !== undefined) {
           // Estimate time spent as progressPercent * duration
-          activityMap[todayStr] += Math.round(
+          activityMap[watchDate] += Math.round(
             (prog.progressPercent / 100) * lesson.durationSeconds
           );
         }
@@ -150,10 +148,10 @@ function ActivityChart({ lessons }: { lessons: LessonLike[] }) {
 
   // SVG dimensions
   const W = 320;
-  const H = 80;
+  const H = 120;
   const padX = 12;
-  const padTop = 8;
-  const padBot = 4;
+  const padTop = 10;
+  const padBot = 6;
   const chartW = W - padX * 2;
   const chartH = H - padTop - padBot;
 
@@ -183,17 +181,17 @@ function ActivityChart({ lessons }: { lessons: LessonLike[] }) {
   return (
     <div>
       <div className="relative">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-[72px]" fill="none">
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-[110px]" fill="none">
           {/* Gradient fill */}
           <defs>
-            <linearGradient id="actGrad" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id={gradientId || "actGrad"} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="rgba(47, 111, 237, 0.25)" />
               <stop offset="100%" stopColor="rgba(47, 111, 237, 0.02)" />
             </linearGradient>
           </defs>
           {hasActivity && (
             <>
-              <path d={areaD} fill="url(#actGrad)" />
+              <path d={areaD} fill={`url(#${gradientId || "actGrad"})`} />
               <path
                 d={pathD}
                 stroke="rgba(47, 111, 237, 0.85)"
@@ -249,14 +247,17 @@ export function CoursePlayer({
   totalOtherStudents,
   isPreview = false,
 }: CoursePlayerProps) {
-  const { token } = useAuth();
   const videoRef = useRef<VideoPlayerRef>(null);
-  const allLessons = course.modules.flatMap((m) => m.lessons);
+  const chartGradientId = useId();
+  const [, setSearchParams] = useSearchParams();
+  const allLessons = useMemo(() => course.modules.flatMap((m) => m.lessons), [course.modules]);
   
   const [currentLessonId, setCurrentLessonId] = useState(
     initialLessonId || allLessons[0]?.id
   );
   const [showLessonList, setShowLessonList] = useState(false);
+  const currentLessonElRef = useRef<HTMLButtonElement | null>(null);
+  const videoAreaRef = useRef<HTMLDivElement | null>(null);
   const [showRatingDialog, setShowRatingDialog] = useState(false);
   const [currentVideoTime, setCurrentVideoTime] = useState(0);
   const [isFavorited, setIsFavorited] = useState(false);
@@ -264,101 +265,179 @@ export function CoursePlayer({
   // Track whether this is the first lesson load (use initialTime from API)
   const isFirstLoadRef = useRef(true);
   const autoAdvanceTimerRef = useRef<NodeJS.Timeout>();
+  // Refs for save-on-leave (accessible outside React lifecycle)
+  const currentLessonIdRef = useRef(currentLessonId);
+  const currentVideoTimeRef = useRef(0);
+  const lastSavedTimeRef = useRef(0);
+  const lastApiSaveTimeRef = useRef(0);
+  const saveFailCountRef = useRef(0);
+  currentLessonIdRef.current = currentLessonId;
 
-  // Video signed URL state
-  const [videoSrc, setVideoSrc] = useState<string | undefined>(undefined);
-  const [videoSigningParams, setVideoSigningParams] = useState<{ Policy: string; Signature: string; KeyPairId: string; expires: number } | undefined>(undefined);
+  // Signed HLS playback URL (fetched per lesson)
+  const [signedVideoData, setSignedVideoData] = useState<VideoSignedUrlResponse | null>(null);
   const [loadingSignedUrl, setLoadingSignedUrl] = useState(false);
   const [videoEncoding, setVideoEncoding] = useState(false);
+
+  // Local progress overrides — updated on save/progress/complete so sidebar reflects changes instantly
+  const [progressOverrides, setProgressOverrides] = useState<Record<string, { progressPercent: number; completedAt: Date | null; lastWatchedTimestamp?: number }>>({});
+
+  // Scroll to current lesson when bottom sheet opens
+  useEffect(() => {
+    if (showLessonList) {
+      setTimeout(() => {
+        currentLessonElRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }, 350);
+    }
+  }, [showLessonList]);
+
+  // Merge lesson.progress with local overrides
+  const getProgress = useCallback((lesson: { id: string; progress: { progressPercent: number; completedAt: Date | null; lastWatchedTimestamp: number } | null }) => {
+    const override = progressOverrides[lesson.id];
+    const base = lesson.progress || { progressPercent: 0, completedAt: null, lastWatchedTimestamp: 0 };
+    if (!override) return base;
+    return { ...base, ...override };
+  }, [progressOverrides]);
+
+  // State for video encoding error message
   const [videoError, setVideoError] = useState<string | null>(null);
-  const videoAreaRef = useRef<HTMLDivElement>(null);
 
-  // Fetch signed URL when lesson changes
+  // Fetch signed URL when lesson changes (for HLS playback via CloudFront)
   useEffect(() => {
-    if (!currentLessonId || !token) return;
-    const lesson = allLessons.find(l => l.id === currentLessonId);
-    
-    // Reset video state
-    setVideoSrc(undefined);
-    setVideoSigningParams(undefined);
-    setVideoError(null);
-    setVideoEncoding(false);
-
-    // Check if lesson has an encoded HLS video
-    const hasHls = lesson?.hlsUrl && lesson?.videoStatus === 'ready';
-    const hasVideo = lesson?.videoUrl;
-    
-    if (!hasHls && !hasVideo) {
-      // No video at all
-      return;
-    }
-
-    if (lesson?.videoStatus === 'encoding') {
-      setVideoEncoding(true);
-      // Poll for status
-      const pollInterval = setInterval(async () => {
-        try {
-          const status = await videoApi.getStatus(currentLessonId, token);
-          if (status.videoStatus === 'ready') {
-            clearInterval(pollInterval);
-            setVideoEncoding(false);
-            // Now fetch signed URL
-            try {
-              const data = await videoApi.getSignedUrl(currentLessonId, token);
-              setVideoSrc(data.signedManifestUrl);
-              setVideoSigningParams(data.signingParams);
-            } catch {
-              setVideoError('Failed to load video');
-            }
-          } else if (status.videoStatus === 'error') {
-            clearInterval(pollInterval);
-            setVideoEncoding(false);
-            setVideoError(status.errorMessage || 'Encoding failed');
-          }
-        } catch {
-          clearInterval(pollInterval);
-        }
-      }, 5000);
-      return () => clearInterval(pollInterval);
-    }
-
-    if (lesson?.videoStatus === 'error') {
-      setVideoError('Video encoding failed');
-      return;
-    }
-
-    // Fetch signed URL for ready video
+    if (!currentLessonId) return;
+    let cancelled = false;
+    setSignedVideoData(null);
     setLoadingSignedUrl(true);
-    videoApi.getSignedUrl(currentLessonId, token)
-      .then(data => {
-        setVideoSrc(data.signedManifestUrl);
-        setVideoSigningParams(data.signingParams);
-      })
-      .catch(() => {
-        // Fallback to raw videoUrl if signed URL fails
-        if (hasVideo) {
-          setVideoSrc(lesson!.videoUrl!);
-        } else {
-          setVideoError('Failed to load video');
-        }
-      })
-      .finally(() => setLoadingSignedUrl(false));
-  }, [currentLessonId, token, allLessons]);
+    setVideoEncoding(false);
+    setVideoError(null);
+    
+    videoApi.getSignedUrl(currentLessonId).then(data => {
+      if (!cancelled) {
+        setSignedVideoData(data);
+        setLoadingSignedUrl(false);
+      }
+    }).catch(async (err) => {
+      if (!cancelled) {
+        // Check if the video is still encoding or errored
+        try {
+          const status = await videoApi.getStatus(currentLessonId);
+          if (!cancelled) {
+            if (status.videoStatus === 'encoding') {
+              setVideoEncoding(true);
+            } else if (status.videoStatus === 'error') {
+              setVideoError(status.errorMessage || 'Video encoding failed');
+            }
+          }
+        } catch { /* ignore */ }
+        setSignedVideoData(null);
+        setLoadingSignedUrl(false);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [currentLessonId]);
 
-  // Load favourite/bookmark status from API
+  // Auto-poll when video is encoding — check every 8s until ready or errored
   useEffect(() => {
-    favouritesApi.status(course.id).then(status => {
-      setIsFavorited(status.isFavourite);
-      setIsBookmarked(status.isBookmarked);
-    }).catch(() => {});
+    if (!videoEncoding || !currentLessonId) return;
+    let cancelled = false;
+    const interval = setInterval(async () => {
+      try {
+        const status = await videoApi.getStatus(currentLessonId);
+        if (cancelled) return;
+        if (status.videoStatus === 'ready') {
+          setVideoEncoding(false);
+          // Re-fetch signed URL now that encoding is complete
+          try {
+            const data = await videoApi.getSignedUrl(currentLessonId);
+            if (!cancelled) {
+              setSignedVideoData(data);
+            }
+          } catch { /* will be retried on next lesson switch */ }
+        } else if (status.videoStatus === 'error') {
+          setVideoEncoding(false);
+          setVideoError(status.errorMessage || 'Video encoding failed');
+        }
+      } catch { /* ignore, retry next interval */ }
+    }, 8000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [videoEncoding, currentLessonId]);
 
-    // Cleanup auto-advance timer on unmount
+  // Save current progress (used on leave / pause / lesson switch)
+  // force=true bypasses the 3s API-dedup guard (used on critical saves: leave, close, switch)
+  const saveCurrentProgress = useCallback((force = false) => {
+    if (isPreview) return; // No progress saving in preview mode
+    const lid = currentLessonIdRef.current;
+    const time = currentVideoTimeRef.current;
+    if (!lid || time < 1) return;
+    // Skip if we already saved this exact second
+    if (Math.floor(time) === lastSavedTimeRef.current) return;
+    // Skip if API-based save happened within the last 3 seconds (avoid race)
+    // — but always save on critical paths (leave / close / switch)
+    if (!force && Date.now() - lastApiSaveTimeRef.current < 3000) return;
+    lastSavedTimeRef.current = Math.floor(time);
+    // Use fire-and-forget fetch with keepalive (works even during page close)
+    const url = `${import.meta.env.VITE_API_URL || ""}/lessons/${lid}/progress`;
+    const token = localStorage.getItem("cxflow_token");
+    const dur = videoRef.current?.getDuration() || 0;
+    const pct = dur > 0 ? Math.round((time / dur) * 100) : 0;
+    const body = JSON.stringify({
+      progressPercent: Math.min(pct, 100),
+      lastWatchedTimestamp: Math.floor(time),
+    });
+    // Update local state immediately so sidebar reflects the change
+    setProgressOverrides(prev => ({
+      ...prev,
+      [lid]: { progressPercent: Math.min(pct, 100), completedAt: prev[lid]?.completedAt || null, lastWatchedTimestamp: Math.floor(time) },
+    }));
+    lastApiSaveTimeRef.current = Date.now();
+    fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body,
+      keepalive: true,
+    }).then(resp => {
+      if (resp.ok) {
+        saveFailCountRef.current = 0;
+      } else {
+        saveFailCountRef.current++;
+        if (saveFailCountRef.current === 3) {
+          toast({ title: "Progress saving failed", description: "Your progress may not be saved. Check your connection.", variant: "warning" });
+        }
+      }
+    }).catch(() => {
+      saveFailCountRef.current++;
+      if (saveFailCountRef.current === 3) {
+        toast({ title: "Progress saving failed", description: "Your progress may not be saved. Check your connection.", variant: "warning" });
+      }
+    });
+  }, []);
+
+  // Load favourite/bookmark status from API + save-on-leave handlers
+  useEffect(() => {
+    if (!isPreview) {
+      favouritesApi.status(course.id).then(status => {
+        setIsFavorited(status.isFavourite);
+        setIsBookmarked(status.isBookmarked);
+      }).catch(() => {});
+    }
+
+    // Save progress when user leaves the page (force=true to bypass dedup guard)
+    const handleBeforeUnload = () => saveCurrentProgress(true);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") saveCurrentProgress(true);
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    // Cleanup: save progress + remove listeners
     return () => {
+      saveCurrentProgress(true);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       if (autoAdvanceTimerRef.current) {
         clearTimeout(autoAdvanceTimerRef.current);
       }
     };
-  }, [course.id]);
+  }, [course.id, saveCurrentProgress]);
 
   const handleFavorite = async () => {
     const prev = isFavorited;
@@ -389,82 +468,113 @@ export function CoursePlayer({
   const currentLesson = allLessons.find((l) => l.id === currentLessonId);
   const currentLessonIndex = allLessons.findIndex((l) => l.id === currentLessonId);
   const totalLessons = allLessons.length;
-  const completedLessons = allLessons.filter((l) => l.progress?.completedAt).length;
+  const completedLessons = allLessons.filter((l) => getProgress(l).completedAt).length;
   const totalDuration = allLessons.reduce((sum, l) => sum + l.durationSeconds, 0);
   const progressPercent = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
+
+  // Current lesson's live watch progress (real-time from video time)
+  // Prefer actual video duration from the player, fall back to metadata
+  const actualDuration = videoRef.current?.getDuration() || currentLesson?.durationSeconds || 0;
+  const currentLessonLivePercent = actualDuration > 0
+    ? Math.min(Math.round((currentVideoTime / actualDuration) * 100), 100)
+    : (currentLesson ? getProgress(currentLesson).progressPercent : 0);
+  const isCurrentLessonCompleted = currentLesson ? !!getProgress(currentLesson).completedAt : false;
+
+  // Derive the actual video src: prefer signed HLS, fall back to raw videoUrl
+  const videoSrc = signedVideoData?.signedManifestUrl || currentLesson?.videoUrl || null;
+  const videoSigningParams = signedVideoData?.signingParams || null;
 
   const handleLessonSelect = useCallback((lessonId: string) => {
     const lesson = allLessons.find((l) => l.id === lessonId);
     if (lesson && !lesson.isLocked) {
+      // Save progress of current lesson before switching (force to bypass dedup)
+      saveCurrentProgress(true);
       isFirstLoadRef.current = false; // subsequent selections use lesson progress
       if (autoAdvanceTimerRef.current) {
         clearTimeout(autoAdvanceTimerRef.current);
       }
       setCurrentLessonId(lessonId);
+      // Update URL so bookmark/share reflects current lesson
+      setSearchParams({ lesson: lessonId }, { replace: true });
+      currentVideoTimeRef.current = 0;
+      lastSavedTimeRef.current = 0;
+      // On mobile, scroll up to video area after lesson select
+      setTimeout(() => {
+        videoAreaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
     } else if (lesson?.isLocked) {
       toast({ title: "This lesson is locked", description: "Complete previous lessons first.", variant: "warning" });
     }
-  }, [allLessons]);
+  }, [allLessons, saveCurrentProgress]);
 
   const handleProgress = useCallback(async (progress: number, currentTime: number) => {
-    if (!currentLessonId) return;
+    if (!currentLessonId || isPreview) return;
     try {
+      lastApiSaveTimeRef.current = Date.now();
+      const roundedProgress = Math.round(progress);
       await lessonsApi.updateProgress(currentLessonId, {
-        progressPercent: Math.round(progress),
+        progressPercent: roundedProgress,
         lastWatchedTimestamp: Math.floor(currentTime),
       });
+      // Update local state for immediate sidebar feedback
+      setProgressOverrides(prev => ({
+        ...prev,
+        [currentLessonId]: { progressPercent: roundedProgress, completedAt: prev[currentLessonId]?.completedAt || null, lastWatchedTimestamp: Math.floor(currentTime) },
+      }));
     } catch (error) {
       console.error("Failed to save progress:", error);
     }
   }, [currentLessonId]);
 
   const handleComplete = useCallback(async () => {
-    if (!currentLessonId) return;
+    if (!currentLessonId || isPreview) return;
     try {
+      lastApiSaveTimeRef.current = Date.now();
       await lessonsApi.updateProgress(currentLessonId, {
         progressPercent: 100,
-        lastWatchedTimestamp: Math.floor(currentVideoTime),
+        lastWatchedTimestamp: Math.floor(currentVideoTimeRef.current),
       });
+      // Mark completed in local state
+      setProgressOverrides(prev => ({
+        ...prev,
+        [currentLessonId]: { progressPercent: 100, completedAt: new Date(), lastWatchedTimestamp: Math.floor(currentVideoTimeRef.current) },
+      }));
 
       toast({
         title: "Lesson completed!",
         description: "Great job! Keep up the good work.",
         variant: "success",
       });
-
-      // Auto-advance to next lesson (cancel any previous timer)
-      if (autoAdvanceTimerRef.current) {
-        clearTimeout(autoAdvanceTimerRef.current);
-      }
-      if (currentLessonIndex < allLessons.length - 1) {
-        const nextLesson = allLessons[currentLessonIndex + 1];
-        if (!nextLesson.isLocked) {
-          autoAdvanceTimerRef.current = setTimeout(() => {
-            setCurrentLessonId(nextLesson.id);
-          }, 2000);
-        }
-      }
     } catch (error) {
       console.error("Failed to mark as complete:", error);
     }
-  }, [currentLessonId, currentLessonIndex, allLessons, currentVideoTime]);
+  }, [currentLessonId]);
 
   const handleVideoTimeUpdate = useCallback((time: number) => {
     setCurrentVideoTime(time);
+    currentVideoTimeRef.current = time;
   }, []);
 
   const handleSeekToTimestamp = useCallback((time: number) => {
     videoRef.current?.seekTo(time);
   }, []);
 
+
   return (
-    <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 h-full overflow-x-hidden">
+    <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 lg:h-full overflow-x-hidden">
+      {/* Preview Mode Banner */}
+      {isPreview && (
+        <div className="w-full bg-amber-500 text-white text-center py-2 px-4 text-sm font-semibold rounded-xl flex items-center justify-center gap-2 lg:col-span-2" style={{ order: -1 }}>
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+          Preview Mode — Progress will not be saved
+        </div>
+      )}
       {/* Main Content */}
-      <div className="flex-1 min-w-0 flex flex-col gap-3 lg:gap-4 overflow-x-hidden">
+      <div className="flex-1 min-w-0 flex flex-col gap-3 lg:gap-4 overflow-x-hidden overflow-y-auto">
         {/* Mobile Top Bar */}
         <div className="flex items-center gap-2 lg:gap-3">
           <Button asChild variant="secondary" size="icon" className="h-10 w-10 lg:h-11 lg:w-11 flex-shrink-0">
-            <Link to="/my-courses">
+            <Link to={isPreview ? `/manage-courses/${course.id}/edit` : "/my-courses"}>
               <ChevronLeft className="w-5 h-5" />
             </Link>
           </Button>
@@ -476,15 +586,20 @@ export function CoursePlayer({
           </div>
           {/* Desktop Actions */}
           <div className="hidden lg:flex items-center gap-3">
+            {/* Preview: Edit Course link */}
+            {isPreview && (
+              <Link to={`/manage-courses/${course.id}/edit`} className="text-caption font-semibold text-primary hover:underline">Edit Course</Link>
+            )}
             {/* Other Students */}
-            <div className="flex items-center gap-2 mr-2">
-              <div className="flex">
-                {totalOtherStudents > 0 ? (
-                  otherStudents.slice(0, 3).map((student, idx) => (
+            {!isPreview && totalOtherStudents > 0 && (
+              <div className="flex items-center gap-2 mr-2">
+                <div className="flex">
+                  {otherStudents.slice(0, 3).map((student, idx) => (
                     <div
                       key={student.id}
-                      className="w-7 h-7 rounded-full border border-border/90 overflow-hidden"
-                      style={{ marginLeft: idx > 0 ? "-10px" : 0, zIndex: 3 - idx }}
+                      className="w-7 h-7 rounded-full border-2 border-white dark:border-card overflow-hidden"
+                      style={{ marginLeft: idx > 0 ? "-8px" : 0, zIndex: 4 - idx }}
+                      title={student.name || "Student"}
                     >
                       {student.image ? (
                         <img
@@ -494,49 +609,38 @@ export function CoursePlayer({
                         />
                       ) : (
                         <div 
-                          className="w-full h-full"
+                          className="w-full h-full flex items-center justify-center text-[10px] font-bold text-white"
                           style={{
                             background: idx === 0 
-                              ? "linear-gradient(135deg, rgba(47,111,237,0.35), rgba(56,189,248,0.25))"
+                              ? "linear-gradient(135deg, #2f6fed, #38bdf8)"
                               : idx === 1 
-                                ? "linear-gradient(135deg, rgba(56,189,248,0.35), rgba(140,255,203,0.25))"
-                                : "linear-gradient(135deg, rgba(140,255,203,0.35), rgba(47,111,237,0.22))"
+                                ? "linear-gradient(135deg, #38bdf8, #8cffcb)"
+                                : "linear-gradient(135deg, #8cffcb, #2f6fed)"
                           }}
-                        />
+                        >
+                          {(student.name || "S").charAt(0).toUpperCase()}
+                        </div>
                       )}
                     </div>
-                  ))
-                ) : (
-                  // Placeholder avatars when no other students
-                  [0, 1, 2].map((idx) => (
+                  ))}
+                  {totalOtherStudents > 3 && (
                     <div
-                      key={idx}
-                      className="w-7 h-7 rounded-full border border-border/90 overflow-hidden"
-                      style={{ marginLeft: idx > 0 ? "-10px" : 0, zIndex: 3 - idx }}
+                      className="w-7 h-7 rounded-full border-2 border-white dark:border-card bg-muted flex items-center justify-center text-[10px] font-bold text-text-2"
+                      style={{ marginLeft: "-8px", zIndex: 1 }}
                     >
-                      <div 
-                        className="w-full h-full"
-                        style={{
-                          background: idx === 0 
-                            ? "linear-gradient(135deg, rgba(47,111,237,0.35), rgba(56,189,248,0.25))"
-                            : idx === 1 
-                              ? "linear-gradient(135deg, rgba(56,189,248,0.35), rgba(140,255,203,0.25))"
-                              : "linear-gradient(135deg, rgba(140,255,203,0.35), rgba(47,111,237,0.22))"
-                        }}
-                      />
+                      +{totalOtherStudents - 3}
                     </div>
-                  ))
-                )}
-              </div>
-              <span className="text-[11px] font-semibold text-text-3">
-                {totalOtherStudents === 0 
-                  ? "Other students"
-                  : totalOtherStudents === 1 
+                  )}
+                </div>
+                <span className="text-[11px] font-semibold text-text-3">
+                  {totalOtherStudents === 1 
                     ? "1 other student" 
                     : `${totalOtherStudents} other students`}
-              </span>
-            </div>
+                </span>
+              </div>
+            )}
 
+            {!isPreview && <>
             <Button 
               variant="secondary" 
               size="sm" 
@@ -556,9 +660,17 @@ export function CoursePlayer({
             <Button 
               variant="secondary" 
               size="icon-sm"
-              onClick={() => {
-                navigator.clipboard.writeText(window.location.href);
-                toast({ title: "Link copied!", variant: "success" });
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(window.location.href);
+                  toast({ title: "Link copied!", variant: "success" });
+                } catch {
+                  try {
+                    await navigator.share?.({ url: window.location.href });
+                  } catch {
+                    toast({ title: "Could not copy link", variant: "error" });
+                  }
+                }
               }}
             >
               <Share2 className="w-4 h-4" />
@@ -570,11 +682,12 @@ export function CoursePlayer({
             >
               <Bookmark className={cn("w-4 h-4", isBookmarked && "fill-primary text-primary")} />
             </Button>
+            </>}
           </div>
         </div>
 
         {/* Video Player */}
-        <div ref={videoAreaRef}>
+        <div ref={videoAreaRef} className="w-full flex-shrink-0">
         {loadingSignedUrl && !videoSrc ? (
           <div className="aspect-video rounded-2xl bg-surface-2 flex items-center justify-center">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -601,7 +714,7 @@ export function CoursePlayer({
             initialTime={
               isFirstLoadRef.current && initialTime > 0
                 ? initialTime
-                : (currentLesson?.progress?.lastWatchedTimestamp || 0)
+                : (getProgress(currentLesson!).lastWatchedTimestamp || 0)
             }
             onProgress={handleProgress}
             onComplete={handleComplete}
@@ -615,8 +728,14 @@ export function CoursePlayer({
           {/* Lesson Info Card */}
           <div className="mobile-card">
             <div className="flex items-start gap-3">
-              <span className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <Play className="w-4 h-4 text-primary ml-0.5" fill="currentColor" />
+              <span className={cn(
+                "w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0",
+                isCurrentLessonCompleted ? "bg-success/10" : "bg-primary/10"
+              )}>
+                {isCurrentLessonCompleted 
+                  ? <CheckCircle className="w-5 h-5 text-success" />
+                  : <Play className="w-4 h-4 text-primary ml-0.5" fill="currentColor" />
+                }
               </span>
               <div className="flex-1 min-w-0">
                 <p className="text-[11px] text-text-3 font-medium mb-0.5">
@@ -627,18 +746,36 @@ export function CoursePlayer({
                 </h3>
               </div>
               <div className="flex flex-col items-end">
-                <span className="text-h3 font-bold text-primary">{progressPercent}%</span>
-                <span className="text-[10px] text-text-3">complete</span>
+                {isCurrentLessonCompleted ? (
+                  <>
+                    <span className="text-body-sm font-bold text-success">Done</span>
+                    <span className="text-[10px] text-success/70">completed</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-h3 font-bold text-primary">{currentLessonLivePercent}%</span>
+                    <span className="text-[10px] text-text-3">watched</span>
+                  </>
+                )}
               </div>
             </div>
             
-            {/* Progress bar */}
+            {/* Progress bar — current lesson live progress */}
             <div className="mt-3">
               <div className="w-full h-2 bg-surface-3 rounded-full overflow-hidden">
                 <div 
-                  className="h-full bg-gradient-to-r from-primary to-primary-600 rounded-full transition-all duration-500" 
-                  style={{ width: `${progressPercent}%` }}
+                  className={cn(
+                    "h-full rounded-full transition-all duration-300",
+                    isCurrentLessonCompleted 
+                      ? "bg-gradient-to-r from-success to-success/80" 
+                      : "bg-gradient-to-r from-primary to-primary-600"
+                  )}
+                  style={{ width: `${isCurrentLessonCompleted ? 100 : currentLessonLivePercent}%` }}
                 />
+              </div>
+              <div className="flex justify-between mt-1">
+                <span className="text-[10px] text-text-3">{isCurrentLessonCompleted ? "Completed" : "This lesson"}</span>
+                <span className="text-[10px] text-text-3 font-medium">{completedLessons}/{totalLessons} lessons complete</span>
               </div>
             </div>
           </div>
@@ -658,7 +795,7 @@ export function CoursePlayer({
                   }
                 }
               }}
-              disabled={currentLessonIndex === 0}
+              disabled={currentLessonIndex === 0 || allLessons[currentLessonIndex - 1]?.isLocked}
             >
               <SkipBack className="w-4 h-4 mr-1" />
               Previous
@@ -694,7 +831,7 @@ export function CoursePlayer({
           </div>
           
           {/* Mobile Action Bar */}
-          <div className="flex items-center justify-around py-2 px-4 rounded-2xl bg-muted/50 border border-border/50">
+          {!isPreview && <div className="flex items-center justify-around py-2 px-4 rounded-2xl bg-muted/50 border border-border/50">
             <button 
               onClick={handleFavorite}
               className="flex flex-col items-center gap-1 py-2 px-4 active:scale-95 transition-all"
@@ -718,9 +855,17 @@ export function CoursePlayer({
             </button>
             
             <button 
-              onClick={() => {
-                navigator.clipboard.writeText(window.location.href);
-                toast({ title: "Link copied!", variant: "success" });
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(window.location.href);
+                  toast({ title: "Link copied!", variant: "success" });
+                } catch {
+                  try {
+                    await navigator.share?.({ url: window.location.href });
+                  } catch {
+                    toast({ title: "Could not copy link", variant: "error" });
+                  }
+                }
               }}
               className="flex flex-col items-center gap-1 py-2 px-4 active:scale-95 transition-all"
             >
@@ -735,7 +880,7 @@ export function CoursePlayer({
               <Star className="w-5 h-5 text-text-2" />
               <span className="text-[10px] font-medium text-text-3">Rate</span>
             </button>
-          </div>
+          </div>}
         </div>
 
         {/* Tabs */}
@@ -866,7 +1011,7 @@ export function CoursePlayer({
                   <LessonRow
                     key={lesson.id}
                     lesson={lesson}
-                    progress={lesson.progress}
+                    progress={getProgress(lesson)}
                     isCurrentLesson={lesson.id === currentLessonId}
                     onClick={() => handleLessonSelect(lesson.id)}
                   />
@@ -881,7 +1026,7 @@ export function CoursePlayer({
           <h4 className="text-caption font-bold text-text-1 mb-2 italic">
             Your time on the course
           </h4>
-          <ActivityChart lessons={allLessons} />
+          <ActivityChart lessons={allLessons} gradientId={chartGradientId} />
         </Card>
       </aside>
 
@@ -914,7 +1059,7 @@ export function CoursePlayer({
         {/* Quick Navigation */}
         <div className="px-4 py-3 border-b border-border/30 flex gap-2 overflow-x-auto scrollbar-hide">
           {course.modules.map((module, idx) => {
-            const moduleCompleted = module.lessons.filter(l => l.progress?.completedAt).length;
+            const moduleCompleted = module.lessons.filter(l => getProgress(l).completedAt).length;
             const moduleTotal = module.lessons.length;
             const isComplete = moduleCompleted === moduleTotal;
             return (
@@ -947,13 +1092,15 @@ export function CoursePlayer({
               </div>
               <div className="space-y-2 pl-2">
                 {module.lessons.map((lesson, lessonIdx) => {
-                  const isCompleted = lesson.progress?.completedAt;
+                  const mergedProgress = getProgress(lesson);
+                  const isCompleted = mergedProgress?.completedAt;
                   const isCurrent = lesson.id === currentLessonId;
                   const isLocked = lesson.isLocked;
                   
                   return (
                     <button
                       key={lesson.id}
+                      ref={isCurrent ? currentLessonElRef : undefined}
                       onClick={() => {
                         if (!isLocked) {
                           handleLessonSelect(lesson.id);
@@ -1005,15 +1152,33 @@ export function CoursePlayer({
                           isCurrent ? "text-white/70" : "text-text-3"
                         )}>
                           {Math.floor(lesson.durationSeconds / 60)} min
-                          {lesson.progress && lesson.progress.progressPercent > 0 && lesson.progress.progressPercent < 100 && (
-                            <span> • {Math.round(lesson.progress.progressPercent)}% watched</span>
+                          {isCompleted && (
+                            <span className={isCurrent ? "text-white/90" : "text-success"}> • ✓ Completed</span>
+                          )}
+                          {!isCompleted && mergedProgress && mergedProgress.progressPercent > 0 && (
+                            <span className={isCurrent ? "text-white/90" : "text-primary"}> • {Math.round(mergedProgress.progressPercent)}% watched</span>
                           )}
                         </p>
+                        {/* Progress bar for partially watched lessons */}
+                        {!isCompleted && mergedProgress && mergedProgress.progressPercent > 0 && (
+                          <div className={cn(
+                            "mt-1.5 w-full h-1.5 rounded-full overflow-hidden",
+                            isCurrent ? "bg-white/20" : "bg-primary/15"
+                          )}>
+                            <div
+                              className={cn(
+                                "h-full rounded-full transition-all duration-500",
+                                isCurrent ? "bg-white/80" : "bg-primary"
+                              )}
+                              style={{ width: `${Math.round(mergedProgress.progressPercent)}%` }}
+                            />
+                          </div>
+                        )}
                       </div>
                       
                       {/* Progress indicator for partially watched */}
-                      {!isCompleted && lesson.progress && lesson.progress.progressPercent > 0 && !isCurrent && (
-                        <div className="w-8 h-8 relative">
+                      {!isCompleted && mergedProgress && mergedProgress.progressPercent > 0 && (
+                        <div className="w-8 h-8 relative flex-shrink-0">
                           <svg className="w-8 h-8 -rotate-90">
                             <circle
                               cx="16"
@@ -1022,7 +1187,7 @@ export function CoursePlayer({
                               fill="none"
                               stroke="currentColor"
                               strokeWidth="3"
-                              className="text-primary/20"
+                              className={isCurrent ? "text-white/20" : "text-primary/20"}
                             />
                             <circle
                               cx="16"
@@ -1031,11 +1196,21 @@ export function CoursePlayer({
                               fill="none"
                               stroke="currentColor"
                               strokeWidth="3"
-                              strokeDasharray={`${(lesson.progress.progressPercent / 100) * 75.4} 75.4`}
-                              className="text-primary"
+                              strokeDasharray={`${(mergedProgress.progressPercent / 100) * 75.4} 75.4`}
+                              className={isCurrent ? "text-white" : "text-primary"}
                             />
                           </svg>
+                          <span className={cn(
+                            "absolute inset-0 flex items-center justify-center text-[8px] font-bold",
+                            isCurrent ? "text-white" : "text-primary"
+                          )}>
+                            {Math.round(mergedProgress.progressPercent)}
+                          </span>
                         </div>
+                      )}
+                      {/* Completed checkmark */}
+                      {isCompleted && !isCurrent && (
+                        <CheckCircle className="w-5 h-5 text-success flex-shrink-0" />
                       )}
                     </button>
                   );
