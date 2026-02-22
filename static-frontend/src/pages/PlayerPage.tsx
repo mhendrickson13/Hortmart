@@ -36,6 +36,7 @@ export default function PlayerPage() {
       if (!response.ok) return null;
       const result = await response.json();
       if (!result) return null;
+      console.log("[PlayerPage] API response:", { currentLessonId: result.currentLessonId, initialTime: result.initialTime });
       return {
         ...result,
         enrollmentId: result.enrollmentId || "",
@@ -71,6 +72,7 @@ export default function PlayerPage() {
       initialTime = firstAvailable?.progress?.lastWatchedTimestamp || 0;
     }
 
+    console.log("[PlayerPage] resolved:", { currentLessonId, initialTime, totalLessons: allLessons.length });
     return { currentLessonId, initialTime };
   })();
 
@@ -95,7 +97,7 @@ export default function PlayerPage() {
 
   return (
     <CoursePlayer
-      key={resolvedData.currentLessonId}
+      key={id}
       course={courseData}
       currentLessonId={resolvedData.currentLessonId}
       initialTime={resolvedData.initialTime}

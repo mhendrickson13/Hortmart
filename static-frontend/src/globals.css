@@ -162,6 +162,9 @@
   @media (max-width: 1023px) { .touch-target { min-height: 44px; min-width: 44px; } }
   .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
   .scrollbar-hide::-webkit-scrollbar { display: none; }
+  .scrollbar-thin { scrollbar-width: thin; }
+  .scrollbar-thin::-webkit-scrollbar { width: 4px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { @apply bg-border/60 rounded-full; }
   .scroll-smooth-ios { -webkit-overflow-scrolling: touch; }
   .mobile-card { @apply bg-card rounded-2xl border border-border/50 p-4; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04); }
   .dark .mobile-card { box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2); }

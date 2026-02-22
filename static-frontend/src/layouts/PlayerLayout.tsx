@@ -13,7 +13,7 @@ export function PlayerLayout({ children }: { children: React.ReactNode }) {
         <div className="hidden lg:block fixed inset-7 rounded-4xl glass shadow-soft-1">
           <div className="flex gap-5 p-4.5 h-full overflow-hidden">
             <LeftRail user={user ? { name: user.name, image: user.image, role: user.role } : undefined} variant="learner" />
-            <DesktopLayoutWrapper user={user ? { name: user.name, image: user.image, role: user.role } : undefined} variant="learner">
+            <DesktopLayoutWrapper user={user ? { name: user.name, image: user.image, role: user.role } : undefined} variant="learner" showHeader={false}>
               {children}
             </DesktopLayoutWrapper>
           </div>

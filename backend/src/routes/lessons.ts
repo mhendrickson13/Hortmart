@@ -189,7 +189,7 @@ router.post('/:id/progress', authenticate, async (req: AuthRequest, res: Respons
     );
     if (!enrollment) return res.status(404).json({ error: 'Not enrolled' });
 
-    const completedAt = progressPercent >= 90 ? now() : null;
+    const completedAt = progressPercent >= 95 ? now() : null;
     const ts = now();
 
     // Upsert: try update first, then insert

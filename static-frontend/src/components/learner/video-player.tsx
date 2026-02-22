@@ -14,8 +14,8 @@ function isHlsUrl(url: string): boolean {
   return url.includes(".m3u8");
 }
 
-/** Completion threshold — matches backend (>=90% marks completedAt) */
-const COMPLETION_THRESHOLD = 90;
+/** Completion threshold — video must be nearly finished before marking complete */
+const COMPLETION_THRESHOLD = 95;
 
 /** Available playback speed options */
 const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -176,6 +176,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
     // Seek to initialTime after metadata is loaded
     const handleLoaded = () => {
       const seekTo = initialTimeRef.current;
+      console.log("[VideoPlayer] loadedmetadata — seekTo:", seekTo, "duration:", video.duration);
       if (seekTo > 0) {
         video.currentTime = seekTo;
         setCurrentTime(seekTo);
@@ -192,12 +193,9 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
     };
   }, [src, isYouTube]); // intentionally omit initialTime - use ref instead
 
-  // Apply initialTime changes (e.g. from resume position) without resetting
-  useEffect(() => {
-    if (videoRef.current && initialTime > 0 && !isYouTube && videoRef.current.readyState >= 1) {
-      videoRef.current.currentTime = initialTime;
-    }
-  }, [initialTime, isYouTube]);
+  // NOTE: initialTime is applied via the src-change effect (loadedmetadata handler)
+  // and HLS startPosition. We do NOT re-seek when initialTime changes during playback
+  // because progress saves update the parent's state which would cause a seek loop.
 
   // HLS.js integration for .m3u8 streams (with optional CloudFront signed URL support)
   useEffect(() => {
@@ -220,7 +218,8 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
       // For signed URLs, we'd need signed cookies instead. Fall through to hls.js if signing is needed.
       if (!signingParams) {
         video.src = src;
-        if (initialTime > 0) video.currentTime = initialTime;
+        const seekTo = initialTimeRef.current;
+        if (seekTo > 0) video.currentTime = seekTo;
         return;
       }
       // NOTE: On iOS Safari, Hls.isSupported() returns false (no MSE).
@@ -232,7 +231,8 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
         // so they may fail. This is a known limitation until signed cookies are implemented.
         console.warn('[VideoPlayer] iOS Safari with signed HLS — playback may fail for chunk requests. Consider using CloudFront signed cookies.');
         video.src = src;
-        if (initialTime > 0) video.currentTime = initialTime;
+        const seekTo = initialTimeRef.current;
+        if (seekTo > 0) video.currentTime = seekTo;
         return;
       }
     }
@@ -244,7 +244,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
       const MAX_RETRIES = 5;
 
       const hls = new Hls({
-        startPosition: initialTime || -1,
+        startPosition: initialTimeRef.current || -1,
         // ── Buffering — generous for smooth playback ──
         // At 2x speed, video consumes buffer twice as fast (6s segments = 3 real sec).
         // Normal: 30s buffer ≈ 5 segments ahead. Preview 2x: 60s buffer ≈ 10 segments.
@@ -313,7 +313,8 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
         hls.destroy();
       };
     }
-  }, [src, isYouTube, initialTime, signingParams]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- initialTime read from ref to avoid HLS re-init
+  }, [src, isYouTube, signingParams]);
 
   // Simulated progress for YouTube videos
   useEffect(() => {
@@ -370,6 +371,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
     const sec = Math.floor(video.currentTime);
     if (onProgressRef.current && sec >= 1 && sec % 5 === 0 && sec !== lastReportedSecondRef.current) {
       lastReportedSecondRef.current = sec;
+      console.log("[VideoPlayer] onProgress fire @", sec, "s, dur:", dur);
       onProgressRef.current(currentProgress, video.currentTime);
     }
 
@@ -725,6 +727,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
           // Save progress immediately on pause
           if (videoRef.current && onProgressRef.current && videoRef.current.currentTime >= 1) {
             const prog = (videoRef.current.currentTime / videoRef.current.duration) * 100;
+            console.log("[VideoPlayer] onPause save @", Math.floor(videoRef.current.currentTime), "s");
             onProgressRef.current(prog, videoRef.current.currentTime);
           }
         }}

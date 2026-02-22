@@ -4,13 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Users, Plus, Eye, Mail, UserPlus, X } from "lucide-react";
+import { Search, Users, Eye, Mail, UserPlus } from "lucide-react";
 import { Link } from "react-router-dom";
 import { getInitials, formatRelativeTime, cn } from "@/lib/utils";
 import { toast } from "@/components/ui/toaster";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { apiClient } from "@/lib/api-client";
+
 
 interface UserData {
   user: {
@@ -75,9 +73,6 @@ export function UsersList({
   onRefresh,
 }: UsersListProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [showAddUser, setShowAddUser] = useState(false);
-  const [addUserForm, setAddUserForm] = useState({ email: "", password: "", name: "", role: "LEARNER" });
-  const [addingUser, setAddingUser] = useState(false);
 
   const filterUsers = (users: UserData[]) => {
     if (!searchQuery.trim()) return users;
@@ -108,107 +103,8 @@ export function UsersList({
     [blockedUsers, searchQuery]
   );
 
-  const handleAddUser = async () => {
-    if (!addUserForm.email || !addUserForm.password) {
-      toast({ title: "Email and password are required", variant: "error" });
-      return;
-    }
-    setAddingUser(true);
-    try {
-      await apiClient.users.create(addUserForm);
-      toast({ title: "User created successfully", variant: "success" });
-      setShowAddUser(false);
-      setAddUserForm({ email: "", password: "", name: "", role: "LEARNER" });
-      onRefresh?.();
-    } catch (error) {
-      toast({
-        title: error instanceof Error ? error.message : "Failed to create user",
-        variant: "error",
-      });
-    } finally {
-      setAddingUser(false);
-    }
-  };
-
   return (
     <>
-      {/* Add User Modal */}
-      {showAddUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-[22px] bg-white dark:bg-card border border-border/95 shadow-[0_24px_48px_rgba(21,25,35,0.12)] dark:shadow-[0_24px_48px_rgba(0,0,0,0.4)] p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-[18px] font-black text-text-1">Add new user</h2>
-              <button
-                onClick={() => setShowAddUser(false)}
-                className="w-8 h-8 rounded-xl hover:bg-muted grid place-items-center"
-              >
-                <X className="w-4 h-4 text-text-3" />
-              </button>
-            </div>
-            <div className="space-y-3">
-              <div>
-                <Label htmlFor="add-email">Email *</Label>
-                <Input
-                  id="add-email"
-                  type="email"
-                  value={addUserForm.email}
-                  onChange={(e) => setAddUserForm((f) => ({ ...f, email: e.target.value }))}
-                  placeholder="user@example.com"
-                  className="mt-1.5"
-                />
-              </div>
-              <div>
-                <Label htmlFor="add-name">Name</Label>
-                <Input
-                  id="add-name"
-                  value={addUserForm.name}
-                  onChange={(e) => setAddUserForm((f) => ({ ...f, name: e.target.value }))}
-                  placeholder="Full name"
-                  className="mt-1.5"
-                />
-              </div>
-              <div>
-                <Label htmlFor="add-password">Password *</Label>
-                <Input
-                  id="add-password"
-                  type="password"
-                  value={addUserForm.password}
-                  onChange={(e) => setAddUserForm((f) => ({ ...f, password: e.target.value }))}
-                  placeholder="Min 6 characters"
-                  className="mt-1.5"
-                />
-              </div>
-              <div>
-                <Label htmlFor="add-role">Role</Label>
-                <select
-                  id="add-role"
-                  value={addUserForm.role}
-                  onChange={(e) => setAddUserForm((f) => ({ ...f, role: e.target.value }))}
-                  className="mt-1.5 w-full h-10 px-3 rounded-lg border border-border text-body-sm text-text-1 bg-card focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
-                >
-                  <option value="LEARNER">Learner</option>
-                  <option value="CREATOR">Creator</option>
-                  <option value="ADMIN">Admin</option>
-                </select>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2.5 mt-5">
-              <Button
-                variant="secondary"
-                onClick={() => setShowAddUser(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleAddUser}
-                disabled={addingUser || !addUserForm.email || !addUserForm.password}
-              >
-                {addingUser ? "Creating..." : "Create user"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Header - matches design: Title, subtitle, search, segmented control, Add user */}
       <div className="flex items-center justify-between gap-3 h-14 flex-shrink-0">
@@ -233,14 +129,6 @@ export function UsersList({
             />
           </div>
 
-          {/* Add user button */}
-          <Button
-            onClick={() => setShowAddUser(true)}
-            className="h-10 rounded-[16px] px-3.5 gap-2 font-black text-[13px] shadow-[0_16px_34px_rgba(47,111,237,0.24)]"
-          >
-            <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">Add user</span>
-          </Button>
         </div>
       </div>
 

@@ -28,6 +28,7 @@ const allowedOrigins = [
   'http://localhost:5173',
   'https://lms.cxflow.io',
   'https://cxflowio.s3.us-east-1.amazonaws.com',
+  'https://d224go81z1q461.cloudfront.net',
   process.env.FRONTEND_URL,
 ].filter(Boolean) as string[];
 

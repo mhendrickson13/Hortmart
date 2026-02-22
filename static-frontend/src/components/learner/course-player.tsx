@@ -11,8 +11,9 @@ import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { lessons as lessonsApi, favourites as favouritesApi, video as videoApi } from "@/lib/api-client";
+import { favourites as favouritesApi, video as videoApi } from "@/lib/api-client";
 import type { VideoSignedUrlResponse } from "@/lib/api-client";
+import { useVideoProgress } from "@/hooks/use-video-progress";
 import {
   ChevronLeft,
   Star,
@@ -265,21 +266,40 @@ export function CoursePlayer({
   // Track whether this is the first lesson load (use initialTime from API)
   const isFirstLoadRef = useRef(true);
   const autoAdvanceTimerRef = useRef<NodeJS.Timeout>();
-  // Refs for save-on-leave (accessible outside React lifecycle)
-  const currentLessonIdRef = useRef(currentLessonId);
-  const currentVideoTimeRef = useRef(0);
-  const lastSavedTimeRef = useRef(0);
-  const lastApiSaveTimeRef = useRef(0);
-  const saveFailCountRef = useRef(0);
-  currentLessonIdRef.current = currentLessonId;
+
+  // ── Progress tracking (hook) ──
+  const {
+    getProgress,
+    handleProgress,
+    handleComplete,
+    handleTimeUpdate: hookTimeUpdate,
+    saveBeforeSwitch,
+    currentTimeRef,
+  } = useVideoProgress({
+    allLessons,
+    currentLessonId,
+    isPreview,
+    videoRef,
+  });
+
+  // Wrap hook's handleTimeUpdate to also update UI state (for live % display + notes)
+  const handleVideoTimeUpdate = useCallback((time: number) => {
+    setCurrentVideoTime(time);
+    hookTimeUpdate(time);
+  }, [hookTimeUpdate]);
 
   // Signed HLS playback URL (fetched per lesson)
   const [signedVideoData, setSignedVideoData] = useState<VideoSignedUrlResponse | null>(null);
   const [loadingSignedUrl, setLoadingSignedUrl] = useState(false);
   const [videoEncoding, setVideoEncoding] = useState(false);
 
-  // Local progress overrides — updated on save/progress/complete so sidebar reflects changes instantly
-  const [progressOverrides, setProgressOverrides] = useState<Record<string, { progressPercent: number; completedAt: Date | null; lastWatchedTimestamp?: number }>>({});
+  // ── Stable initial seek time per lesson ──
+  // Computed once when currentLessonId changes; does NOT update during playback
+  // so that progressive saves don't cause the video to re-seek.
+  const [lessonSeekTime, setLessonSeekTime] = useState<number>(() => {
+    console.log("[CoursePlayer] init lessonSeekTime:", initialTime, "lesson:", initialLessonId);
+    return initialTime > 0 ? initialTime : 0;
+  });
 
   // Scroll to current lesson when bottom sheet opens
   useEffect(() => {
@@ -289,14 +309,6 @@ export function CoursePlayer({
       }, 350);
     }
   }, [showLessonList]);
-
-  // Merge lesson.progress with local overrides
-  const getProgress = useCallback((lesson: { id: string; progress: { progressPercent: number; completedAt: Date | null; lastWatchedTimestamp: number } | null }) => {
-    const override = progressOverrides[lesson.id];
-    const base = lesson.progress || { progressPercent: 0, completedAt: null, lastWatchedTimestamp: 0 };
-    if (!override) return base;
-    return { ...base, ...override };
-  }, [progressOverrides]);
 
   // State for video encoding error message
   const [videoError, setVideoError] = useState<string | null>(null);
@@ -361,57 +373,7 @@ export function CoursePlayer({
     return () => { cancelled = true; clearInterval(interval); };
   }, [videoEncoding, currentLessonId]);
 
-  // Save current progress (used on leave / pause / lesson switch)
-  // force=true bypasses the 3s API-dedup guard (used on critical saves: leave, close, switch)
-  const saveCurrentProgress = useCallback((force = false) => {
-    if (isPreview) return; // No progress saving in preview mode
-    const lid = currentLessonIdRef.current;
-    const time = currentVideoTimeRef.current;
-    if (!lid || time < 1) return;
-    // Skip if we already saved this exact second
-    if (Math.floor(time) === lastSavedTimeRef.current) return;
-    // Skip if API-based save happened within the last 3 seconds (avoid race)
-    // — but always save on critical paths (leave / close / switch)
-    if (!force && Date.now() - lastApiSaveTimeRef.current < 3000) return;
-    lastSavedTimeRef.current = Math.floor(time);
-    // Use fire-and-forget fetch with keepalive (works even during page close)
-    const url = `${import.meta.env.VITE_API_URL || ""}/lessons/${lid}/progress`;
-    const token = localStorage.getItem("cxflow_token");
-    const dur = videoRef.current?.getDuration() || 0;
-    const pct = dur > 0 ? Math.round((time / dur) * 100) : 0;
-    const body = JSON.stringify({
-      progressPercent: Math.min(pct, 100),
-      lastWatchedTimestamp: Math.floor(time),
-    });
-    // Update local state immediately so sidebar reflects the change
-    setProgressOverrides(prev => ({
-      ...prev,
-      [lid]: { progressPercent: Math.min(pct, 100), completedAt: prev[lid]?.completedAt || null, lastWatchedTimestamp: Math.floor(time) },
-    }));
-    lastApiSaveTimeRef.current = Date.now();
-    fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body,
-      keepalive: true,
-    }).then(resp => {
-      if (resp.ok) {
-        saveFailCountRef.current = 0;
-      } else {
-        saveFailCountRef.current++;
-        if (saveFailCountRef.current === 3) {
-          toast({ title: "Progress saving failed", description: "Your progress may not be saved. Check your connection.", variant: "warning" });
-        }
-      }
-    }).catch(() => {
-      saveFailCountRef.current++;
-      if (saveFailCountRef.current === 3) {
-        toast({ title: "Progress saving failed", description: "Your progress may not be saved. Check your connection.", variant: "warning" });
-      }
-    });
-  }, []);
-
-  // Load favourite/bookmark status from API + save-on-leave handlers
+  // Load favourite/bookmark status + cleanup auto-advance timer
   useEffect(() => {
     if (!isPreview) {
       favouritesApi.status(course.id).then(status => {
@@ -420,24 +382,12 @@ export function CoursePlayer({
       }).catch(() => {});
     }
 
-    // Save progress when user leaves the page (force=true to bypass dedup guard)
-    const handleBeforeUnload = () => saveCurrentProgress(true);
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "hidden") saveCurrentProgress(true);
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    // Cleanup: save progress + remove listeners
     return () => {
-      saveCurrentProgress(true);
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
       if (autoAdvanceTimerRef.current) {
         clearTimeout(autoAdvanceTimerRef.current);
       }
     };
-  }, [course.id, saveCurrentProgress]);
+  }, [course.id, isPreview]);
 
   const handleFavorite = async () => {
     const prev = isFavorited;
@@ -487,17 +437,18 @@ export function CoursePlayer({
   const handleLessonSelect = useCallback((lessonId: string) => {
     const lesson = allLessons.find((l) => l.id === lessonId);
     if (lesson && !lesson.isLocked) {
-      // Save progress of current lesson before switching (force to bypass dedup)
-      saveCurrentProgress(true);
-      isFirstLoadRef.current = false; // subsequent selections use lesson progress
+      // Save progress of current lesson before switching
+      saveBeforeSwitch();
+      isFirstLoadRef.current = false;
       if (autoAdvanceTimerRef.current) {
         clearTimeout(autoAdvanceTimerRef.current);
       }
+      // Compute seek time from the target lesson's progress
+      const targetProgress = getProgress(lesson);
+      setLessonSeekTime(targetProgress?.lastWatchedTimestamp || 0);
       setCurrentLessonId(lessonId);
-      // Update URL so bookmark/share reflects current lesson
+      setCurrentVideoTime(0);
       setSearchParams({ lesson: lessonId }, { replace: true });
-      currentVideoTimeRef.current = 0;
-      lastSavedTimeRef.current = 0;
       // On mobile, scroll up to video area after lesson select
       setTimeout(() => {
         videoAreaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -505,55 +456,7 @@ export function CoursePlayer({
     } else if (lesson?.isLocked) {
       toast({ title: "This lesson is locked", description: "Complete previous lessons first.", variant: "warning" });
     }
-  }, [allLessons, saveCurrentProgress]);
-
-  const handleProgress = useCallback(async (progress: number, currentTime: number) => {
-    if (!currentLessonId || isPreview) return;
-    try {
-      lastApiSaveTimeRef.current = Date.now();
-      const roundedProgress = Math.round(progress);
-      await lessonsApi.updateProgress(currentLessonId, {
-        progressPercent: roundedProgress,
-        lastWatchedTimestamp: Math.floor(currentTime),
-      });
-      // Update local state for immediate sidebar feedback
-      setProgressOverrides(prev => ({
-        ...prev,
-        [currentLessonId]: { progressPercent: roundedProgress, completedAt: prev[currentLessonId]?.completedAt || null, lastWatchedTimestamp: Math.floor(currentTime) },
-      }));
-    } catch (error) {
-      console.error("Failed to save progress:", error);
-    }
-  }, [currentLessonId]);
-
-  const handleComplete = useCallback(async () => {
-    if (!currentLessonId || isPreview) return;
-    try {
-      lastApiSaveTimeRef.current = Date.now();
-      await lessonsApi.updateProgress(currentLessonId, {
-        progressPercent: 100,
-        lastWatchedTimestamp: Math.floor(currentVideoTimeRef.current),
-      });
-      // Mark completed in local state
-      setProgressOverrides(prev => ({
-        ...prev,
-        [currentLessonId]: { progressPercent: 100, completedAt: new Date(), lastWatchedTimestamp: Math.floor(currentVideoTimeRef.current) },
-      }));
-
-      toast({
-        title: "Lesson completed!",
-        description: "Great job! Keep up the good work.",
-        variant: "success",
-      });
-    } catch (error) {
-      console.error("Failed to mark as complete:", error);
-    }
-  }, [currentLessonId]);
-
-  const handleVideoTimeUpdate = useCallback((time: number) => {
-    setCurrentVideoTime(time);
-    currentVideoTimeRef.current = time;
-  }, []);
+  }, [allLessons, saveBeforeSwitch, getProgress, setSearchParams]);
 
   const handleSeekToTimestamp = useCallback((time: number) => {
     videoRef.current?.seekTo(time);
@@ -561,7 +464,7 @@ export function CoursePlayer({
 
 
   return (
-    <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 lg:h-full overflow-x-hidden">
+    <div className="flex flex-col lg:flex-row gap-4 lg:gap-3.5 lg:h-full overflow-x-hidden">
       {/* Preview Mode Banner */}
       {isPreview && (
         <div className="w-full bg-amber-500 text-white text-center py-2 px-4 text-sm font-semibold rounded-xl flex items-center justify-center gap-2 lg:col-span-2" style={{ order: -1 }}>
@@ -570,18 +473,18 @@ export function CoursePlayer({
         </div>
       )}
       {/* Main Content */}
-      <div className="flex-1 min-w-0 flex flex-col gap-3 lg:gap-4 overflow-x-hidden overflow-y-auto">
+      <div className="flex-1 min-w-0 flex flex-col gap-3 lg:gap-3.5 overflow-x-hidden lg:overflow-hidden">
         {/* Mobile Top Bar */}
-        <div className="flex items-center gap-2 lg:gap-3">
-          <Button asChild variant="secondary" size="icon" className="h-10 w-10 lg:h-11 lg:w-11 flex-shrink-0">
+        <div className="flex items-center gap-2.5 lg:gap-3 flex-shrink-0">
+          <Button asChild variant="secondary" size="icon" className="h-10 w-10 flex-shrink-0 rounded-[14px]">
             <Link to={isPreview ? `/manage-courses/${course.id}/edit` : "/my-courses"}>
               <ChevronLeft className="w-5 h-5" />
             </Link>
           </Button>
           <div className="flex-1 min-w-0">
-            <h1 className="text-body lg:text-h3 font-bold text-text-1 truncate">{course.title}</h1>
-            <p className="text-caption text-text-3 hidden sm:block">
-              {course.creator.name}
+            <h1 className="text-body lg:text-[22px] lg:leading-tight font-extrabold text-text-1 truncate tracking-tight">{course.title}</h1>
+            <p className="text-caption text-text-2 hidden sm:block mt-0.5">
+              Instructor &nbsp;<span className="font-semibold text-primary-600">{course.creator.name}</span>
             </p>
           </div>
           {/* Desktop Actions */}
@@ -687,13 +590,13 @@ export function CoursePlayer({
         </div>
 
         {/* Video Player */}
-        <div ref={videoAreaRef} className="w-full flex-shrink-0">
+        <div ref={videoAreaRef} className="w-full flex-shrink-0 lg:flex-[3] lg:min-h-0" style={{ minHeight: 0 }}>
         {loadingSignedUrl && !videoSrc ? (
-          <div className="aspect-video rounded-2xl bg-surface-2 flex items-center justify-center">
+          <div className="aspect-video lg:aspect-auto lg:h-full rounded-[22px] bg-surface-2 flex items-center justify-center border border-border/60" style={{ boxShadow: '0 14px 40px rgba(21,25,35,0.08)' }}>
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
         ) : videoError && !videoSrc ? (
-          <div className="aspect-video rounded-2xl bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950/20 dark:to-red-900/10 border border-red-200 dark:border-red-800/50 flex flex-col items-center justify-center gap-3">
+          <div className="aspect-video lg:aspect-auto lg:h-full rounded-[22px] bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950/20 dark:to-red-900/10 border border-red-200 dark:border-red-800/50 flex flex-col items-center justify-center gap-3" style={{ boxShadow: '0 14px 40px rgba(21,25,35,0.08)' }}>
             <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
               <AlertCircle className="w-6 h-6 text-red-500" />
             </div>
@@ -701,25 +604,24 @@ export function CoursePlayer({
             <p className="text-caption text-red-600/70 dark:text-red-400/60 max-w-xs text-center">{videoError}</p>
           </div>
         ) : videoEncoding && !videoSrc ? (
-          <div className="aspect-video rounded-2xl bg-gradient-to-br from-muted to-surface-3 border border-border/90 flex flex-col items-center justify-center gap-3">
+          <div className="aspect-video lg:aspect-auto lg:h-full rounded-[22px] bg-gradient-to-br from-muted to-surface-3 border border-border/90 flex flex-col items-center justify-center gap-3" style={{ boxShadow: '0 14px 40px rgba(21,25,35,0.08)' }}>
             <Loader2 className="w-10 h-10 animate-spin text-primary" />
             <p className="text-body-sm font-semibold text-text-2">Video is being processed...</p>
             <p className="text-caption text-text-3">This usually takes a few minutes. It will appear automatically when ready.</p>
           </div>
         ) : (
+          <div className="lg:h-full" style={{ boxShadow: '0 14px 40px rgba(21,25,35,0.08)', borderRadius: '22px' }}>
           <VideoPlayer
             ref={videoRef}
             src={videoSrc}
             signingParams={videoSigningParams}
-            initialTime={
-              isFirstLoadRef.current && initialTime > 0
-                ? initialTime
-                : (getProgress(currentLesson!).lastWatchedTimestamp || 0)
-            }
+            className="lg:!aspect-auto lg:h-full lg:!rounded-[22px]"
+            initialTime={lessonSeekTime}
             onProgress={handleProgress}
             onComplete={handleComplete}
             onTimeUpdate={handleVideoTimeUpdate}
           />
+          </div>
         )}
         </div>
 
@@ -884,69 +786,69 @@ export function CoursePlayer({
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="overview" className="flex-1">
-          <TabsList className="w-full justify-start overflow-x-auto">
-            <TabsTrigger value="overview" className="text-caption">Overview</TabsTrigger>
-            <TabsTrigger value="qa" className="text-caption">Q&A</TabsTrigger>
-            <TabsTrigger value="notes" className="text-caption">Notes</TabsTrigger>
-            <TabsTrigger value="resources" className="text-caption">Resources</TabsTrigger>
+        <Tabs defaultValue="overview" className="flex-1 lg:flex-[2] lg:min-h-0 flex flex-col" style={{ minHeight: 0 }}>
+          <TabsList className="w-full lg:w-max justify-start overflow-x-auto flex-shrink-0">
+            <TabsTrigger value="overview" className="text-[13px] font-semibold lg:flex-none">Overview</TabsTrigger>
+            <TabsTrigger value="qa" className="text-[13px] font-semibold lg:flex-none">Q&A</TabsTrigger>
+            <TabsTrigger value="notes" className="text-[13px] font-semibold lg:flex-none">Notes</TabsTrigger>
+            <TabsTrigger value="resources" className="text-[13px] font-semibold lg:flex-none">Resources</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="overview">
-            {/* Course Stats - Mobile Compact */}
-            <div className="grid grid-cols-2 gap-2 lg:gap-3 mb-3 lg:mb-4">
-              <Card className="p-2.5 lg:p-3 flex items-center gap-2">
-                <BarChart3 className="w-4 h-4 text-text-2 flex-shrink-0" />
+          <TabsContent value="overview" className="lg:flex-1 lg:min-h-0 lg:overflow-y-auto">
+            {/* Course Stats — lightweight chips matching design */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 lg:gap-3 mb-3">
+              <div className="flex items-center gap-2.5 rounded-[18px] bg-white/92 dark:bg-card/90 border border-border/60 px-3 py-2.5">
+                <BarChart3 className="w-[18px] h-[18px] text-text-2 flex-shrink-0" />
                 <div className="min-w-0">
-                  <div className="text-[10px] lg:text-overline text-text-3 uppercase">Level</div>
-                  <div className="text-caption font-semibold text-text-1 truncate">
+                  <div className="text-[11px] text-text-3 font-semibold uppercase tracking-wide leading-none">Skill level</div>
+                  <div className="text-[13px] font-bold text-text-1 truncate mt-0.5">
                     {course.level?.replace("_", " ") || "All Levels"}
                   </div>
                 </div>
-              </Card>
-              <Card className="p-2.5 lg:p-3 flex items-center gap-2">
-                <Clock className="w-4 h-4 text-text-2 flex-shrink-0" />
+              </div>
+              <div className="flex items-center gap-2.5 rounded-[18px] bg-white/92 dark:bg-card/90 border border-border/60 px-3 py-2.5">
+                <Clock className="w-[18px] h-[18px] text-text-2 flex-shrink-0" />
                 <div className="min-w-0">
-                  <div className="text-[10px] lg:text-overline text-text-3 uppercase">Length</div>
-                  <div className="text-caption font-semibold text-text-1">
+                  <div className="text-[11px] text-text-3 font-semibold uppercase tracking-wide leading-none">Course length</div>
+                  <div className="text-[13px] font-bold text-text-1 mt-0.5">
                     {Math.round(totalDuration / 60)} min
                   </div>
                 </div>
-              </Card>
-              <Card className="p-2.5 lg:p-3 flex items-center gap-2">
-                <Users className="w-4 h-4 text-text-2 flex-shrink-0" />
+              </div>
+              <div className="flex items-center gap-2.5 rounded-[18px] bg-white/92 dark:bg-card/90 border border-border/60 px-3 py-2.5">
+                <Users className="w-[18px] h-[18px] text-text-2 flex-shrink-0" />
                 <div className="min-w-0">
-                  <div className="text-[10px] lg:text-overline text-text-3 uppercase">Progress</div>
-                  <div className="text-caption font-semibold text-text-1">
+                  <div className="text-[11px] text-text-3 font-semibold uppercase tracking-wide leading-none">Progress</div>
+                  <div className="text-[13px] font-bold text-text-1 mt-0.5">
                     {completedLessons}/{totalLessons}
                   </div>
                 </div>
-              </Card>
-              <Card className="p-2.5 lg:p-3 flex items-center gap-2">
-                <Globe className="w-4 h-4 text-text-2 flex-shrink-0" />
+              </div>
+              <div className="flex items-center gap-2.5 rounded-[18px] bg-white/92 dark:bg-card/90 border border-border/60 px-3 py-2.5">
+                <Globe className="w-[18px] h-[18px] text-text-2 flex-shrink-0" />
                 <div className="min-w-0">
-                  <div className="text-[10px] lg:text-overline text-text-3 uppercase">Language</div>
-                  <div className="text-caption font-semibold text-text-1">
+                  <div className="text-[11px] text-text-3 font-semibold uppercase tracking-wide leading-none">Language</div>
+                  <div className="text-[13px] font-bold text-text-1 mt-0.5">
                     {course.language}
                   </div>
                 </div>
-              </Card>
+              </div>
             </div>
 
             {/* Lesson Description */}
             {currentLesson?.description && (
-              <Card className="p-3 lg:p-4">
-                <h3 className="text-body-sm lg:text-body font-semibold text-text-1 mb-1.5 lg:mb-2">
+              <div className="px-0.5">
+                <h3 className="text-[15px] font-bold text-text-1 mb-1">
                   {currentLesson.title}
                 </h3>
-                <p className="text-caption lg:text-body-sm text-text-2">
+                <p className="text-[13px] leading-relaxed text-text-2">
                   {currentLesson.description}
                 </p>
-              </Card>
+              </div>
             )}
           </TabsContent>
 
-          <TabsContent value="qa">
+          <TabsContent value="qa" className="lg:flex-1 lg:min-h-0 lg:overflow-y-auto">
             {currentLessonId && (
               <QASection 
                 lessonId={currentLessonId} 
@@ -955,7 +857,7 @@ export function CoursePlayer({
             )}
           </TabsContent>
 
-          <TabsContent value="notes">
+          <TabsContent value="notes" className="lg:flex-1 lg:min-h-0 lg:overflow-y-auto">
             {currentLessonId && (
               <NotesSection
                 lessonId={currentLessonId}
@@ -965,7 +867,7 @@ export function CoursePlayer({
             )}
           </TabsContent>
 
-          <TabsContent value="resources">
+          <TabsContent value="resources" className="lg:flex-1 lg:min-h-0 lg:overflow-y-auto">
             {currentLesson?.resources && currentLesson.resources.length > 0 ? (
               <div className="space-y-2">
                 {currentLesson.resources.map((resource) => (
@@ -994,13 +896,13 @@ export function CoursePlayer({
       </div>
 
       {/* Desktop Sidebar - Lesson List */}
-      <aside className="hidden lg:flex w-[360px] flex-shrink-0 rounded-2xl bg-white/85 dark:bg-card/85 border border-border/90 p-3.5 flex-col gap-3.5">
-        <div className="flex items-center justify-between">
-          <h3 className="text-body font-bold text-text-1">Course content</h3>
-          <span className="text-caption text-text-3">{totalLessons} lessons</span>
+      <aside className="hidden lg:flex w-[360px] flex-shrink-0 rounded-[22px] bg-white/85 dark:bg-card/85 border border-border/70 p-3.5 flex-col gap-3.5">
+        <div className="flex items-center justify-between flex-shrink-0">
+          <h3 className="text-[14px] font-extrabold text-text-1">Course content</h3>
+          <span className="text-[12px] font-semibold text-text-3">{totalLessons} lessons</span>
         </div>
 
-        <div className="flex-1 overflow-auto space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-4 scrollbar-thin">
           {course.modules.map((module) => (
             <div key={module.id}>
               <h4 className="text-caption font-semibold text-text-2 mb-2 px-1">
@@ -1021,13 +923,13 @@ export function CoursePlayer({
           ))}
         </div>
 
-        {/* Your Time on the Course */}
-        <Card className="p-3">
-          <h4 className="text-caption font-bold text-text-1 mb-2 italic">
+        {/* Your Time on the Course — pushed to bottom like design */}
+        <div className="mt-auto flex-shrink-0 rounded-[18px] bg-white/92 dark:bg-card/90 border border-border/60 p-3 pt-2.5">
+          <h4 className="text-[12px] font-extrabold text-text-1 mb-2">
             Your time on the course
           </h4>
           <ActivityChart lessons={allLessons} gradientId={chartGradientId} />
-        </Card>
+        </div>
       </aside>
 
       {/* Mobile Lesson List Bottom Sheet */}

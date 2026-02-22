@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { cn } from "@/lib/utils";
 import { DesktopHeader } from "./desktop-header";
 import { LeftRail } from "./left-rail";
 import { DesktopSearchDialog } from "./desktop-search-dialog";
@@ -59,7 +60,7 @@ export function DesktopLayoutWrapper({
         )}
         
         {/* Main Content */}
-        <main className="flex-1 min-w-0 flex flex-col gap-3.5 overflow-auto">
+        <main className={cn("flex-1 min-w-0 flex flex-col gap-3.5", shouldShowHeader ? "overflow-auto" : "overflow-hidden")}>
           {children}
         </main>
       </div>
