@@ -1,7 +1,9 @@
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
-import { apiClient } from "@/lib/api-client";
+import { useState, useEffect, useRef } from "react";
+import { apiClient, courses as coursesApi } from "@/lib/api-client";
+import { useAuth } from "@/lib/auth-context";
 import { toast } from "@/components/ui/toaster";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Mail,
   Plus,
@@ -9,42 +11,251 @@ import {
   Shield,
   CheckCircle,
   Download,
+  X,
+  Send,
+  BookOpen,
+  Search,
+  Loader2,
 } from "lucide-react";
+
+// ── Send Message Modal ──
+
+function SendMessageModal({
+  userId,
+  userName,
+  userEmail,
+  onClose,
+}: {
+  userId: string;
+  userName: string | null;
+  userEmail: string;
+  onClose: () => void;
+}) {
+  const { token } = useAuth();
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handleEsc);
+    return () => document.removeEventListener("keydown", handleEsc);
+  }, [onClose]);
+
+  const handleSend = async () => {
+    if (!subject.trim() || !message.trim()) return;
+    setSending(true);
+    try {
+      await apiClient.users.sendMessage(userId, { subject: subject.trim(), message: message.trim() }, token || undefined);
+      toast({ title: "Email sent", description: `Message sent to ${userEmail}`, variant: "success" });
+      onClose();
+    } catch (error) {
+      toast({ title: error instanceof Error ? error.message : "Failed to send email", variant: "error" });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div ref={modalRef} className="w-full max-w-lg bg-white dark:bg-card rounded-2xl shadow-xl border border-border/80 overflow-hidden animate-fade-in">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border/80">
+          <div>
+            <h2 className="text-[15px] font-black text-text-1">Send message</h2>
+            <p className="text-[12px] text-text-3 mt-0.5">To: {userName || userEmail}</p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-surface-2 transition-colors">
+            <X className="w-4 h-4 text-text-2" />
+          </button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="text-[12px] font-bold text-text-2 mb-1.5 block">Subject</label>
+            <input
+              type="text"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder="Email subject..."
+              className="w-full h-10 px-3 rounded-xl border border-border/80 bg-white dark:bg-card text-[13px] text-text-1 placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-primary/30"
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="text-[12px] font-bold text-text-2 mb-1.5 block">Message</label>
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Write your message..."
+              rows={5}
+              className="w-full px-3 py-2.5 rounded-xl border border-border/80 bg-white dark:bg-card text-[13px] text-text-1 placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
+            />
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-border/80 bg-surface-1/50">
+          <button onClick={onClose} className="h-9 px-4 rounded-xl text-[13px] font-bold text-text-2 hover:bg-surface-2 transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={handleSend}
+            disabled={sending || !subject.trim() || !message.trim()}
+            className="h-9 px-4 rounded-xl text-[13px] font-bold bg-primary text-white inline-flex items-center gap-2 disabled:opacity-50 transition-colors hover:bg-primary/90"
+          >
+            {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+            {sending ? "Sending..." : "Send email"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Add Course Modal ──
+
+function AddCourseModal({
+  userId,
+  userName,
+  existingCourseIds,
+  onClose,
+  onEnrolled,
+}: {
+  userId: string;
+  userName: string | null;
+  existingCourseIds: string[];
+  onClose: () => void;
+  onEnrolled: () => void;
+}) {
+  const { token } = useAuth();
+  const [search, setSearch] = useState("");
+  const [coursesList, setCoursesList] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [enrolling, setEnrolling] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handleEsc);
+    return () => document.removeEventListener("keydown", handleEsc);
+  }, [onClose]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await coursesApi.list({ limit: 100, status: "PUBLISHED" }, token || undefined);
+        setCoursesList(res.courses || []);
+      } catch { setCoursesList([]); }
+      setLoading(false);
+    })();
+  }, [token]);
+
+  const filtered = coursesList.filter(
+    (c) =>
+      !existingCourseIds.includes(c.id) &&
+      (c.title?.toLowerCase().includes(search.toLowerCase()) || c.category?.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  const handleEnroll = async (courseId: string, courseTitle: string) => {
+    setEnrolling(courseId);
+    try {
+      await apiClient.users.enrollInCourse(userId, courseId, token || undefined);
+      toast({ title: "Enrolled", description: `${userName || "User"} enrolled in "${courseTitle}"`, variant: "success" });
+      onEnrolled();
+      onClose();
+    } catch (error) {
+      toast({ title: error instanceof Error ? error.message : "Failed to enroll", variant: "error" });
+    } finally {
+      setEnrolling(null);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="w-full max-w-lg bg-white dark:bg-card rounded-2xl shadow-xl border border-border/80 overflow-hidden animate-fade-in max-h-[80vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border/80 flex-shrink-0">
+          <div>
+            <h2 className="text-[15px] font-black text-text-1">Add course</h2>
+            <p className="text-[12px] text-text-3 mt-0.5">Enroll {userName || "user"} in a course</p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-surface-2 transition-colors">
+            <X className="w-4 h-4 text-text-2" />
+          </button>
+        </div>
+        <div className="px-5 pt-4 pb-2 flex-shrink-0">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-3" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search courses..."
+              className="w-full h-10 pl-9 pr-3 rounded-xl border border-border/80 bg-white dark:bg-card text-[13px] text-text-1 placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-primary/30"
+              autoFocus
+            />
+          </div>
+        </div>
+        <div className="flex-1 overflow-auto px-5 pb-5">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-5 h-5 animate-spin text-text-3" />
+            </div>
+          ) : filtered.length === 0 ? (
+            <p className="text-[13px] text-text-3 text-center py-12">
+              {search ? "No matching courses found" : "No available courses to enroll"}
+            </p>
+          ) : (
+            <div className="space-y-2 mt-2">
+              {filtered.map((course) => (
+                <div key={course.id} className="flex items-center gap-3 p-3 rounded-xl border border-border/80 hover:bg-surface-1/50 transition-colors">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <BookOpen className="w-4 h-4 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13px] font-bold text-text-1 truncate">{course.title}</div>
+                    {course.category && <div className="text-[11px] text-text-3">{course.category}</div>}
+                  </div>
+                  <button
+                    onClick={() => handleEnroll(course.id, course.title)}
+                    disabled={enrolling === course.id}
+                    className="h-8 px-3 rounded-xl text-[12px] font-bold bg-primary text-white inline-flex items-center gap-1.5 disabled:opacity-50 hover:bg-primary/90 transition-colors flex-shrink-0"
+                  >
+                    {enrolling === course.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                    {enrolling === course.id ? "Enrolling..." : "Enroll"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ── Header Action Buttons ──
 
 interface UserHeaderActionsProps {
   userId: string;
   userName: string | null;
+  userEmail: string;
   userRole: string;
   blockedAt?: string | null;
+  existingCourseIds?: string[];
+  onEnrolled?: () => void;
 }
 
 export function UserHeaderActions({
   userId,
   userName,
+  userEmail,
   userRole,
   blockedAt,
+  existingCourseIds = [],
+  onEnrolled,
 }: UserHeaderActionsProps) {
   const navigate = useNavigate();
   const [blocking, setBlocking] = useState(false);
   const [isBlocked, setIsBlocked] = useState(!!blockedAt);
-
-  const handleMessage = () => {
-    toast({
-      title: "Messaging coming soon",
-      description: "Direct messaging is under development.",
-      variant: "info",
-    });
-  };
-
-  const handleAddCourse = () => {
-    toast({
-      title: "Add course coming soon",
-      description: "Manual course enrollment is under development.",
-      variant: "info",
-    });
-  };
+  const [showMessageModal, setShowMessageModal] = useState(false);
+  const [showAddCourseModal, setShowAddCourseModal] = useState(false);
 
   const handleBlock = async () => {
     if (userRole === "ADMIN") {
@@ -84,21 +295,22 @@ export function UserHeaderActions({
   };
 
   return (
-    <div className="flex items-center gap-2.5">
-      <button
-        onClick={handleMessage}
-        className="h-10 px-3.5 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-text-1 font-black text-[13px] inline-flex items-center gap-2 shadow-[0_14px_28px_rgba(21,25,35,0.06)] dark:shadow-[0_14px_28px_rgba(0,0,0,0.25)]"
-      >
-        <Mail className="w-4 h-4" />
-        Message
-      </button>
-      <button
-        onClick={handleAddCourse}
-        className="h-10 px-3.5 rounded-[16px] border border-primary/55 bg-primary text-white font-black text-[13px] inline-flex items-center gap-2 shadow-[0_16px_34px_rgba(47,111,237,0.22)]"
-      >
-        <Plus className="w-4 h-4" />
-        Add course
-      </button>
+    <>
+      <div className="flex items-center gap-2.5">
+        <button
+          onClick={() => setShowMessageModal(true)}
+          className="h-10 px-3.5 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-text-1 font-black text-[13px] inline-flex items-center gap-2 shadow-[0_14px_28px_rgba(21,25,35,0.06)] dark:shadow-[0_14px_28px_rgba(0,0,0,0.25)]"
+        >
+          <Mail className="w-4 h-4" />
+          Message
+        </button>
+        <button
+          onClick={() => setShowAddCourseModal(true)}
+          className="h-10 px-3.5 rounded-[16px] border border-primary/55 bg-primary text-white font-black text-[13px] inline-flex items-center gap-2 shadow-[0_16px_34px_rgba(47,111,237,0.22)]"
+        >
+          <Plus className="w-4 h-4" />
+          Add course
+        </button>
       <button
         onClick={handleBlock}
         disabled={blocking}
@@ -120,7 +332,27 @@ export function UserHeaderActions({
           </>
         )}
       </button>
-    </div>
+      </div>
+
+      {showMessageModal && (
+        <SendMessageModal
+          userId={userId}
+          userName={userName}
+          userEmail={userEmail}
+          onClose={() => setShowMessageModal(false)}
+        />
+      )}
+
+      {showAddCourseModal && (
+        <AddCourseModal
+          userId={userId}
+          userName={userName}
+          existingCourseIds={existingCourseIds}
+          onClose={() => setShowAddCourseModal(false)}
+          onEnrolled={() => onEnrolled?.()}
+        />
+      )}
+    </>
   );
 }
 

@@ -60,7 +60,7 @@ export function DesktopLayoutWrapper({
         )}
         
         {/* Main Content */}
-        <main className={cn("flex-1 min-w-0 flex flex-col gap-3.5", shouldShowHeader ? "overflow-auto" : "overflow-hidden")}>
+        <main className={cn("flex-1 min-w-0 flex flex-col gap-3.5 overflow-auto")}>
           {children}
         </main>
       </div>

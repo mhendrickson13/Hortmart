@@ -12,6 +12,22 @@ import { Play, Clock, Users, Globe, BarChart3, Lock, Star, CheckCircle2, Loader2
 import { formatDuration, formatPrice, getInitials, cn } from "@/lib/utils";
 import { toast } from "@/components/ui/toaster";
 
+/** Format a date to DD/MM/YYYY HH:mm in CST (America/Chicago) */
+function fmtCST(d: Date | string | null | undefined): string {
+  if (!d) return "";
+  const dt = typeof d === "string" ? new Date(d) : d;
+  if (isNaN(dt.getTime())) return "";
+  return dt.toLocaleString("en-GB", {
+    timeZone: "America/Chicago",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).replace(",", "");
+}
+
 export default function CourseOverviewPage() {
   const { id } = useParams<{ id: string }>();
   const { user, token, isLoading: authLoading } = useAuth();
@@ -331,7 +347,7 @@ export default function CourseOverviewPage() {
       </div>
 
       {/* ========== DESKTOP LAYOUT ========== */}
-      <div className="hidden lg:block max-w-6xl mx-auto">
+      <div className="hidden lg:block">
         <div className="flex gap-8">
           {/* Main Content */}
           <div className="flex-1 min-w-0 space-y-6">
@@ -476,7 +492,7 @@ export default function CourseOverviewPage() {
           </div>
 
           {/* Sidebar */}
-          <div className="w-[380px] flex-shrink-0">
+          <div className="w-[480px] flex-shrink-0">
             <div className="sticky top-4 space-y-4">
               <Card className="p-5 shadow-soft-2">
                 <div className="flex items-center justify-between mb-4">
@@ -528,19 +544,22 @@ function MobileCurriculumPanel({ id, course, visibleModules, totalModules, total
             <div className="space-y-1 ml-7">
               {(mod.lessons || []).map((lesson: any) => {
                 const progress = lesson.progressPercent || 0;
-                const isCompleted = !!lesson.completedAt;
+                const isCompleted = !!lesson.completedAt || progress >= 100;
                 const showProgress = isEnrolled && !lesson.isLocked;
                 const isClickable = (isEnrolled && !lesson.isLocked) || (!isEnrolled && lesson.isFreePreview);
                 const isPreviewing = previewLessonId === lesson.id;
                 const content = (
-                  <div className={cn("flex items-center gap-2 py-2 px-2.5 rounded-lg border", lesson.isLocked ? "border-border/40 bg-muted/50" : isPreviewing ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-border bg-card", isClickable && "cursor-pointer hover:bg-surface-3 transition-colors")}>
-                    <div className={cn("w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0", isCompleted ? "bg-success" : lesson.isLocked ? "border-[1.5px] border-text-3/30" : showProgress && progress > 0 ? "border-[1.5px] border-primary" : "border-[1.5px] border-primary/50")}>
+                  <div className={cn("flex items-start gap-2 py-2 px-2.5 rounded-lg border", lesson.isLocked ? "border-border/40 bg-muted/50" : isPreviewing ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-border bg-card", isClickable && "cursor-pointer hover:bg-surface-3 transition-colors")}>
+                    <div className={cn("w-4 h-4 mt-0.5 rounded-full flex items-center justify-center flex-shrink-0", isCompleted ? "bg-success" : lesson.isLocked ? "border-[1.5px] border-text-3/30" : showProgress && progress > 0 ? "border-[1.5px] border-primary" : "border-[1.5px] border-primary/50")}>
                       {isCompleted ? <CheckCircle2 className="w-4 h-4 text-white" /> : lesson.isLocked ? <Lock className="w-2 h-2 text-text-3" /> : <Play className="w-2 h-2 text-primary" fill="currentColor" />}
                     </div>
-                    <span className={cn("text-[11px] font-medium truncate flex-1", lesson.isLocked ? "text-text-3" : isCompleted ? "text-success line-through" : isPreviewing ? "text-primary font-semibold" : "text-text-1")}>{lesson.title}</span>
+                    <div className="flex-1 min-w-0">
+                      <span className={cn("text-[11px] font-medium leading-tight", lesson.isLocked ? "text-text-3" : isCompleted ? "text-success line-through" : isPreviewing ? "text-primary font-semibold" : "text-text-1")}>{lesson.title}</span>
+                      {showProgress && isCompleted && lesson.completedAt && <p className="text-[9px] text-success/70 mt-0.5">{fmtCST(lesson.completedAt)}</p>}
+                    </div>
                     <div className="flex items-center gap-1.5 flex-shrink-0">
                       {showProgress && !isCompleted && progress > 0 && <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">{progress}%</span>}
-                      {showProgress && isCompleted && <span className="text-[9px] font-bold text-success">Done</span>}
+                      {showProgress && isCompleted && !lesson.completedAt && <span className="text-[9px] font-bold text-success">Done</span>}
                       <span className="text-[10px] text-text-3">{formatDuration(lesson.durationSeconds || 0)}</span>
                     </div>
                   </div>
@@ -584,26 +603,29 @@ function DesktopCurriculumPanel({ course, visibleModules, totalModules, totalLes
             <div className="space-y-1.5 ml-8">
               {(mod.lessons || []).map((lesson: any) => {
                 const progress = lesson.progressPercent || 0;
-                const isCompleted = !!lesson.completedAt;
+                const isCompleted = !!lesson.completedAt || progress >= 100;
                 const showProgress = isEnrolled && !lesson.isLocked;
                 const isClickable = (isEnrolled && !lesson.isLocked) || (!isEnrolled && lesson.isFreePreview);
                 const isPreviewing = previewLessonId === lesson.id;
                 const content = (
-                  <div className={cn("flex items-center gap-3 p-3 rounded-xl border transition-colors", lesson.isLocked ? "border-border/50 bg-muted/50" : isPreviewing ? "border-primary bg-primary/5 ring-1 ring-primary/30" : lesson.isFreePreview || !lesson.isLocked ? "border-border bg-card hover:bg-surface-3" : "border-border bg-card", isClickable && "cursor-pointer")}>
-                    <div className={cn("w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0", isCompleted ? "bg-success" : lesson.isLocked ? "border-2 border-text-3/40" : showProgress && progress > 0 ? "border-2 border-primary" : lesson.isFreePreview ? "border-2 border-primary bg-primary-100" : "border-2 border-text-3/50")}>
+                  <div className={cn("flex items-start gap-3 p-3 rounded-xl border transition-colors", lesson.isLocked ? "border-border/50 bg-muted/50" : isPreviewing ? "border-primary bg-primary/5 ring-1 ring-primary/30" : lesson.isFreePreview || !lesson.isLocked ? "border-border bg-card hover:bg-surface-3" : "border-border bg-card", isClickable && "cursor-pointer")}>
+                    <div className={cn("w-5 h-5 mt-0.5 rounded-full flex items-center justify-center flex-shrink-0", isCompleted ? "bg-success" : lesson.isLocked ? "border-2 border-text-3/40" : showProgress && progress > 0 ? "border-2 border-primary" : lesson.isFreePreview ? "border-2 border-primary bg-primary-100" : "border-2 border-text-3/50")}>
                       {isCompleted ? <CheckCircle2 className="w-5 h-5 text-white" /> : lesson.isLocked ? <Lock className="w-2.5 h-2.5 text-text-3" /> : lesson.isFreePreview ? <Play className="w-2.5 h-2.5 text-primary" fill="currentColor" /> : showProgress && progress > 0 ? <span className="text-[8px] font-bold text-primary">{progress}</span> : null}
                     </div>
-                    <p className={cn("text-caption font-medium truncate flex-1", lesson.isLocked ? "text-text-3" : isCompleted ? "text-success" : isPreviewing ? "text-primary font-semibold" : "text-text-1")}>{lesson.title}</p>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {showProgress && !isCompleted && progress > 0 && (
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden"><div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} /></div>
-                          <span className="text-[10px] font-semibold text-primary">{progress}%</span>
-                        </div>
-                      )}
-                      {showProgress && isCompleted && <span className="text-[10px] font-bold text-success">Completed</span>}
-                      <span className="text-[11px] text-text-3">{formatDuration(lesson.durationSeconds || 0)}</span>
-                      {lesson.isFreePreview && <Pill size="sm" className="text-[10px] px-1.5 py-0.5">Preview</Pill>}
+                    <div className="flex-1 min-w-0">
+                      <p className={cn("text-body-sm font-medium leading-normal", lesson.isLocked ? "text-text-3" : isCompleted ? "text-success" : isPreviewing ? "text-primary font-semibold" : "text-text-1")}>{lesson.title}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        {showProgress && !isCompleted && progress > 0 && (
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden"><div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} /></div>
+                            <span className="text-[10px] font-semibold text-primary">{progress}%</span>
+                          </div>
+                        )}
+                        {showProgress && isCompleted && !lesson.completedAt && <span className="text-[10px] font-bold text-success">Completed</span>}
+                        {showProgress && isCompleted && lesson.completedAt && <p className="text-[9px] text-success/70">{fmtCST(lesson.completedAt)}</p>}
+                        <span className="text-[11px] text-text-3">{formatDuration(lesson.durationSeconds || 0)}</span>
+                        {lesson.isFreePreview && <Pill size="sm" className="text-[10px] px-1.5 py-0.5">Preview</Pill>}
+                      </div>
                     </div>
                   </div>
                 );

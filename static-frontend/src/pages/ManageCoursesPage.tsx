@@ -25,7 +25,6 @@ export default function ManageCoursesPage() {
     <>
       <AdminPageHeader
         title="Manage Courses"
-        primaryAction={{ label: "New Course", href: "/manage-courses/new" }}
       />
       <CoursesList courses={coursesList as any} />
     </>

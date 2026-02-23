@@ -72,6 +72,10 @@ router.delete('/:id', auth_js_1.authenticate, async (req, res) => {
 // ── Helper: create a notification (called from other routes) ──
 async function createNotification(params) {
     try {
+        // Check if user has in-app notifications enabled
+        const userPref = await (0, db_js_1.queryOne)('SELECT notifyInApp FROM users WHERE id = ?', [params.userId]);
+        if (userPref && !userPref.notifyInApp)
+            return; // User disabled in-app notifications
         const id = (0, db_js_1.genId)();
         await (0, db_js_1.execute)(`INSERT INTO notifications (id, userId, type, title, description, link, isRead, createdAt) VALUES (?, ?, ?, ?, ?, ?, false, NOW(3))`, [id, params.userId, params.type, params.title, params.description, params.link || null]);
     }

@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CourseRow, CourseRowHeader } from "@/components/admin/course-row";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Plus, Upload, Check, ChevronDown, X, ArrowUpDown, SlidersHorizontal } from "lucide-react";
+import { Search, Plus, Check, ChevronDown, X, ArrowUpDown, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/components/ui/toaster";
@@ -218,16 +218,6 @@ export function CoursesList({ courses: initialCourses }: CoursesListProps) {
               </button>
             )}
           </div>
-
-          {/* Import Button */}
-          <Button
-            variant="secondary"
-            onClick={() => toast({ title: "Import coming soon", description: "Import functionality is under development.", variant: "info" })}
-            className="h-10 rounded-[16px] px-3.5 gap-2 font-black text-[13px] border border-border/95 bg-white/95 dark:bg-card/95"
-          >
-            <Upload className="w-4 h-4" />
-            <span className="hidden sm:inline">Import</span>
-          </Button>
 
           {/* Create Course Button */}
           <Button asChild className="h-10 rounded-[16px] px-3.5 gap-2 font-black text-[13px] shadow-[0_16px_34px_rgba(47,111,237,0.24)]">

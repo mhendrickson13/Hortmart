@@ -2,6 +2,8 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { lessons as lessonsApi, apiClient, uploads as uploadsApi, video as videoApi } from "@/lib/api-client";
+import { VideoPlayer } from "@/components/learner/video-player";
+import { useAuth } from "@/lib/auth-context";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/toaster";
@@ -14,7 +16,6 @@ import {
   FileText,
   ExternalLink,
   Link2,
-  ToggleRight,
   Save,
   Send,
   Loader2,
@@ -42,6 +43,8 @@ interface LessonData {
   position: number;
   isLocked: boolean;
   isFreePreview: boolean;
+  qaEnabled: boolean;
+  notesEnabled: boolean;
   moduleId: string;
   resources: ResourceData[];
   module?: {
@@ -99,6 +102,8 @@ export default function LessonEditPage() {
     position: raw.position ?? 0,
     isLocked: raw.isLocked ?? false,
     isFreePreview: raw.isFreePreview ?? false,
+    qaEnabled: raw.qaEnabled ?? true,
+    notesEnabled: raw.notesEnabled ?? true,
     moduleId: raw.moduleId || "",
     resources: raw.resources || [],
     module: raw.module,
@@ -210,6 +215,31 @@ function LessonEditor({
   // Resource file upload
   const [uploadingResource, setUploadingResource] = useState(false);
   const resourceInputRef = useRef<HTMLInputElement>(null);
+
+  // Video preview
+  const { token } = useAuth();
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewSigning, setPreviewSigning] = useState<any>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+
+  useEffect(() => {
+    if (encodingStatus === 'ready') {
+      setLoadingPreview(true);
+      videoApi.getSignedUrl(lesson.id, token || undefined)
+        .then((data) => {
+          setPreviewUrl(data.signedManifestUrl);
+          setPreviewSigning(data.signingParams);
+        })
+        .catch(() => { /* signed URL not available */ })
+        .finally(() => setLoadingPreview(false));
+    } else if (lesson.videoUrl && encodingStatus !== 'encoding') {
+      setPreviewUrl(lesson.videoUrl);
+      setPreviewSigning(null);
+    } else {
+      setPreviewUrl(null);
+      setPreviewSigning(null);
+    }
+  }, [encodingStatus, lesson.id, lesson.videoUrl, token]);
 
   const [isSavingAll, setIsSavingAll] = useState(false);
 
@@ -598,6 +628,21 @@ function LessonEditor({
               </div>
             ) : (lesson.videoUrl || lesson.hlsUrl || lesson.videoStatus === 'ready' || lesson.videoStatus === 'encoding') ? (
               <div>
+                {/* Video Preview Player */}
+                {previewUrl && !loadingPreview && (
+                  <div className="mb-3 rounded-[14px] overflow-hidden bg-black aspect-video">
+                    <VideoPlayer
+                      src={previewUrl}
+                      signingParams={previewSigning}
+                      className="w-full h-full"
+                    />
+                  </div>
+                )}
+                {loadingPreview && (
+                  <div className="mb-3 rounded-[14px] overflow-hidden bg-black/90 aspect-video flex items-center justify-center">
+                    <Loader2 className="w-8 h-8 text-white/60 animate-spin" />
+                  </div>
+                )}
                 <div className="flex items-center gap-3">
                   {encodingStatus === 'encoding' && (
                     <div className="w-12 h-12 rounded-[14px] grid place-items-center flex-shrink-0 bg-amber-50 text-amber-600">
@@ -816,24 +861,32 @@ function LessonEditor({
           <h2 className="mt-1.5 text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">Lesson features</h2>
 
           <div className="rounded-[22px] border border-border/95 bg-white/95 dark:bg-card/95 p-3 space-y-2.5">
-            <div className="flex items-center gap-3 p-3 rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 grid place-items-center text-primary flex-shrink-0">
-                <ToggleRight className="w-4 h-4" />
+            <button
+              type="button"
+              onClick={() => saveField("qaEnabled", !lesson.qaEnabled)}
+              className="w-full flex items-center gap-3 p-3 rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 cursor-pointer hover:bg-muted/50 transition-colors"
+            >
+              <div className={`w-10 h-5 rounded-full flex items-center px-0.5 transition-colors ${lesson.qaEnabled ? 'bg-primary justify-end' : 'bg-border justify-start'}`}>
+                <div className="w-4 h-4 rounded-full bg-white shadow-sm" />
               </div>
-              <div>
+              <div className="text-left">
                 <div className="font-black text-text-1 text-[13px]">Q&A enabled</div>
                 <div className="mt-0.5 text-[12px] font-extrabold text-text-3">Learners can ask questions on this lesson.</div>
               </div>
-            </div>
-            <div className="flex items-center gap-3 p-3 rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 grid place-items-center text-primary flex-shrink-0">
-                <ToggleRight className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => saveField("notesEnabled", !lesson.notesEnabled)}
+              className="w-full flex items-center gap-3 p-3 rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 cursor-pointer hover:bg-muted/50 transition-colors"
+            >
+              <div className={`w-10 h-5 rounded-full flex items-center px-0.5 transition-colors ${lesson.notesEnabled ? 'bg-primary justify-end' : 'bg-border justify-start'}`}>
+                <div className="w-4 h-4 rounded-full bg-white shadow-sm" />
               </div>
-              <div>
+              <div className="text-left">
                 <div className="font-black text-text-1 text-[13px]">Notes enabled</div>
                 <div className="mt-0.5 text-[12px] font-extrabold text-text-3">Learners can take timestamped notes.</div>
               </div>
-            </div>
+            </button>
           </div>
 
           {/* Footer Actions */}

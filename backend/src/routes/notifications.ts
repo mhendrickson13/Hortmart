@@ -99,6 +99,10 @@ export async function createNotification(params: {
   link?: string;
 }) {
   try {
+    // Check if user has in-app notifications enabled
+    const userPref = await queryOne<any>('SELECT notifyInApp FROM users WHERE id = ?', [params.userId]);
+    if (userPref && !userPref.notifyInApp) return; // User disabled in-app notifications
+
     const id = genId();
     await execute(
       `INSERT INTO notifications (id, userId, type, title, description, link, isRead, createdAt) VALUES (?, ?, ?, ?, ?, ?, false, NOW(3))`,

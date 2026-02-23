@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { users as usersApi } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { Card } from "@/components/ui/card";
@@ -11,12 +12,28 @@ import {
   EditPermissionsButton,
   ReviewRefundButton,
 } from "@/components/admin/user-detail-actions";
-import { ArrowLeft, Mail, BookOpen, Shield, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Mail, BookOpen, Shield, AlertTriangle, ChevronDown, ChevronUp, Eye, Clock, CheckCircle, Circle, Play } from "lucide-react";
 import { formatCurrency, formatRelativeTime } from "@/lib/utils";
+
+/** Format seconds as "Xm Ys" */
+function fmtDur(s: number) {
+  if (!s || s < 1) return "—";
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+}
+
+/** Format ISO/date string as short date */
+function fmtDate(d: string | null | undefined) {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
 
 export default function UserDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { token } = useAuth();
+  const queryClient = useQueryClient();
+  const [expandedEnrollment, setExpandedEnrollment] = useState<string | null>(null);
 
   const { data: userData, isLoading: userLoading } = useQuery({
     queryKey: ["user", id],
@@ -56,12 +73,18 @@ export default function UserDetailPage() {
     courseId: String(e.courseId),
     courseTitle: String(e.courseTitle || "Course"),
     coursePrice: Number(e.coursePrice ?? 0),
+    coverImage: e.course?.coverImage || e.coverImage || null,
     enrolledAt: e.enrolledAt || "",
     totalLessons: Number(e.totalLessons ?? 0),
     completedLessons: Number(e.completedLessons ?? 0),
     progressPercent: Number(e.progressPercent ?? e.progress ?? 0),
     lastActivityAt: e.lastActivityAt || null,
     isCompleted: Boolean(e.isCompleted),
+    lessonDetails: (e.lessonDetails || []) as Array<{
+      id: string; title: string; moduleTitle: string; durationSeconds: number;
+      progressPercent: number; watchedSeconds: number; viewCount: number;
+      firstViewedAt: string | null; lastWatchedAt: string | null; completedAt: string | null;
+    }>,
   }));
 
   const kpis = {
@@ -104,7 +127,15 @@ export default function UserDetailPage() {
             </p>
           </div>
         </div>
-        <UserHeaderActions userId={user.id} userName={user.name} userRole={user.role} blockedAt={(user as any).blockedAt} />
+        <UserHeaderActions
+          userId={user.id}
+          userName={user.name}
+          userEmail={user.email}
+          userRole={user.role}
+          blockedAt={(user as any).blockedAt}
+          existingCourseIds={enrollments.map((e: any) => e.courseId)}
+          onEnrolled={() => queryClient.invalidateQueries({ queryKey: ["user-enrollments", id] })}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-3 flex-1 min-h-0">
@@ -154,7 +185,7 @@ export default function UserDetailPage() {
             </div>
           </Card>
 
-          {/* Enrolled Courses */}
+          {/* Enrolled Courses — expandable with lesson-level stats */}
           <Card className="p-4 flex-1">
             <h3 className="text-[14px] font-black text-text-1 flex items-center gap-2 mb-4">
               <BookOpen className="w-5 h-5 text-primary" /> Enrolled Courses ({enrollments.length})
@@ -163,26 +194,97 @@ export default function UserDetailPage() {
               <p className="text-body-sm text-text-2 text-center py-8">No courses enrolled.</p>
             ) : (
               <div className="space-y-2.5">
-                {enrollments.map((enrollment: any) => (
-                  <div
-                    key={enrollment.id}
-                    className="flex items-center gap-4 p-3 rounded-xl border border-border/95 bg-white/95 dark:bg-card/95"
-                  >
-                    <div className="w-10 h-10 rounded-xl gradient-primary flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <span className="text-caption font-bold text-text-1 truncate">
-                        {enrollment.courseTitle}
-                      </span>
-                      <div className="text-caption text-text-3 mt-0.5">
-                        {enrollment.completedLessons}/{enrollment.totalLessons} lessons
-                      </div>
-                      <Progress value={enrollment.progressPercent} className="h-1.5 mt-1.5" />
+                {enrollments.map((enrollment: any) => {
+                  const isExpanded = expandedEnrollment === enrollment.id;
+                  return (
+                    <div key={enrollment.id} className="rounded-xl border border-border/95 bg-white/95 dark:bg-card/95 overflow-hidden">
+                      {/* Course header row — click to expand */}
+                      <button
+                        type="button"
+                        className="w-full flex items-center gap-4 p-3 text-left hover:bg-muted/40 transition-colors"
+                        onClick={() => setExpandedEnrollment(isExpanded ? null : enrollment.id)}
+                      >
+                        {enrollment.coverImage ? (
+                          <img src={enrollment.coverImage} alt="" className="w-10 h-10 rounded-xl object-cover flex-shrink-0" />
+                        ) : (
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center text-primary flex-shrink-0">
+                            <BookOpen className="w-4 h-4" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <span className="text-caption font-bold text-text-1 block truncate">
+                            {enrollment.courseTitle}
+                          </span>
+                          <div className="text-caption text-text-3 mt-0.5">
+                            {enrollment.completedLessons}/{enrollment.totalLessons} lessons
+                          </div>
+                          <Progress value={enrollment.progressPercent} className="h-1.5 mt-1.5" />
+                        </div>
+                        <div className="text-caption font-bold text-text-1 mr-1">
+                          {enrollment.progressPercent}%
+                        </div>
+                        {isExpanded ? <ChevronUp className="w-4 h-4 text-text-3 flex-shrink-0" /> : <ChevronDown className="w-4 h-4 text-text-3 flex-shrink-0" />}
+                      </button>
+
+                      {/* Expanded: per-lesson stats table */}
+                      {isExpanded && enrollment.lessonDetails.length > 0 && (
+                        <div className="border-t border-border/80 bg-muted/30 px-3 py-2">
+                          <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px] mb-2 flex items-center gap-1.5">
+                            <Play className="w-3 h-3" /> Lesson-by-lesson stats
+                          </div>
+                          <div className="space-y-1">
+                            {enrollment.lessonDetails.map((ld: any, idx: number) => {
+                              const isComplete = !!ld.completedAt;
+                              const watchRatio = ld.durationSeconds > 0 ? Math.round((ld.watchedSeconds / ld.durationSeconds) * 100) : 0;
+                              return (
+                                <div key={ld.id} className="rounded-lg border border-border/70 bg-white/80 dark:bg-card/80 p-2.5">
+                                  <div className="flex items-center gap-2">
+                                    {isComplete ? (
+                                      <CheckCircle className="w-3.5 h-3.5 text-success flex-shrink-0" />
+                                    ) : ld.viewCount > 0 ? (
+                                      <Circle className="w-3.5 h-3.5 text-warning flex-shrink-0" />
+                                    ) : (
+                                      <Circle className="w-3.5 h-3.5 text-text-4 flex-shrink-0" />
+                                    )}
+                                    <span className="text-[12px] font-bold text-text-1 flex-1 truncate">
+                                      {idx + 1}. {ld.title}
+                                    </span>
+                                    <span className="text-[11px] text-text-3 font-extrabold flex-shrink-0">
+                                      {ld.moduleTitle}
+                                    </span>
+                                  </div>
+                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 mt-2 text-[11px]">
+                                    <div className="flex items-center gap-1 text-text-3">
+                                      <Eye className="w-3 h-3" />
+                                      <span className="font-bold">{ld.viewCount}</span> views
+                                    </div>
+                                    <div className="flex items-center gap-1 text-text-3">
+                                      <Clock className="w-3 h-3" />
+                                      <span className="font-bold">{fmtDur(ld.watchedSeconds)}</span>
+                                      {ld.durationSeconds > 0 && (
+                                        <span className="text-text-4">/ {fmtDur(ld.durationSeconds)} ({watchRatio}%)</span>
+                                      )}
+                                    </div>
+                                    <div className="text-text-3 truncate" title={ld.firstViewedAt ? fmtDate(ld.firstViewedAt) : ""}>
+                                      First: <span className="font-bold">{fmtDate(ld.firstViewedAt)}</span>
+                                    </div>
+                                    <div className="text-text-3 truncate" title={ld.completedAt ? fmtDate(ld.completedAt) : ""}>
+                                      {isComplete ? (
+                                        <>Done: <span className="font-bold text-success">{fmtDate(ld.completedAt)}</span></>
+                                      ) : (
+                                        <>Last: <span className="font-bold">{fmtDate(ld.lastWatchedAt)}</span></>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <div className="text-caption font-bold text-text-1">
-                      {enrollment.progressPercent}%
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </Card>

@@ -3,6 +3,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const db_js_1 = require("../db.js");
 const auth_js_1 = require("../middleware/auth.js");
+const email_js_1 = require("../email.js");
+const notifications_js_1 = require("./notifications.js");
 const router = (0, express_1.Router)();
 // GET /lessons/:id
 router.get('/:id', auth_js_1.optionalAuth, async (req, res) => {
@@ -13,6 +15,8 @@ router.get('/:id', auth_js_1.optionalAuth, async (req, res) => {
             return res.status(404).json({ error: 'Lesson not found' });
         lesson.isLocked = !!lesson.isLocked;
         lesson.isFreePreview = !!lesson.isFreePreview;
+        lesson.qaEnabled = lesson.qaEnabled === undefined ? true : !!lesson.qaEnabled;
+        lesson.notesEnabled = lesson.notesEnabled === undefined ? true : !!lesson.notesEnabled;
         // Get module + course info for access check
         const mod = await (0, db_js_1.queryOne)('SELECT * FROM modules WHERE id = ?', [lesson.moduleId]);
         const course = await (0, db_js_1.queryOne)('SELECT id, title, creatorId, status FROM courses WHERE id = ?', [mod?.courseId]);
@@ -47,7 +51,7 @@ router.patch('/:id', auth_js_1.authenticate, async (req, res) => {
         if (!course || (course.creatorId !== req.user.id && req.user.role !== 'ADMIN')) {
             return res.status(403).json({ error: 'Access denied' });
         }
-        const { title, description, videoUrl, durationSeconds, position, isLocked, isFreePreview } = req.body;
+        const { title, description, videoUrl, durationSeconds, position, isLocked, isFreePreview, qaEnabled, notesEnabled } = req.body;
         const sets = [];
         const params = [];
         if (title !== undefined) {
@@ -78,6 +82,14 @@ router.patch('/:id', auth_js_1.authenticate, async (req, res) => {
             sets.push('isFreePreview = ?');
             params.push(isFreePreview);
         }
+        if (qaEnabled !== undefined) {
+            sets.push('qaEnabled = ?');
+            params.push(qaEnabled);
+        }
+        if (notesEnabled !== undefined) {
+            sets.push('notesEnabled = ?');
+            params.push(notesEnabled);
+        }
         sets.push('updatedAt = ?');
         params.push((0, db_js_1.now)());
         params.push(id);
@@ -86,6 +98,8 @@ router.patch('/:id', auth_js_1.authenticate, async (req, res) => {
         if (updated) {
             updated.isLocked = !!updated.isLocked;
             updated.isFreePreview = !!updated.isFreePreview;
+            updated.qaEnabled = updated.qaEnabled === undefined ? true : !!updated.qaEnabled;
+            updated.notesEnabled = updated.notesEnabled === undefined ? true : !!updated.notesEnabled;
         }
         // ── Auto-trigger encoding when a new S3 video is set ──
         if (videoUrl && typeof videoUrl === 'string' && videoUrl !== lesson.videoUrl) {
@@ -172,7 +186,7 @@ router.get('/:id/progress', auth_js_1.authenticate, async (req, res) => {
 router.post('/:id/progress', auth_js_1.authenticate, async (req, res) => {
     try {
         const { id } = req.params;
-        const { progressPercent: rawProgress, lastWatchedTimestamp } = req.body;
+        const { progressPercent: rawProgress, lastWatchedTimestamp, watchedSeconds: rawWatched, viewCountIncrement } = req.body;
         if (rawProgress === undefined || lastWatchedTimestamp === undefined) {
             return res.status(400).json({ error: 'progressPercent and lastWatchedTimestamp are required' });
         }
@@ -180,25 +194,110 @@ router.post('/:id/progress', auth_js_1.authenticate, async (req, res) => {
         const progressPercent = Math.max(0, Math.min(100, Number(rawProgress) || 0));
         // Validate lastWatchedTimestamp
         const validTimestamp = Math.max(0, Math.floor(Number(lastWatchedTimestamp) || 0));
-        const lesson = await (0, db_js_1.queryOne)('SELECT moduleId FROM lessons WHERE id = ?', [id]);
+        // Validate watchedSeconds (accumulated real watch time)
+        const watchedSecondsIncrement = Math.max(0, Math.floor(Number(rawWatched) || 0));
+        // viewCount increment (1 when a new play-from-start occurs)
+        const viewInc = Number(viewCountIncrement) === 1 ? 1 : 0;
+        const lesson = await (0, db_js_1.queryOne)('SELECT moduleId, durationSeconds FROM lessons WHERE id = ?', [id]);
         if (!lesson)
             return res.status(404).json({ error: 'Lesson not found' });
         const mod = await (0, db_js_1.queryOne)('SELECT courseId FROM modules WHERE id = ?', [lesson.moduleId]);
         const enrollment = await (0, db_js_1.queryOne)('SELECT id FROM enrollments WHERE userId = ? AND courseId = ?', [req.user.id, mod?.courseId]);
         if (!enrollment)
             return res.status(404).json({ error: 'Not enrolled' });
-        const completedAt = progressPercent >= 90 ? (0, db_js_1.now)() : null;
         const ts = (0, db_js_1.now)();
         // Upsert: try update first, then insert
-        const existing = await (0, db_js_1.queryOne)('SELECT id FROM lesson_progress WHERE enrollmentId = ? AND lessonId = ?', [enrollment.id, id]);
+        const existing = await (0, db_js_1.queryOne)('SELECT id, watchedSeconds, completedAt FROM lesson_progress WHERE enrollmentId = ? AND lessonId = ?', [enrollment.id, id]);
+        // Compute new total watched seconds (accumulate, never decrease)
+        const existingWatched = Number(existing?.watchedSeconds ?? 0);
+        const newWatchedTotal = existingWatched + watchedSecondsIncrement;
+        // Mark complete: video ended (100%) OR watched >= 95% of duration
+        // If no duration known, fall back to position-based threshold (100%)
+        const dur = Number(lesson.durationSeconds) || 0;
+        let completedAt = null;
+        if (!existing?.completedAt) {
+            if (progressPercent >= 100) {
+                // Video reported as fully played (ended event)
+                completedAt = ts;
+            }
+            else if (dur > 0 && newWatchedTotal >= dur * 0.95) {
+                // Watched 95% of actual duration
+                completedAt = ts;
+            }
+        }
         if (existing) {
-            await (0, db_js_1.execute)(`UPDATE lesson_progress SET progressPercent = GREATEST(progressPercent, ?), lastWatchedTimestamp = ?, lastWatchedAt = ?, completedAt = COALESCE(completedAt, ?), updatedAt = ? WHERE id = ?`, [progressPercent, validTimestamp, ts, completedAt, ts, existing.id]);
+            await (0, db_js_1.execute)(`UPDATE lesson_progress SET
+          progressPercent = GREATEST(progressPercent, ?),
+          lastWatchedTimestamp = ?,
+          lastWatchedAt = ?,
+          completedAt = COALESCE(completedAt, ?),
+          watchedSeconds = watchedSeconds + ?,
+          viewCount = viewCount + ?,
+          updatedAt = ?
+        WHERE id = ?`, [progressPercent, validTimestamp, ts, completedAt, watchedSecondsIncrement, viewInc, ts, existing.id]);
         }
         else {
             const progressId = (0, db_js_1.genId)();
-            await (0, db_js_1.execute)(`INSERT INTO lesson_progress (id, enrollmentId, lessonId, progressPercent, lastWatchedTimestamp, lastWatchedAt, completedAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [progressId, enrollment.id, id, progressPercent, validTimestamp, ts, completedAt, ts]);
+            await (0, db_js_1.execute)(`INSERT INTO lesson_progress (id, enrollmentId, lessonId, progressPercent, lastWatchedTimestamp, lastWatchedAt, completedAt, watchedSeconds, viewCount, firstViewedAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [progressId, enrollment.id, id, progressPercent, validTimestamp, ts, completedAt, watchedSecondsIncrement, viewInc > 0 ? 1 : 0, ts, ts]);
         }
         const progress = await (0, db_js_1.queryOne)('SELECT * FROM lesson_progress WHERE enrollmentId = ? AND lessonId = ?', [enrollment.id, id]);
+        // ── Accumulate daily watch activity ──
+        if (watchedSecondsIncrement > 0) {
+            try {
+                // Use CST (America/Chicago) date so chart aligns with user's local day
+                const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }); // YYYY-MM-DD in CST
+                console.log('[Progress] watch_activity: userId=', req.user.id, 'courseId=', mod.courseId, 'today=', today, 'increment=', watchedSecondsIncrement);
+                const existingActivity = await (0, db_js_1.queryOne)('SELECT id FROM watch_activity WHERE userId = ? AND courseId = ? AND activityDate = ?', [req.user.id, mod.courseId, today]);
+                if (existingActivity) {
+                    await (0, db_js_1.execute)('UPDATE watch_activity SET watchedSeconds = watchedSeconds + ?, updatedAt = ? WHERE id = ?', [watchedSecondsIncrement, ts, existingActivity.id]);
+                }
+                else {
+                    await (0, db_js_1.execute)('INSERT INTO watch_activity (id, userId, courseId, activityDate, watchedSeconds, updatedAt) VALUES (?, ?, ?, ?, ?, ?)', [(0, db_js_1.genId)(), req.user.id, mod.courseId, today, watchedSecondsIncrement, ts]);
+                }
+            }
+            catch (e) {
+                console.warn('[Progress] watch_activity upsert error:', e);
+            }
+        }
+        // ── Course completion detection ──
+        // Only check if THIS lesson was just marked complete (completedAt was set in this request)
+        if (completedAt) {
+            try {
+                // Count total lessons in this course vs completed lessons for this enrollment
+                const totalRow = await (0, db_js_1.queryOne)(`SELECT COUNT(*) as cnt FROM lessons l JOIN modules m ON l.moduleId = m.id WHERE m.courseId = ?`, [mod.courseId]);
+                const completedRow = await (0, db_js_1.queryOne)(`SELECT COUNT(*) as cnt FROM lesson_progress WHERE enrollmentId = ? AND completedAt IS NOT NULL`, [enrollment.id]);
+                const totalLessons = Number(totalRow?.cnt ?? 0);
+                const completedLessons = Number(completedRow?.cnt ?? 0);
+                if (totalLessons > 0 && completedLessons >= totalLessons) {
+                    // Update enrollment completedAt
+                    await (0, db_js_1.execute)('UPDATE enrollments SET completedAt = COALESCE(completedAt, ?) WHERE id = ?', [ts, enrollment.id]).catch(() => { });
+                    // Fetch user + course info for notifications
+                    const user = await (0, db_js_1.queryOne)('SELECT email, name, notifyEmailCompletion FROM users WHERE id = ?', [req.user.id]);
+                    const course = await (0, db_js_1.queryOne)('SELECT title FROM courses WHERE id = ?', [mod.courseId]);
+                    if (user && course) {
+                        // Send course completed email (fire-and-forget, respecting user preference)
+                        if (user.notifyEmailCompletion) {
+                            (0, email_js_1.sendCourseCompleted)(user.email, user.name, course.title).catch((err) => {
+                                console.error('[Completion] email error:', err);
+                            });
+                        }
+                        // Create in-app notification
+                        (0, notifications_js_1.createNotification)({
+                            userId: req.user.id,
+                            type: 'achievement',
+                            title: 'Course Completed! 🎉',
+                            description: `Congratulations! You completed "${course.title}".`,
+                            link: `/courses/${mod.courseId}`,
+                        });
+                    }
+                    console.log(`[Completion] User ${req.user.id} completed course ${mod.courseId} (${completedLessons}/${totalLessons} lessons)`);
+                }
+            }
+            catch (e) {
+                console.warn('[Completion] check error:', e);
+            }
+        }
         res.json({ progress });
     }
     catch (error) {

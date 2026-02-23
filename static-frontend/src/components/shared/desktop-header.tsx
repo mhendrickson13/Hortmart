@@ -1,4 +1,4 @@
-import { useLocation, Link } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { useState, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -102,6 +102,8 @@ export function DesktopHeader({ user, variant = "learner", onSearchClick }: Desk
               <div className="absolute right-0 top-full mt-2 w-56 rounded-xl bg-card border border-border shadow-lg py-2 z-50 animate-fade-in-up">
                 <a
                   href="mailto:support@cxflow.io"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   onClick={() => setIsHelpOpen(false)}
                   className="flex items-center gap-2 px-3 py-2.5 text-body-sm text-text-1 hover:bg-muted transition-colors"
                 >
@@ -109,22 +111,26 @@ export function DesktopHeader({ user, variant = "learner", onSearchClick }: Desk
                   Help Center
                 </a>
                 <div className="border-t border-border my-1" />
-                <Link
-                  to="/settings?tab=legal"
+                <a
+                  href="https://cxflow.io/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   onClick={() => setIsHelpOpen(false)}
                   className="flex items-center gap-2 px-3 py-2.5 text-body-sm text-text-1 hover:bg-muted transition-colors"
                 >
                   <Shield className="w-4 h-4 text-text-2" />
                   Privacy Policy
-                </Link>
-                <Link
-                  to="/settings?tab=legal"
+                </a>
+                <a
+                  href="https://cxflow.io/terms"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   onClick={() => setIsHelpOpen(false)}
                   className="flex items-center gap-2 px-3 py-2.5 text-body-sm text-text-1 hover:bg-muted transition-colors"
                 >
                   <FileText className="w-4 h-4 text-text-2" />
                   Terms of Service
-                </Link>
+                </a>
               </div>
             )}
           </div>

@@ -83,6 +83,10 @@ export const auth = {
     request<{ user: User; token: string }>('/auth/login', { method: 'POST', body: data }),
   session: (token?: string) =>
     request<{ user: User }>('/auth/session', { token }),
+  forgotPassword: (data: { email: string }) =>
+    request<{ message: string }>('/auth/forgot-password', { method: 'POST', body: data }),
+  resetPassword: (data: { token: string; password: string }) =>
+    request<{ message: string }>('/auth/reset-password', { method: 'POST', body: data }),
 };
 
 // ==================== Users ====================
@@ -104,6 +108,10 @@ export const users = {
     request<{ user: User }>('/users/profile', { method: 'PATCH', body: data, token }),
   changePassword: (data: { currentPassword: string; newPassword: string }, token?: string) =>
     request<{ message: string }>('/users/password', { method: 'PATCH', body: data, token }),
+  getNotificationPreferences: (token?: string) =>
+    request<{ preferences: NotificationPreferences }>('/users/notification-preferences', { token }),
+  updateNotificationPreferences: (data: Partial<NotificationPreferences>, token?: string) =>
+    request<{ preferences: NotificationPreferences }>('/users/notification-preferences', { method: 'PATCH', body: data, token }),
   getEnrollments: (id: string, token?: string) =>
     request<{ enrollments: EnrollmentWithProgress[] }>(`/users/${id}/enrollments`, { token }),
   create: (data: { email: string; password: string; name?: string; role?: string }, token?: string) =>
@@ -114,6 +122,10 @@ export const users = {
     request<{ user: User }>(`/users/${id}/block`, { method: 'POST', token }),
   unblock: (id: string, token?: string) =>
     request<{ user: User }>(`/users/${id}/unblock`, { method: 'POST', token }),
+  enrollInCourse: (id: string, courseId: string, token?: string) =>
+    request<{ message: string; enrollmentId: string }>(`/users/${id}/enroll`, { method: 'POST', body: { courseId }, token }),
+  sendMessage: (id: string, data: { subject: string; message: string }, token?: string) =>
+    request<{ message: string }>(`/users/${id}/message`, { method: 'POST', body: data, token }),
 };
 
 // ==================== Courses ====================
@@ -164,6 +176,8 @@ export const courses = {
     request<{ review: Review | null }>(`/courses/${id}/my-review`, { token }),
   getAnalytics: (id: string, token?: string) =>
     request<{ analytics: CourseAnalytics }>(`/courses/${id}/analytics`, { token }),
+  getWatchActivity: (id: string, token?: string) =>
+    request<{ activity: Array<{ activityDate: string; watchedSeconds: number }> }>(`/courses/${id}/watch-activity`, { token }),
 };
 
 // ==================== Modules ====================
@@ -188,7 +202,7 @@ export const lessons = {
     request<{ message: string }>(`/lessons/${id}`, { method: 'DELETE', token }),
   getProgress: (id: string, token?: string) =>
     request<{ progress: LessonProgress }>(`/lessons/${id}/progress`, { token }),
-  updateProgress: (id: string, data: { progressPercent: number; lastWatchedTimestamp: number }, token?: string) =>
+  updateProgress: (id: string, data: { progressPercent: number; lastWatchedTimestamp: number; watchedSeconds?: number; viewCountIncrement?: number }, token?: string) =>
     request<{ progress: LessonProgress }>(`/lessons/${id}/progress`, { method: 'POST', body: data, token }),
   getNotes: (id: string, token?: string) =>
     request<{ notes: Note[] }>(`/lessons/${id}/notes`, { token }),
@@ -351,8 +365,10 @@ export const notifications = {
 // ==================== Analytics ====================
 
 export const analytics = {
-  getDashboard: (token?: string) =>
-    request<{ analytics: DashboardAnalytics }>('/analytics', { token }),
+  getDashboard: (params?: { from?: string; to?: string }, token?: string) => {
+    const qs = params?.from && params?.to ? `?from=${params.from}&to=${params.to}` : '';
+    return request<{ analytics: DashboardAnalytics }>(`/analytics${qs}`, { token });
+  },
   getLearnerStats: (token?: string) =>
     request<LearnerStats>('/analytics/learner-stats', { token }),
   getCreatorStats: (token?: string) =>
@@ -432,6 +448,7 @@ export interface EnrollmentWithProgress extends Enrollment {
 export interface LessonProgress {
   id?: string; progressPercent: number; lastWatchedTimestamp: number;
   lastWatchedAt: string | null; completedAt: string | null; lessonId?: string;
+  watchedSeconds?: number; viewCount?: number; firstViewedAt?: string | null;
 }
 
 export interface CourseProgress {
@@ -473,6 +490,10 @@ export interface Notification {
   id: string; userId: string; type: 'course' | 'review' | 'achievement' | 'system';
   title: string; description: string | null; link: string | null;
   isRead: boolean; createdAt: string;
+}
+export interface NotificationPreferences {
+  emailEnrollment: boolean; emailCompletion: boolean;
+  emailNewStudent: boolean; emailReview: boolean; inApp: boolean;
 }
 export interface CreatorStats { totalCourses: number; publishedCourses: number; totalEnrollments: number; totalRevenue: number; totalReviews: number; avgRating: string; }
 export interface LearnerStats { totalCourses: number; completedCourses: number; inProgressCourses: number; totalLessonsCompleted: number; totalWatchHours: number; enrollments: EnrollmentWithProgress[]; }

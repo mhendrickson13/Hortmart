@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { query, queryOne, execute, genId, now, inPlaceholders } from '../db.js';
 import { authenticate, optionalAuth, requireCreatorOrAdmin, AuthRequest } from '../middleware/auth.js';
 import { createNotification } from './notifications.js';
+import { sendEnrollmentConfirmation, sendNewStudentNotification } from '../email.js';
 
 const router = Router();
 
@@ -287,6 +288,8 @@ router.get('/:id', optionalAuth, async (req: AuthRequest, res: Response) => {
       for (const lesson of lessons) {
         lesson.isLocked = !!lesson.isLocked;
         lesson.isFreePreview = !!lesson.isFreePreview;
+        lesson.qaEnabled = lesson.qaEnabled === undefined ? true : !!lesson.qaEnabled;
+        lesson.notesEnabled = lesson.notesEnabled === undefined ? true : !!lesson.notesEnabled;
         allLessonIds.push(lesson.id);
       }
       allModuleLessons[mod.id] = lessons;
@@ -486,6 +489,21 @@ router.post('/:id/enroll', authenticate, async (req: AuthRequest, res: Response)
       });
     }
 
+    // Send emails (fire-and-forget) — respecting user notification preferences
+    const learner = await queryOne<any>('SELECT name, email, notifyEmailEnrollment FROM users WHERE id = ?', [req.user!.id]);
+    if (learner && courseInfo) {
+      if (learner.notifyEmailEnrollment) {
+        sendEnrollmentConfirmation(learner.email, learner.name, courseInfo.title, id).catch(() => {});
+      }
+      // Email the course creator about new student
+      if (courseInfo.creatorId !== req.user!.id) {
+        const creator = await queryOne<any>('SELECT name, email, notifyEmailNewStudent FROM users WHERE id = ?', [courseInfo.creatorId]);
+        if (creator && creator.notifyEmailNewStudent) {
+          sendNewStudentNotification(creator.email, creator.name, learner.name, courseInfo.title, id).catch(() => {});
+        }
+      }
+    }
+
     res.status(201).json({ enrollment });
   } catch (error) {
     console.error('Enroll error:', error);
@@ -525,6 +543,31 @@ router.delete('/:id/enroll', authenticate, async (req: AuthRequest, res: Respons
   } catch (error) {
     console.error('Unenroll error:', error);
     res.status(500).json({ error: 'Failed to unenroll' });
+  }
+});
+
+// GET /courses/:id/watch-activity - Daily watch activity for the last 7 days
+router.get('/:id/watch-activity', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    // Use CST-based "today" so the 7-day window matches the user's local days
+    const todayCST = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+    const rows = await query<any[]>(
+      `SELECT activityDate, watchedSeconds FROM watch_activity
+       WHERE userId = ? AND courseId = ? AND activityDate >= DATE_SUB(?, INTERVAL 6 DAY)
+       ORDER BY activityDate ASC`,
+      [req.user!.id, id, todayCST]
+    );
+    // Return activityDate as plain YYYY-MM-DD string
+    // MySQL DATE columns come back as JS Date at midnight UTC — use toISOString to preserve the stored date
+    const activity = rows.map((r: any) => ({
+      activityDate: typeof r.activityDate === 'string' ? r.activityDate.slice(0, 10) : r.activityDate.toISOString().slice(0, 10),
+      watchedSeconds: r.watchedSeconds,
+    }));
+    res.json({ activity });
+  } catch (error) {
+    console.error('Get watch activity error:', error);
+    res.status(500).json({ error: 'Failed to get watch activity' });
   }
 });
 
@@ -594,6 +637,8 @@ router.get('/:id/progress', authenticate, async (req: AuthRequest, res: Response
           id: lesson.id, title: lesson.title, description: lesson.description,
           videoUrl: lesson.videoUrl, durationSeconds: lesson.durationSeconds,
           position: lesson.position, isLocked: !!lesson.isLocked, isFreePreview: !!lesson.isFreePreview,
+          qaEnabled: lesson.qaEnabled === undefined ? true : !!lesson.qaEnabled,
+          notesEnabled: lesson.notesEnabled === undefined ? true : !!lesson.notesEnabled,
           resources,
           progress: progress ? {
             id: progress.id, lessonId: progress.lessonId, enrollmentId: progress.enrollmentId,
@@ -692,6 +737,8 @@ router.get('/:id/free-preview', authenticate, async (req: AuthRequest, res: Resp
         position: lesson.position,
         isLocked: !lesson.isFreePreview,
         isFreePreview: !!lesson.isFreePreview,
+        qaEnabled: lesson.qaEnabled === undefined ? true : !!lesson.qaEnabled,
+        notesEnabled: lesson.notesEnabled === undefined ? true : !!lesson.notesEnabled,
         resources: [],
         progress: null,
       }));
@@ -770,6 +817,8 @@ router.get('/:id/preview', authenticate, async (req: AuthRequest, res: Response)
         id: lesson.id, title: lesson.title, description: lesson.description,
         videoUrl: lesson.videoUrl, durationSeconds: lesson.durationSeconds,
         position: lesson.position, isLocked: false, isFreePreview: !!lesson.isFreePreview,
+        qaEnabled: lesson.qaEnabled === undefined ? true : !!lesson.qaEnabled,
+        notesEnabled: lesson.notesEnabled === undefined ? true : !!lesson.notesEnabled,
         resources: resourcesByLesson.get(lesson.id) || [],
         progress: null,
       }));

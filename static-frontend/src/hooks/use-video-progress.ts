@@ -29,6 +29,7 @@ interface ProgressSnapshot {
   progressPercent: number;
   completedAt: Date | null;
   lastWatchedTimestamp: number;
+  lastWatchedAt?: string | null;
 }
 
 interface LessonLike {
@@ -65,6 +66,16 @@ export function useVideoProgress({
   // Dedup unload: prevents the same position being saved multiple times on close
   const savedOnUnloadRef = useRef(false);
 
+  // ─── Watch-time tracking ───
+  /** Previous timeupdate value — used to compute delta (only counts forward non-seek movement) */
+  const prevTimeRef = useRef(0);
+  /** Accumulated real watched seconds since last save */
+  const watchedSinceLastSaveRef = useRef(0);
+  /** True when user is currently seeking (skip detection) */
+  const isSeekingRef = useRef(false);
+  /** Whether we already counted a view for this lesson play session */
+  const viewCountedRef = useRef(false);
+
   // Keep refs in sync every render
   currentLessonIdRef.current = currentLessonId;
 
@@ -85,7 +96,12 @@ export function useVideoProgress({
         lastWatchedTimestamp: 0,
       };
       if (!override) return base;
-      return { ...base, ...override };
+      // Never let a null override erase a real completedAt
+      return {
+        ...base,
+        ...override,
+        completedAt: override.completedAt || base.completedAt,
+      };
     },
     [progressOverrides],
   );
@@ -133,25 +149,40 @@ export function useVideoProgress({
       const dur = resolveDuration(lessonId);
       const pct = dur > 0 ? Math.min(Math.round((time / dur) * 100), 100) : 0;
 
+      // Flush accumulated watched seconds
+      const watchedDelta = Math.floor(watchedSinceLastSaveRef.current);
+      watchedSinceLastSaveRef.current -= watchedDelta; // keep fractional remainder
+
+      // View count increment — only on first play of this session
+      const viewInc = viewCountedRef.current ? 0 : 1;
+      if (viewInc === 1) viewCountedRef.current = true;
+
       const payload = {
         progressPercent: pct,
         lastWatchedTimestamp: sec,
+        watchedSeconds: watchedDelta,
+        viewCountIncrement: viewInc,
       };
 
       console.log("[Progress] saving:", lessonId.slice(-6), payload, fireAndForget ? "(keepalive)" : "");
 
-      // Update local overrides — NEVER downgrade %
+      // Update local overrides — NEVER downgrade % or lose completedAt
       setProgressOverrides((prev) => {
         const existing = prev[lessonId];
         const safePct = existing
           ? Math.max(existing.progressPercent, pct)
           : pct;
+        // Preserve completedAt from override, or look up from original lesson data
+        const existingCompleted = existing?.completedAt
+          || allLessonsRef.current.find((l) => l.id === lessonId)?.progress?.completedAt
+          || null;
         return {
           ...prev,
           [lessonId]: {
             progressPercent: safePct,
-            completedAt: existing?.completedAt || null,
+            completedAt: existingCompleted,
             lastWatchedTimestamp: sec,
+            lastWatchedAt: new Date().toISOString(),
           },
         };
       });
@@ -256,6 +287,7 @@ export function useVideoProgress({
 
   /** Called on every timeupdate — updates refs only, no re-render.
    *  Also clears the transition guard once the new video is actually playing.
+   *  Accumulates actual watched seconds (ignores seeks/skips).
    */
   const handleTimeUpdate = useCallback(
     (time: number) => {
@@ -266,6 +298,17 @@ export function useVideoProgress({
         isTransitioningRef.current = false;
         savedOnUnloadRef.current = false; // allow future unload saves
       }
+      // Accumulate real watch time: only count small forward deltas (normal playback).
+      // Seeking produces large jumps which we ignore.
+      if (!isSeekingRef.current && prevTimeRef.current > 0) {
+        const delta = time - prevTimeRef.current;
+        // Normal playback: delta is 0.1–2s (depends on playback rate + timeupdate freq).
+        // Seeking: delta is huge or negative. Only count if 0 < delta <= 3.
+        if (delta > 0 && delta <= 3) {
+          watchedSinceLastSaveRef.current += delta;
+        }
+      }
+      prevTimeRef.current = time;
       // Cache duration
       const dur = videoRef.current?.getDuration();
       if (dur && dur > 0 && isFinite(dur)) {
@@ -274,6 +317,18 @@ export function useVideoProgress({
     },
     [videoRef],
   );
+
+  /** Called when seeking starts — stop accumulating watch time */
+  const handleSeeking = useCallback(() => {
+    isSeekingRef.current = true;
+  }, []);
+
+  /** Called when seeking ends — resume accumulating from the new position */
+  const handleSeeked = useCallback(() => {
+    isSeekingRef.current = false;
+    // Reset prevTime so the next timeupdate delta won't be a huge jump
+    prevTimeRef.current = 0;
+  }, []);
 
   /** Call before switching lessons — saves current + resets refs.
    *  Sets transition guard to block stale onPause saves from the old video.
@@ -292,6 +347,10 @@ export function useVideoProgress({
     lastSavedSecondRef.current = 0;
     lastKnownDurationRef.current = 0;
     savedOnUnloadRef.current = false;
+    prevTimeRef.current = 0;
+    watchedSinceLastSaveRef.current = 0;
+    isSeekingRef.current = false;
+    viewCountedRef.current = false;
   }, [saveProgress]);
 
   // ─── Page-close & tab-hide handlers ───
@@ -333,6 +392,8 @@ export function useVideoProgress({
     handleProgress,
     handleComplete,
     handleTimeUpdate,
+    handleSeeking,
+    handleSeeked,
     saveBeforeSwitch,
     currentTimeRef,
   };

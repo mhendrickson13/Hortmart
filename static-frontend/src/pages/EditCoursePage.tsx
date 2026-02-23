@@ -309,6 +309,7 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
     setCourse((c) => ({ ...c, modules: reordered }));
     try {
       await apiClient.courses.reorderModules(course.id, reordered.map((m) => m.id));
+      toast({ title: "Order updated", variant: "success" });
     } catch {
       // Restore from snapshot, not stale closure
       setCourse((c) => ({ ...c, modules: previousModules }));
@@ -395,6 +396,7 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
     }));
     try {
       await apiClient.modules.reorderLessons(moduleId, reordered.map((l) => l.id));
+      toast({ title: "Order updated", variant: "success" });
     } catch {
       // Restore from snapshot, not stale closure
       setCourse((c) => ({

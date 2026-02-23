@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { query, queryOne, execute, genId, now, inPlaceholders } from '../db.js';
 import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth.js';
+import { sendAccountCreated, sendCustomMessage, sendEnrollmentConfirmation } from '../email.js';
 
 const router = Router();
 
@@ -13,8 +14,8 @@ router.get('/', authenticate, requireAdmin, async (req: AuthRequest, res: Respon
     const search = req.query.search as string;
     const role = req.query.role as string;
 
-    // Build WHERE clause
-    const conditions: string[] = [];
+    // Build WHERE clause — always exclude ADMIN accounts from the user list
+    const conditions: string[] = ["u.role != 'ADMIN'"];
     const params: any[] = [];
 
     if (role) {
@@ -135,7 +136,7 @@ router.get('/', authenticate, requireAdmin, async (req: AuthRequest, res: Respon
 router.get('/profile', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const user = await queryOne<any>(
-      'SELECT id, email, name, image, bio, role, createdAt, updatedAt FROM users WHERE id = ?',
+      'SELECT id, email, name, image, bio, role, createdAt, updatedAt, notifyEmailEnrollment, notifyEmailCompletion, notifyEmailNewStudent, notifyEmailReview, notifyInApp FROM users WHERE id = ?',
       [req.user!.id]
     );
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -247,6 +248,69 @@ router.patch('/profile', authenticate, async (req: AuthRequest, res: Response) =
   } catch (error) {
     console.error('Update profile error:', error);
     res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
+// GET /users/notification-preferences
+router.get('/notification-preferences', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const row = await queryOne<any>(
+      'SELECT notifyEmailEnrollment, notifyEmailCompletion, notifyEmailNewStudent, notifyEmailReview, notifyInApp FROM users WHERE id = ?',
+      [req.user!.id]
+    );
+    if (!row) return res.status(404).json({ error: 'User not found' });
+    // Convert tinyint to boolean
+    res.json({
+      preferences: {
+        emailEnrollment: !!row.notifyEmailEnrollment,
+        emailCompletion: !!row.notifyEmailCompletion,
+        emailNewStudent: !!row.notifyEmailNewStudent,
+        emailReview: !!row.notifyEmailReview,
+        inApp: !!row.notifyInApp,
+      },
+    });
+  } catch (error) {
+    console.error('Get notification preferences error:', error);
+    res.status(500).json({ error: 'Failed to get notification preferences' });
+  }
+});
+
+// PATCH /users/notification-preferences
+router.patch('/notification-preferences', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const { emailEnrollment, emailCompletion, emailNewStudent, emailReview, inApp } = req.body;
+    const sets: string[] = [];
+    const params: any[] = [];
+
+    if (emailEnrollment !== undefined) { sets.push('notifyEmailEnrollment = ?'); params.push(emailEnrollment ? 1 : 0); }
+    if (emailCompletion !== undefined) { sets.push('notifyEmailCompletion = ?'); params.push(emailCompletion ? 1 : 0); }
+    if (emailNewStudent !== undefined) { sets.push('notifyEmailNewStudent = ?'); params.push(emailNewStudent ? 1 : 0); }
+    if (emailReview !== undefined) { sets.push('notifyEmailReview = ?'); params.push(emailReview ? 1 : 0); }
+    if (inApp !== undefined) { sets.push('notifyInApp = ?'); params.push(inApp ? 1 : 0); }
+
+    if (sets.length === 0) return res.status(400).json({ error: 'No preferences to update' });
+
+    sets.push('updatedAt = ?'); params.push(now());
+    params.push(req.user!.id);
+
+    await execute(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`, params);
+
+    const row = await queryOne<any>(
+      'SELECT notifyEmailEnrollment, notifyEmailCompletion, notifyEmailNewStudent, notifyEmailReview, notifyInApp FROM users WHERE id = ?',
+      [req.user!.id]
+    );
+    res.json({
+      preferences: {
+        emailEnrollment: !!row.notifyEmailEnrollment,
+        emailCompletion: !!row.notifyEmailCompletion,
+        emailNewStudent: !!row.notifyEmailNewStudent,
+        emailReview: !!row.notifyEmailReview,
+        inApp: !!row.notifyInApp,
+      },
+    });
+  } catch (error) {
+    console.error('Update notification preferences error:', error);
+    res.status(500).json({ error: 'Failed to update notification preferences' });
   }
 });
 
@@ -412,7 +476,9 @@ router.get('/:id/enrollments', authenticate, async (req: AuthRequest, res: Respo
     for (const enr of enrollments) {
       // Lesson counts
       const lessonRows = await query<any[]>(
-        'SELECT l.id FROM modules m JOIN lessons l ON l.moduleId = m.id WHERE m.courseId = ?',
+        `SELECT l.id, l.title, l.durationSeconds, l.position, m.title as moduleTitle, m.position as modulePosition
+         FROM modules m JOIN lessons l ON l.moduleId = m.id WHERE m.courseId = ?
+         ORDER BY m.position ASC, l.position ASC`,
         [enr.courseId]
       );
       const totalLessons = lessonRows.length;
@@ -432,6 +498,27 @@ router.get('/:id/enrollments', authenticate, async (req: AuthRequest, res: Respo
         return !maxStr || dStr > maxStr ? d : max;
       }, null);
 
+      // Build per-lesson detail for admin
+      const progressMap = new Map<string, any>();
+      for (const lp of progressRows) {
+        progressMap.set(lp.lessonId, lp);
+      }
+      const lessonDetails = lessonRows.map((l: any) => {
+        const lp = progressMap.get(l.id);
+        return {
+          id: l.id,
+          title: l.title,
+          moduleTitle: l.moduleTitle,
+          durationSeconds: Number(l.durationSeconds) || 0,
+          progressPercent: lp ? Number(lp.progressPercent) : 0,
+          watchedSeconds: lp ? Number(lp.watchedSeconds ?? 0) : 0,
+          viewCount: lp ? Number(lp.viewCount ?? 0) : 0,
+          firstViewedAt: lp?.firstViewedAt ?? null,
+          lastWatchedAt: lp?.lastWatchedAt ?? null,
+          completedAt: lp?.completedAt ?? null,
+        };
+      });
+
       result.push({
         id: enr.id,
         courseId: enr.c_id,
@@ -450,6 +537,7 @@ router.get('/:id/enrollments', authenticate, async (req: AuthRequest, res: Respo
           creator: { name: enr.cr_name },
         },
         progress: Math.round(progress * 10) / 10,
+        lessonDetails,
       });
     }
 
@@ -488,6 +576,9 @@ router.post('/', authenticate, requireAdmin, async (req: AuthRequest, res: Respo
       'SELECT id, email, name, image, role, createdAt FROM users WHERE id = ?',
       [id]
     );
+
+    // Send account-created email with temp password (fire-and-forget)
+    sendAccountCreated(email, name || null, password).catch(() => {});
 
     res.status(201).json({ user });
   } catch (error) {
@@ -539,6 +630,54 @@ router.post('/:id/unblock', authenticate, requireAdmin, async (req: AuthRequest,
   } catch (error) {
     console.error('Unblock user error:', error);
     res.status(500).json({ error: 'Failed to unblock user' });
+  }
+});
+
+// POST /users/:id/enroll - Admin enrolls a user in a course
+router.post('/:id/enroll', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.params.id;
+    const { courseId } = req.body;
+    if (!courseId) return res.status(400).json({ error: 'courseId is required' });
+
+    const user = await queryOne<any>('SELECT id, name, email FROM users WHERE id = ?', [userId]);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const course = await queryOne<any>('SELECT id, title, status FROM courses WHERE id = ?', [courseId]);
+    if (!course) return res.status(404).json({ error: 'Course not found' });
+
+    const existing = await queryOne<any>('SELECT id FROM enrollments WHERE userId = ? AND courseId = ?', [userId, courseId]);
+    if (existing) return res.status(409).json({ error: 'User is already enrolled in this course' });
+
+    const enrollmentId = genId();
+    await execute('INSERT INTO enrollments (id, userId, courseId) VALUES (?, ?, ?)', [enrollmentId, userId, courseId]);
+
+    // Send enrollment confirmation email
+    sendEnrollmentConfirmation(user.email, user.name, course.title, courseId).catch(() => {});
+
+    res.status(201).json({ message: `User enrolled in "${course.title}"`, enrollmentId });
+  } catch (error) {
+    console.error('Admin enroll user error:', error);
+    res.status(500).json({ error: 'Failed to enroll user' });
+  }
+});
+
+// POST /users/:id/message - Admin sends an email to a user
+router.post('/:id/message', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.params.id;
+    const { subject, message } = req.body;
+    if (!subject || !message) return res.status(400).json({ error: 'Subject and message are required' });
+
+    const user = await queryOne<any>('SELECT id, name, email FROM users WHERE id = ?', [userId]);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    await sendCustomMessage(user.email, user.name, subject, message);
+
+    res.json({ message: 'Email sent successfully' });
+  } catch (error) {
+    console.error('Send message error:', error);
+    res.status(500).json({ error: 'Failed to send message' });
   }
 });
 

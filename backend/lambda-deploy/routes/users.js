@@ -7,6 +7,7 @@ const express_1 = require("express");
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const db_js_1 = require("../db.js");
 const auth_js_1 = require("../middleware/auth.js");
+const email_js_1 = require("../email.js");
 const router = (0, express_1.Router)();
 // GET /users - List all users (Admin only)
 router.get('/', auth_js_1.authenticate, auth_js_1.requireAdmin, async (req, res) => {
@@ -15,8 +16,8 @@ router.get('/', auth_js_1.authenticate, auth_js_1.requireAdmin, async (req, res)
         const limit = parseInt(req.query.limit) || 20;
         const search = req.query.search;
         const role = req.query.role;
-        // Build WHERE clause
-        const conditions = [];
+        // Build WHERE clause — always exclude ADMIN accounts from the user list
+        const conditions = ["u.role != 'ADMIN'"];
         const params = [];
         if (role) {
             conditions.push('u.role = ?');
@@ -98,7 +99,7 @@ router.get('/', auth_js_1.authenticate, auth_js_1.requireAdmin, async (req, res)
 // GET /users/profile
 router.get('/profile', auth_js_1.authenticate, async (req, res) => {
     try {
-        const user = await (0, db_js_1.queryOne)('SELECT id, email, name, image, bio, role, createdAt, updatedAt FROM users WHERE id = ?', [req.user.id]);
+        const user = await (0, db_js_1.queryOne)('SELECT id, email, name, image, bio, role, createdAt, updatedAt, notifyEmailEnrollment, notifyEmailCompletion, notifyEmailNewStudent, notifyEmailReview, notifyInApp FROM users WHERE id = ?', [req.user.id]);
         if (!user)
             return res.status(404).json({ error: 'User not found' });
         const counts = await (0, db_js_1.queryOne)(`SELECT
@@ -199,6 +200,76 @@ router.patch('/profile', auth_js_1.authenticate, async (req, res) => {
     catch (error) {
         console.error('Update profile error:', error);
         res.status(500).json({ error: 'Failed to update profile' });
+    }
+});
+// GET /users/notification-preferences
+router.get('/notification-preferences', auth_js_1.authenticate, async (req, res) => {
+    try {
+        const row = await (0, db_js_1.queryOne)('SELECT notifyEmailEnrollment, notifyEmailCompletion, notifyEmailNewStudent, notifyEmailReview, notifyInApp FROM users WHERE id = ?', [req.user.id]);
+        if (!row)
+            return res.status(404).json({ error: 'User not found' });
+        // Convert tinyint to boolean
+        res.json({
+            preferences: {
+                emailEnrollment: !!row.notifyEmailEnrollment,
+                emailCompletion: !!row.notifyEmailCompletion,
+                emailNewStudent: !!row.notifyEmailNewStudent,
+                emailReview: !!row.notifyEmailReview,
+                inApp: !!row.notifyInApp,
+            },
+        });
+    }
+    catch (error) {
+        console.error('Get notification preferences error:', error);
+        res.status(500).json({ error: 'Failed to get notification preferences' });
+    }
+});
+// PATCH /users/notification-preferences
+router.patch('/notification-preferences', auth_js_1.authenticate, async (req, res) => {
+    try {
+        const { emailEnrollment, emailCompletion, emailNewStudent, emailReview, inApp } = req.body;
+        const sets = [];
+        const params = [];
+        if (emailEnrollment !== undefined) {
+            sets.push('notifyEmailEnrollment = ?');
+            params.push(emailEnrollment ? 1 : 0);
+        }
+        if (emailCompletion !== undefined) {
+            sets.push('notifyEmailCompletion = ?');
+            params.push(emailCompletion ? 1 : 0);
+        }
+        if (emailNewStudent !== undefined) {
+            sets.push('notifyEmailNewStudent = ?');
+            params.push(emailNewStudent ? 1 : 0);
+        }
+        if (emailReview !== undefined) {
+            sets.push('notifyEmailReview = ?');
+            params.push(emailReview ? 1 : 0);
+        }
+        if (inApp !== undefined) {
+            sets.push('notifyInApp = ?');
+            params.push(inApp ? 1 : 0);
+        }
+        if (sets.length === 0)
+            return res.status(400).json({ error: 'No preferences to update' });
+        sets.push('updatedAt = ?');
+        params.push((0, db_js_1.now)());
+        params.push(req.user.id);
+        await (0, db_js_1.execute)(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`, params);
+        const row = await (0, db_js_1.queryOne)('SELECT notifyEmailEnrollment, notifyEmailCompletion, notifyEmailNewStudent, notifyEmailReview, notifyInApp FROM users WHERE id = ?', [req.user.id]);
+        res.json({
+            preferences: {
+                emailEnrollment: !!row.notifyEmailEnrollment,
+                emailCompletion: !!row.notifyEmailCompletion,
+                emailNewStudent: !!row.notifyEmailNewStudent,
+                emailReview: !!row.notifyEmailReview,
+                inApp: !!row.notifyInApp,
+            },
+        });
+    }
+    catch (error) {
+        console.error('Update notification preferences error:', error);
+        res.status(500).json({ error: 'Failed to update notification preferences' });
     }
 });
 // PATCH /users/password
@@ -346,7 +417,9 @@ router.get('/:id/enrollments', auth_js_1.authenticate, async (req, res) => {
         const result = [];
         for (const enr of enrollments) {
             // Lesson counts
-            const lessonRows = await (0, db_js_1.query)('SELECT l.id FROM modules m JOIN lessons l ON l.moduleId = m.id WHERE m.courseId = ?', [enr.courseId]);
+            const lessonRows = await (0, db_js_1.query)(`SELECT l.id, l.title, l.durationSeconds, l.position, m.title as moduleTitle, m.position as modulePosition
+         FROM modules m JOIN lessons l ON l.moduleId = m.id WHERE m.courseId = ?
+         ORDER BY m.position ASC, l.position ASC`, [enr.courseId]);
             const totalLessons = lessonRows.length;
             const progressRows = await (0, db_js_1.query)('SELECT * FROM lesson_progress WHERE enrollmentId = ?', [enr.id]);
             const completedLessons = progressRows.filter(lp => lp.completedAt != null).length;
@@ -359,6 +432,26 @@ router.get('/:id/enrollments', auth_js_1.authenticate, async (req, res) => {
                 const maxStr = max instanceof Date ? max.toISOString() : max ? String(max) : null;
                 return !maxStr || dStr > maxStr ? d : max;
             }, null);
+            // Build per-lesson detail for admin
+            const progressMap = new Map();
+            for (const lp of progressRows) {
+                progressMap.set(lp.lessonId, lp);
+            }
+            const lessonDetails = lessonRows.map((l) => {
+                const lp = progressMap.get(l.id);
+                return {
+                    id: l.id,
+                    title: l.title,
+                    moduleTitle: l.moduleTitle,
+                    durationSeconds: Number(l.durationSeconds) || 0,
+                    progressPercent: lp ? Number(lp.progressPercent) : 0,
+                    watchedSeconds: lp ? Number(lp.watchedSeconds ?? 0) : 0,
+                    viewCount: lp ? Number(lp.viewCount ?? 0) : 0,
+                    firstViewedAt: lp?.firstViewedAt ?? null,
+                    lastWatchedAt: lp?.lastWatchedAt ?? null,
+                    completedAt: lp?.completedAt ?? null,
+                };
+            });
             result.push({
                 id: enr.id,
                 courseId: enr.c_id,
@@ -377,6 +470,7 @@ router.get('/:id/enrollments', auth_js_1.authenticate, async (req, res) => {
                     creator: { name: enr.cr_name },
                 },
                 progress: Math.round(progress * 10) / 10,
+                lessonDetails,
             });
         }
         res.json({ enrollments: result });
@@ -406,6 +500,8 @@ router.post('/', auth_js_1.authenticate, auth_js_1.requireAdmin, async (req, res
             throw e;
         }
         const user = await (0, db_js_1.queryOne)('SELECT id, email, name, image, role, createdAt FROM users WHERE id = ?', [id]);
+        // Send account-created email with temp password (fire-and-forget)
+        (0, email_js_1.sendAccountCreated)(email, name || null, password).catch(() => { });
         res.status(201).json({ user });
     }
     catch (error) {
@@ -447,6 +543,51 @@ router.post('/:id/unblock', auth_js_1.authenticate, auth_js_1.requireAdmin, asyn
     catch (error) {
         console.error('Unblock user error:', error);
         res.status(500).json({ error: 'Failed to unblock user' });
+    }
+});
+// POST /users/:id/enroll - Admin enrolls a user in a course
+router.post('/:id/enroll', auth_js_1.authenticate, auth_js_1.requireAdmin, async (req, res) => {
+    try {
+        const userId = req.params.id;
+        const { courseId } = req.body;
+        if (!courseId)
+            return res.status(400).json({ error: 'courseId is required' });
+        const user = await (0, db_js_1.queryOne)('SELECT id, name, email FROM users WHERE id = ?', [userId]);
+        if (!user)
+            return res.status(404).json({ error: 'User not found' });
+        const course = await (0, db_js_1.queryOne)('SELECT id, title, status FROM courses WHERE id = ?', [courseId]);
+        if (!course)
+            return res.status(404).json({ error: 'Course not found' });
+        const existing = await (0, db_js_1.queryOne)('SELECT id FROM enrollments WHERE userId = ? AND courseId = ?', [userId, courseId]);
+        if (existing)
+            return res.status(409).json({ error: 'User is already enrolled in this course' });
+        const enrollmentId = (0, db_js_1.genId)();
+        await (0, db_js_1.execute)('INSERT INTO enrollments (id, userId, courseId) VALUES (?, ?, ?)', [enrollmentId, userId, courseId]);
+        // Send enrollment confirmation email
+        (0, email_js_1.sendEnrollmentConfirmation)(user.email, user.name, course.title, courseId).catch(() => { });
+        res.status(201).json({ message: `User enrolled in "${course.title}"`, enrollmentId });
+    }
+    catch (error) {
+        console.error('Admin enroll user error:', error);
+        res.status(500).json({ error: 'Failed to enroll user' });
+    }
+});
+// POST /users/:id/message - Admin sends an email to a user
+router.post('/:id/message', auth_js_1.authenticate, auth_js_1.requireAdmin, async (req, res) => {
+    try {
+        const userId = req.params.id;
+        const { subject, message } = req.body;
+        if (!subject || !message)
+            return res.status(400).json({ error: 'Subject and message are required' });
+        const user = await (0, db_js_1.queryOne)('SELECT id, name, email FROM users WHERE id = ?', [userId]);
+        if (!user)
+            return res.status(404).json({ error: 'User not found' });
+        await (0, email_js_1.sendCustomMessage)(user.email, user.name, subject, message);
+        res.json({ message: 'Email sent successfully' });
+    }
+    catch (error) {
+        console.error('Send message error:', error);
+        res.status(500).json({ error: 'Failed to send message' });
     }
 });
 exports.default = router;

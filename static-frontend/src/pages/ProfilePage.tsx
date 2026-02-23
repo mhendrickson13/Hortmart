@@ -33,11 +33,12 @@ import {
   Edit,
   Target,
   BarChart3,
+  LogOut,
 } from "lucide-react";
 import { getInitials, formatCurrency, formatDate } from "@/lib/utils";
 
 export default function ProfilePage() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { t } = useAppPreferences();
   const isCreator = user?.role === "CREATOR" || user?.role === "ADMIN";
 
@@ -294,12 +295,6 @@ export default function ProfilePage() {
             Your learning journey and progress
           </p>
         </div>
-        <Button asChild variant="secondary" size="sm">
-          <Link to="/settings">
-            <Settings className="w-4 h-4 sm:mr-2" />
-            <span className="hidden sm:inline">{t("common.edit")} {t("nav.settings")}</span>
-          </Link>
-        </Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-3 sm:gap-4 flex-1">
@@ -504,6 +499,14 @@ export default function ProfilePage() {
                   <Settings className="w-4 h-4 mr-2" />
                   {t("nav.settings")}
                 </Link>
+              </Button>
+              <Button
+                className="w-full justify-start text-danger hover:text-danger"
+                variant="secondary"
+                onClick={() => { logout(); window.location.href = "/login"; }}
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Sign Out
               </Button>
             </div>
           </Card>

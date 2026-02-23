@@ -2,6 +2,22 @@ import { cn, formatDuration, getLessonStatus, type LessonStatus } from "@/lib/ut
 import { Pill } from "@/components/ui/pill";
 import { CheckCircle, Lock, Play, Circle } from "lucide-react";
 
+/** Format a date to DD/MM/YYYY HH:mm in CST (America/Chicago) */
+function fmtCST(d: Date | string | null | undefined): string {
+  if (!d) return "";
+  const dt = typeof d === "string" ? new Date(d) : d;
+  if (isNaN(dt.getTime())) return "";
+  return dt.toLocaleString("en-GB", {
+    timeZone: "America/Chicago",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).replace(",", "");
+}
+
 interface LessonRowProps {
   lesson: {
     id: string;
@@ -72,7 +88,7 @@ export function LessonRow({
               status === "now_watching" ? "text-white/85" : "text-text-3"
             )}
           >
-            <span>{isCompleted ? "Completed" : formatDuration(lesson.durationSeconds)}</span>
+            <span>{isCompleted ? <>Completed{progress?.completedAt && <span className="text-[9px]"> {fmtCST(progress.completedAt)}</span>}</> : formatDuration(lesson.durationSeconds)}</span>
             <StatusPill status={status} progressPercent={pct} isCompleted={isCompleted} />
           </div>
         </div>

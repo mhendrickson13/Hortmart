@@ -6,8 +6,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+const crypto_1 = __importDefault(require("crypto"));
 const db_js_1 = require("../db.js");
 const auth_js_1 = require("../middleware/auth.js");
+const email_js_1 = require("../email.js");
 const router = (0, express_1.Router)();
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const JWT_EXPIRES_IN = (process.env.JWT_EXPIRES_IN || '7d');
@@ -33,6 +35,8 @@ router.post('/register', async (req, res) => {
         await (0, db_js_1.execute)('INSERT INTO users (id, email, password, name, role, updatedAt) VALUES (?, ?, ?, ?, ?, ?)', [id, email, hashedPassword, name || null, 'LEARNER', ts]);
         const user = { id, email, name: name || null, role: 'LEARNER', createdAt: new Date() };
         const token = jsonwebtoken_1.default.sign({ userId: id }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+        // Send welcome email (fire-and-forget)
+        (0, email_js_1.sendWelcome)(email, name || undefined).catch(() => { });
         res.status(201).json({ user, token });
     }
     catch (error) {
@@ -87,6 +91,63 @@ router.get('/session', auth_js_1.authenticate, async (req, res) => {
     catch (error) {
         console.error('Session error:', error);
         res.status(500).json({ error: 'Failed to get session' });
+    }
+});
+// POST /auth/forgot-password
+router.post('/forgot-password', async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email)
+            return res.status(400).json({ error: 'Email is required' });
+        const user = await (0, db_js_1.queryOne)('SELECT id, name, email FROM users WHERE email = ?', [email]);
+        // Always return success to prevent email enumeration
+        if (!user)
+            return res.json({ message: 'If that email exists, a reset link has been sent.' });
+        // Generate a secure reset token (48 hex chars)
+        const resetToken = crypto_1.default.randomBytes(32).toString('hex');
+        const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+        // Store in DB — upsert by overwriting any existing token for this user
+        const existing = await (0, db_js_1.queryOne)('SELECT id FROM password_resets WHERE userId = ?', [user.id]);
+        if (existing) {
+            await (0, db_js_1.execute)('UPDATE password_resets SET token = ?, expiresAt = ?, usedAt = NULL, updatedAt = ? WHERE id = ?', [resetToken, expiresAt.toISOString().slice(0, 23).replace('T', ' '), (0, db_js_1.now)(), existing.id]);
+        }
+        else {
+            await (0, db_js_1.execute)('INSERT INTO password_resets (id, userId, token, expiresAt) VALUES (?, ?, ?, ?)', [(0, db_js_1.genId)(), user.id, resetToken, expiresAt.toISOString().slice(0, 23).replace('T', ' ')]);
+        }
+        // Send the email
+        await (0, email_js_1.sendPasswordReset)(user.email, user.name, resetToken);
+        res.json({ message: 'If that email exists, a reset link has been sent.' });
+    }
+    catch (error) {
+        console.error('Forgot password error:', error);
+        res.status(500).json({ error: 'Failed to process request' });
+    }
+});
+// POST /auth/reset-password
+router.post('/reset-password', async (req, res) => {
+    try {
+        const { token, password } = req.body;
+        if (!token || !password || password.length < 6) {
+            return res.status(400).json({ error: 'Valid token and password (min 6 chars) are required' });
+        }
+        const reset = await (0, db_js_1.queryOne)('SELECT * FROM password_resets WHERE token = ? AND usedAt IS NULL', [token]);
+        if (!reset)
+            return res.status(400).json({ error: 'Invalid or expired reset link' });
+        // Check expiration
+        const expiresAt = new Date(reset.expiresAt).getTime();
+        if (Date.now() > expiresAt) {
+            return res.status(400).json({ error: 'Reset link has expired. Please request a new one.' });
+        }
+        // Hash the new password and update the user
+        const hashedPassword = await bcryptjs_1.default.hash(password, 10);
+        await (0, db_js_1.execute)('UPDATE users SET password = ?, updatedAt = ? WHERE id = ?', [hashedPassword, (0, db_js_1.now)(), reset.userId]);
+        // Mark token as used
+        await (0, db_js_1.execute)('UPDATE password_resets SET usedAt = ? WHERE id = ?', [(0, db_js_1.now)(), reset.id]);
+        res.json({ message: 'Password has been reset successfully. You can now sign in.' });
+    }
+    catch (error) {
+        console.error('Reset password error:', error);
+        res.status(500).json({ error: 'Failed to reset password' });
     }
 });
 exports.default = router;

@@ -295,19 +295,20 @@ export function MobileNav({ user, variant = "learner", isOpen: externalIsOpen, o
                 <HelpCircle className="w-5 h-5 flex-shrink-0" />
                 <span className="font-medium text-body-sm text-left">Help & Support</span>
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  window.open("/settings?tab=legal", "_self");
-                  handleClose();
-                }}
+              <a
+                href="https://cxflow.io/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={handleClose}
                 className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-text-2 hover:bg-muted transition-all active:scale-[0.98]"
               >
                 <Shield className="w-5 h-5 flex-shrink-0" />
                 <span className="font-medium text-body-sm text-left">Privacy Policy</span>
-              </button>
-              <Link
-                to="/settings?tab=legal"
+              </a>
+              <a
+                href="https://cxflow.io/terms"
+                target="_blank"
+                rel="noopener noreferrer"
                 onClick={handleClose}
                 className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-text-2 hover:bg-muted transition-all active:scale-[0.98]"
               >
@@ -315,7 +316,7 @@ export function MobileNav({ user, variant = "learner", isOpen: externalIsOpen, o
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
                 <span className="font-medium text-body-sm text-left">Terms of Service</span>
-              </Link>
+              </a>
             </nav>
           </div>
         </div>

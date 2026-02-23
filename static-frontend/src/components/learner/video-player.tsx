@@ -26,6 +26,9 @@ interface VideoPlayerProps {
   onProgress?: (progress: number, currentTime: number) => void;
   onComplete?: () => void;
   onTimeUpdate?: (currentTime: number) => void;
+  onSeeking?: () => void;
+  onSeeked?: () => void;
+  onEnded?: () => void;
   initialTime?: number;
   className?: string;
   /** CloudFront signing params for HLS chunk requests */
@@ -64,6 +67,9 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
   onProgress,
   onComplete,
   onTimeUpdate,
+  onSeeking: onSeekingProp,
+  onSeeked: onSeekedProp,
+  onEnded: onEndedProp,
   initialTime = 0,
   className,
   signingParams,
@@ -89,6 +95,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
   initialTimeRef.current = initialTime;
   const lastReportedSecondRef = useRef(-1);
   const progressBarRef = useRef<HTMLDivElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
 
   const isYouTube = src && isYouTubeUrl(src);
   const youtubeId = src && isYouTube ? getYouTubeId(src) : null;
@@ -100,6 +107,12 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
   onCompleteRef.current = onComplete;
   const onTimeUpdateRef = useRef(onTimeUpdate);
   onTimeUpdateRef.current = onTimeUpdate;
+  const onSeekingRef = useRef(onSeekingProp);
+  onSeekingRef.current = onSeekingProp;
+  const onSeekedRef = useRef(onSeekedProp);
+  onSeekedRef.current = onSeekedProp;
+  const onEndedRef = useRef(onEndedProp);
+  onEndedRef.current = onEndedProp;
 
   const PREVIEW_DURATION = 20; // seconds of video content shown in preview
   const PREVIEW_SPEED = 2;     // 2x speed → 20s content plays in ~10s real time
@@ -197,6 +210,40 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
   // and HLS startPosition. We do NOT re-seek when initialTime changes during playback
   // because progress saves update the parent's state which would cause a seek loop.
 
+  // ── Pause video when user is not watching ──
+  // Like TikTok: pause when tab is hidden or window loses focus.
+  // This prevents users from "watching" videos in the background to inflate progress.
+  useEffect(() => {
+    if (previewMode || isYouTube) return;
+    const video = videoRef.current;
+    if (!video) return;
+
+    const pauseIfPlaying = () => {
+      if (!video.paused && !video.ended) {
+        console.log("[VideoPlayer] Pausing — user not watching");
+        video.pause();
+      }
+    };
+
+    // Tab hidden (switch tab, minimize, app goes to background)
+    const handleVisibilityChange = () => {
+      if (document.hidden) pauseIfPlaying();
+    };
+
+    // Window blur (Alt+Tab, click on another window)
+    const handleWindowBlur = () => {
+      pauseIfPlaying();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("blur", handleWindowBlur);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("blur", handleWindowBlur);
+    };
+  }, [previewMode, isYouTube]);
+
   // HLS.js integration for .m3u8 streams (with optional CloudFront signed URL support)
   useEffect(() => {
     const video = videoRef.current;
@@ -244,6 +291,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
       const MAX_RETRIES = 5;
 
       const hls = new Hls({
+        enableWorker: true,                            // use Web Worker for transmuxing (better in background tabs)
         startPosition: initialTimeRef.current || -1,
         // ── Buffering — generous for smooth playback ──
         // At 2x speed, video consumes buffer twice as fast (6s segments = 3 real sec).
@@ -273,6 +321,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
           },
         } : {}),
       });
+      hlsRef.current = hls;
       hls.loadSource(src);
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -310,6 +359,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
         }
       });
       return () => {
+        hlsRef.current = null;
         hls.destroy();
       };
     }
@@ -332,11 +382,6 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
           if (onProgressRef.current && sec % 5 === 0 && sec !== lastReportedSecondRef.current) {
             lastReportedSecondRef.current = sec;
             onProgressRef.current(newProgress, newTime);
-          }
-          
-          if (newProgress >= COMPLETION_THRESHOLD && onCompleteRef.current && !completedRef.current) {
-            completedRef.current = true;
-            onCompleteRef.current();
           }
           
           return newTime;
@@ -375,11 +420,6 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
       onProgressRef.current(currentProgress, video.currentTime);
     }
 
-    // Mark as complete at threshold (matches backend >=90%)
-    if (currentProgress >= COMPLETION_THRESHOLD && onCompleteRef.current && !completedRef.current) {
-      completedRef.current = true;
-      onCompleteRef.current();
-    }
   }, [isYouTube]);
 
   const togglePlay = useCallback(async () => {
@@ -733,8 +773,17 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
         }}
         onWaiting={() => setIsBuffering(true)}
         onCanPlay={() => setIsBuffering(false)}
-        onSeeking={() => setIsBuffering(true)}
-        onSeeked={() => setIsBuffering(false)}
+        onSeeking={() => { setIsBuffering(true); onSeekingRef.current?.(); }}
+        onSeeked={() => { setIsBuffering(false); onSeekedRef.current?.(); }}
+        onEnded={() => {
+          setIsPlaying(false);
+          // Mark complete only when video truly finishes
+          if (onCompleteRef.current && !completedRef.current) {
+            completedRef.current = true;
+            onCompleteRef.current();
+          }
+          onEndedRef.current?.();
+        }}
         onClick={togglePlay}
       />
 

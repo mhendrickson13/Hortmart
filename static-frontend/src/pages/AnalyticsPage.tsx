@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { analytics as analyticsApi } from "@/lib/api-client";
 import { StatCard } from "@/components/admin/stat-card";
@@ -8,18 +8,69 @@ import { formatCurrency, formatNumber } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import {
   Download, Calendar, DollarSign, ShoppingCart, RotateCcw, TrendingUp,
-  Users, BarChart3, ChevronRight, BookOpen,
+  Users, BarChart3, ChevronRight, BookOpen, ChevronDown,
 } from "lucide-react";
 import { toast } from "@/components/ui/toaster";
 
 type TabKey = "sales" | "progress" | "users";
 
+type RangeKey = "7d" | "14d" | "30d" | "custom";
+
+interface DateRange {
+  from: string; // YYYY-MM-DD
+  to: string;   // YYYY-MM-DD
+  label: string;
+}
+
+function getDateRange(key: RangeKey): DateRange {
+  const now = new Date();
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  const today = fmt(now);
+
+  switch (key) {
+    case "7d": {
+      const from = new Date(now);
+      from.setDate(from.getDate() - 7);
+      return { from: fmt(from), to: today, label: "Last 7 days" };
+    }
+    case "14d": {
+      const from = new Date(now);
+      from.setDate(from.getDate() - 14);
+      return { from: fmt(from), to: today, label: "Last 14 days" };
+    }
+    case "30d": {
+      const from = new Date(now);
+      from.setDate(from.getDate() - 30);
+      return { from: fmt(from), to: today, label: "Last 30 days" };
+    }
+    default:
+      return { from: today, to: today, label: "Custom" };
+  }
+}
+
+const RANGE_OPTIONS: { key: RangeKey; label: string }[] = [
+  { key: "7d", label: "Last 7 days" },
+  { key: "14d", label: "Last 14 days" },
+  { key: "30d", label: "Last 30 days" },
+];
+
 export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState<TabKey>("sales");
+  const [rangeKey, setRangeKey] = useState<RangeKey>("30d");
+  const [showRangeMenu, setShowRangeMenu] = useState(false);
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+
+  const range = useMemo(() => {
+    if (rangeKey === "custom" && customFrom && customTo) {
+      return { from: customFrom, to: customTo, label: `${customFrom} — ${customTo}` };
+    }
+    return getDateRange(rangeKey);
+  }, [rangeKey, customFrom, customTo]);
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["analytics-overview"],
-    queryFn: () => analyticsApi.getDashboard(),
+    queryKey: ["analytics-overview", range.from, range.to],
+    queryFn: () => analyticsApi.getDashboard({ from: range.from, to: range.to }),
   });
 
   if (error) {
@@ -107,12 +158,56 @@ export default function AnalyticsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-h1 font-bold text-text-1">Analytics</h1>
-          <p className="text-body-sm text-text-3 mt-1">Last 30 days — All courses</p>
+          <p className="text-body-sm text-text-3 mt-1">{range.label} — All courses</p>
         </div>
         <div className="flex items-center gap-2">
-          <button className="h-9 px-3.5 rounded-xl border border-border bg-white dark:bg-card text-text-1 font-semibold text-body-sm inline-flex items-center gap-2 hover:bg-muted/50 transition-colors" title="Date range">
-            <Calendar className="w-4 h-4 text-text-3" /> 30 days
-          </button>
+          {/* Date Range Picker */}
+          <div className="relative">
+            <button
+              onClick={() => setShowRangeMenu(!showRangeMenu)}
+              className="h-9 px-3.5 rounded-xl border border-border bg-white dark:bg-card text-text-1 font-semibold text-body-sm inline-flex items-center gap-2 hover:bg-muted/50 transition-colors"
+            >
+              <Calendar className="w-4 h-4 text-text-3" />
+              {range.label}
+              <ChevronDown className="w-3.5 h-3.5 text-text-3" />
+            </button>
+            {showRangeMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowRangeMenu(false)} />
+                <div className="absolute right-0 top-full mt-1 z-50 w-64 bg-white dark:bg-card border border-border rounded-xl shadow-lg overflow-hidden">
+                  <div className="py-1">
+                    {RANGE_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.key}
+                        onClick={() => { setRangeKey(opt.key); setShowRangeMenu(false); }}
+                        className={`w-full text-left px-4 py-2.5 text-body-sm transition-colors ${rangeKey === opt.key ? "bg-primary/10 text-primary font-semibold" : "text-text-2 hover:bg-muted/50"}`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="border-t border-border px-4 py-3">
+                    <p className="text-caption font-semibold text-text-3 mb-2">Custom range</p>
+                    <div className="space-y-2">
+                      <div>
+                        <label className="text-[10px] text-text-3 mb-0.5 block">From</label>
+                        <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="w-full h-9 px-2.5 rounded-lg border border-border bg-surface-2 text-body-sm text-text-1" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-text-3 mb-0.5 block">To</label>
+                        <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="w-full h-9 px-2.5 rounded-lg border border-border bg-surface-2 text-body-sm text-text-1" />
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => { if (customFrom && customTo) { setRangeKey("custom"); setShowRangeMenu(false); } }}
+                      disabled={!customFrom || !customTo}
+                      className="mt-3 w-full h-9 rounded-lg bg-primary text-white text-body-sm font-semibold disabled:opacity-40 hover:bg-primary/90 transition-colors"
+                    >Apply</button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
           <button onClick={() => toast({ title: "Export started", description: "Analytics data will be ready shortly", variant: "success" })}
             className="h-9 px-3.5 rounded-xl border border-border bg-white dark:bg-card text-text-1 font-semibold text-body-sm inline-flex items-center gap-2 hover:bg-muted/50 transition-colors">
             <Download className="w-4 h-4 text-text-3" /> Export

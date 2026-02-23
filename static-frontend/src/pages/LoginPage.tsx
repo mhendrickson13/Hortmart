@@ -71,6 +71,9 @@ export default function LoginPage() {
             <div className="space-y-1.5">
               <Label htmlFor="password">Password</Label>
               <PasswordInput id="password" placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" />
+              <div className="text-right">
+                <Link to="/forgot-password" className="text-xs text-primary font-semibold hover:underline">Forgot password?</Link>
+              </div>
             </div>
 
             {error && (

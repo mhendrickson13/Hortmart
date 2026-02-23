@@ -28,6 +28,8 @@ import MyCoursesPage from "@/pages/MyCoursesPage";
 import PlayerPage from "@/pages/PlayerPage";
 import ProfilePage from "@/pages/ProfilePage";
 import SettingsPage from "@/pages/SettingsPage";
+import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
+import ResetPasswordPage from "@/pages/ResetPasswordPage";
 
 export default function App() {
   return (
@@ -40,6 +42,8 @@ export default function App() {
           {/* Auth routes - no layout */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
 
           {/* Admin routes */}
           <Route path="/dashboard" element={<AdminLayout><DashboardPage /></AdminLayout>} />

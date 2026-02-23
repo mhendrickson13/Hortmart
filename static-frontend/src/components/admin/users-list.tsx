@@ -4,10 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Users, Eye, Mail, UserPlus } from "lucide-react";
+import { Search, Users, Eye } from "lucide-react";
 import { Link } from "react-router-dom";
 import { getInitials, formatRelativeTime, cn } from "@/lib/utils";
-import { toast } from "@/components/ui/toaster";
 
 
 interface UserData {
@@ -266,35 +265,6 @@ function UserList({
                 >
                   View
                 </Link>
-                {status === "NEW" ? (
-                  <button
-                    onClick={() =>
-                      toast({
-                        title: "Invite sent",
-                        description: `Invitation email feature is under development.`,
-                        variant: "info",
-                      })
-                    }
-                    className="hidden sm:inline-flex h-[34px] px-3 rounded-[14px] items-center gap-1.5 text-[12px] font-black bg-white/95 dark:bg-card/95 border border-border/95 text-text-1 hover:bg-muted transition-colors"
-                  >
-                    <UserPlus className="w-3.5 h-3.5" />
-                    Invite
-                  </button>
-                ) : (
-                  <button
-                    onClick={() =>
-                      toast({
-                        title: "Messaging coming soon",
-                        description: "Direct messaging is under development.",
-                        variant: "info",
-                      })
-                    }
-                    className="hidden sm:inline-flex h-[34px] px-3 rounded-[14px] items-center gap-1.5 text-[12px] font-black bg-white/95 dark:bg-card/95 border border-border/95 text-text-1 hover:bg-muted transition-colors"
-                  >
-                    <Mail className="w-3.5 h-3.5" />
-                    Message
-                  </button>
-                )}
                 <Link
                   to={`/users/${user.id}`}
                   className="sm:hidden h-8 w-8 rounded-xl flex items-center justify-center bg-primary/10 text-primary"

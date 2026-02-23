@@ -7,29 +7,41 @@ const router = (0, express_1.Router)();
 // GET /analytics - Dashboard analytics (Admin only)
 router.get('/', auth_js_1.authenticate, auth_js_1.requireAdmin, async (req, res) => {
     try {
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        const thirtyDaysStr = thirtyDaysAgo.toISOString().replace('T', ' ').replace('Z', '');
+        // Accept optional date range: ?from=YYYY-MM-DD&to=YYYY-MM-DD
+        let fromDate;
+        let toDate;
+        if (req.query.from && req.query.to) {
+            fromDate = new Date(req.query.from + 'T00:00:00');
+            toDate = new Date(req.query.to + 'T23:59:59');
+        }
+        else {
+            toDate = new Date();
+            fromDate = new Date();
+            fromDate.setDate(fromDate.getDate() - 30);
+        }
+        const fromStr = fromDate.toISOString().replace('T', ' ').replace('Z', '');
+        const toStr = toDate.toISOString().replace('T', ' ').replace('Z', '');
         // Overview counts
         const [usersRow, coursesRow, enrollmentsRow] = await Promise.all([
             (0, db_js_1.queryOne)('SELECT COUNT(*) as cnt FROM users'),
             (0, db_js_1.queryOne)('SELECT COUNT(*) as cnt FROM courses'),
-            (0, db_js_1.queryOne)('SELECT COUNT(*) as cnt FROM enrollments'),
+            (0, db_js_1.queryOne)('SELECT COUNT(*) as cnt FROM enrollments WHERE enrolledAt >= ? AND enrolledAt <= ?', [fromStr, toStr]),
         ]);
         const totalUsers = Number(usersRow?.cnt ?? 0);
         const totalCourses = Number(coursesRow?.cnt ?? 0);
         const totalEnrollments = Number(enrollmentsRow?.cnt ?? 0);
-        // Total revenue
-        const revenueRow = await (0, db_js_1.queryOne)(`SELECT SUM(c.price * sub.cnt) as revenue
-       FROM courses c JOIN (SELECT courseId, COUNT(*) as cnt FROM enrollments GROUP BY courseId) sub ON c.id = sub.courseId`);
+        // Total revenue (within selected range)
+        const revenueRow = await (0, db_js_1.queryOne)(`SELECT COALESCE(SUM(c.price), 0) as revenue
+       FROM enrollments e JOIN courses c ON e.courseId = c.id
+       WHERE e.enrolledAt >= ? AND e.enrolledAt <= ?`, [fromStr, toStr]);
         const totalRevenue = Number(revenueRow?.revenue ?? 0);
-        // Active users (with progress in last 30 days)
+        // Active users (within selected range)
         const activeRow = await (0, db_js_1.queryOne)(`SELECT COUNT(DISTINCT en.userId) as cnt
        FROM lesson_progress lp JOIN enrollments en ON lp.enrollmentId = en.id
-       WHERE lp.lastWatchedAt >= ?`, [thirtyDaysStr]);
+       WHERE lp.lastWatchedAt >= ? AND lp.lastWatchedAt <= ?`, [fromStr, toStr]);
         const activeUsers = Number(activeRow?.cnt ?? 0);
-        // Completion rate
-        const enrollmentsForCompletion = await (0, db_js_1.query)(`SELECT en.id as enrollmentId, en.courseId FROM enrollments en`);
+        // Completion rate (enrollments within selected range)
+        const enrollmentsForCompletion = await (0, db_js_1.query)(`SELECT en.id as enrollmentId, en.courseId FROM enrollments en WHERE en.enrolledAt >= ? AND en.enrolledAt <= ?`, [fromStr, toStr]);
         let completedCount = 0;
         if (enrollmentsForCompletion.length > 0) {
             const courseIds = [...new Set(enrollmentsForCompletion.map(e => e.courseId))];
@@ -48,16 +60,16 @@ router.get('/', auth_js_1.authenticate, auth_js_1.requireAdmin, async (req, res)
             }
         }
         const completionRate = totalEnrollments > 0 ? (completedCount / totalEnrollments) * 100 : 0;
-        // User trends (last 30 days)
-        const recentUsers = await (0, db_js_1.query)('SELECT createdAt FROM users WHERE createdAt >= ?', [thirtyDaysStr]);
+        // User trends (within selected range)
+        const recentUsers = await (0, db_js_1.query)('SELECT createdAt FROM users WHERE createdAt >= ? AND createdAt <= ?', [fromStr, toStr]);
         const userTrends = {};
         for (const u of recentUsers) {
             const d = (u.createdAt instanceof Date ? u.createdAt.toISOString() : String(u.createdAt)).split('T')[0];
             userTrends[d] = (userTrends[d] || 0) + 1;
         }
         const userTrendsArray = Object.entries(userTrends).map(([date, count]) => ({ date, count })).sort((a, b) => a.date.localeCompare(b.date));
-        // Enrollment trends (last 30 days)
-        const recentEnrollments = await (0, db_js_1.query)(`SELECT e.enrolledAt, c.price FROM enrollments e JOIN courses c ON e.courseId = c.id WHERE e.enrolledAt >= ?`, [thirtyDaysStr]);
+        // Enrollment trends (within selected range)
+        const recentEnrollments = await (0, db_js_1.query)(`SELECT e.enrolledAt, c.price FROM enrollments e JOIN courses c ON e.courseId = c.id WHERE e.enrolledAt >= ? AND e.enrolledAt <= ?`, [fromStr, toStr]);
         const enrollmentTrends = {};
         const revenueTrends = {};
         for (const e of recentEnrollments) {
@@ -67,10 +79,10 @@ router.get('/', auth_js_1.authenticate, auth_js_1.requireAdmin, async (req, res)
         }
         const enrollmentTrendsArray = Object.entries(enrollmentTrends).map(([date, count]) => ({ date, count })).sort((a, b) => a.date.localeCompare(b.date));
         const revenueTrendsArray = Object.entries(revenueTrends).map(([date, amount]) => ({ date, amount })).sort((a, b) => a.date.localeCompare(b.date));
-        // Top courses
+        // Top courses (enrollments within selected range)
         const topCourses = await (0, db_js_1.query)(`SELECT c.id, c.title, c.price, COUNT(e.id) as enrollCount
-       FROM courses c LEFT JOIN enrollments e ON e.courseId = c.id
-       GROUP BY c.id ORDER BY enrollCount DESC LIMIT 10`);
+       FROM courses c LEFT JOIN enrollments e ON e.courseId = c.id AND e.enrolledAt >= ? AND e.enrolledAt <= ?
+       GROUP BY c.id ORDER BY enrollCount DESC LIMIT 10`, [fromStr, toStr]);
         const topCoursesIds = topCourses.map(c => c.id);
         let ratingsByCourse = new Map();
         if (topCoursesIds.length > 0) {
@@ -125,13 +137,14 @@ router.get('/', auth_js_1.authenticate, auth_js_1.requireAdmin, async (req, res)
                     progressBuckets['0-25']++;
             }
         }
-        // Top learners
+        // Top learners (enrolled or active within selected range)
         const topLearners = await (0, db_js_1.query)(`SELECT e.id as enrollmentId, e.courseId, u.email, u.name, c.title as course,
               (SELECT MAX(lp2.lastWatchedAt) FROM lesson_progress lp2 WHERE lp2.enrollmentId = e.id) as lastActive
        FROM enrollments e
        JOIN users u ON e.userId = u.id
        JOIN courses c ON e.courseId = c.id
-       ORDER BY e.enrolledAt DESC LIMIT 10`);
+       WHERE e.enrolledAt >= ? AND e.enrolledAt <= ?
+       ORDER BY e.enrolledAt DESC LIMIT 10`, [fromStr, toStr]);
         // Calculate actual progress for top learners
         let topLearnerProgressMap = new Map();
         if (topLearners.length > 0) {

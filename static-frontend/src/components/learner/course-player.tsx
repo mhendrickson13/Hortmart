@@ -11,9 +11,10 @@ import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { favourites as favouritesApi, video as videoApi } from "@/lib/api-client";
+import { favourites as favouritesApi, video as videoApi, courses } from "@/lib/api-client";
 import type { VideoSignedUrlResponse } from "@/lib/api-client";
 import { useVideoProgress } from "@/hooks/use-video-progress";
+import { useAuth } from "@/lib/auth-context";
 import {
   ChevronLeft,
   Star,
@@ -58,6 +59,8 @@ interface CoursePlayerProps {
         videoUrl?: string | null;
         durationSeconds: number;
         isLocked: boolean;
+        qaEnabled?: boolean;
+        notesEnabled?: boolean;
         resources: Array<{
           id: string;
           title: string;
@@ -86,74 +89,62 @@ interface CoursePlayerProps {
 }
 
 // --- Activity Chart Component ---
-type LessonLike = {
-  progress: {
-    progressPercent: number;
-    completedAt: Date | string | null;
-    lastWatchedTimestamp: number;
-    lastWatchedAt?: Date | string | null;
-  } | null;
-  durationSeconds: number;
-};
+function ActivityChart({ courseId, gradientId }: { courseId: string; gradientId?: string }) {
+  const { token } = useAuth();
+  const [dailyData, setDailyData] = useState<Record<string, number>>({});
 
-function ActivityChart({ lessons, gradientId }: { lessons: LessonLike[]; gradientId?: string }) {
-  // Get last 7 days labels and compute activity per day
+  // Fetch real watch activity from backend
+  useEffect(() => {
+    let cancelled = false;
+    const fetchActivity = async () => {
+      try {
+        const res = await courses.getWatchActivity(courseId, token || undefined);
+        if (!cancelled && res.activity) {
+          const map: Record<string, number> = {};
+          res.activity.forEach((r: any) => {
+            const dateStr = (r.activityDate || '').slice(0, 10);
+            map[dateStr] = Number(r.watchedSeconds) || 0;
+          });
+          setDailyData(map);
+        }
+      } catch (e) { console.warn('[ActivityChart] fetch error:', e); }
+    };
+    fetchActivity();
+    // Refresh every 30 seconds while watching
+    const interval = setInterval(fetchActivity, 30_000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [courseId, token]);
+
   const { dayLabels, values, maxVal } = useMemo(() => {
     const now = new Date();
     const days: { label: string; dateStr: string }[] = [];
-    const dayNames = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+    // Helper: format date as YYYY-MM-DD in CST timezone (matches backend storage)
+    const toCST = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
 
     for (let i = 6; i >= 0; i--) {
       const d = new Date(now);
       d.setDate(d.getDate() - i);
+      // Use Intl to get day-of-week in CST to match backend
+      const dow = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: 'America/Chicago' }).format(d).toUpperCase();
       days.push({
-        label: dayNames[d.getDay()],
-        dateStr: d.toISOString().slice(0, 10), // YYYY-MM-DD
+        label: dow,
+        dateStr: toCST(d),
       });
     }
 
-    // Accumulate activity per day from lesson progress
-    const activityMap: Record<string, number> = {};
-    days.forEach((d) => (activityMap[d.dateStr] = 0));
-
-    lessons.forEach((lesson) => {
-      if (!lesson.progress) return;
-      const prog = lesson.progress;
-
-      // Use completedAt if available
-      if (prog.completedAt) {
-        const dateStr = new Date(prog.completedAt).toISOString().slice(0, 10);
-        if (activityMap[dateStr] !== undefined) {
-          // Count completed lesson's full estimated duration as watched time
-          activityMap[dateStr] += lesson.durationSeconds;
-        }
-      }
-
-      // For in-progress lessons, use lastWatchedAt to determine the actual day
-      if (prog.progressPercent > 0 && !prog.completedAt) {
-        const watchDate = prog.lastWatchedAt ? new Date(prog.lastWatchedAt).toISOString().slice(0, 10) : now.toISOString().slice(0, 10);
-        if (activityMap[watchDate] !== undefined) {
-          // Estimate time spent as progressPercent * duration
-          activityMap[watchDate] += Math.round(
-            (prog.progressPercent / 100) * lesson.durationSeconds
-          );
-        }
-      }
-    });
-
-    const vals = days.map((d) => activityMap[d.dateStr] || 0);
-    const mx = Math.max(...vals, 1); // Avoid division by zero
+    const vals = days.map((d) => dailyData[d.dateStr] || 0);
+    const mx = Math.max(...vals, 1);
 
     return { dayLabels: days.map((d) => d.label), values: vals, maxVal: mx };
-  }, [lessons]);
+  }, [dailyData]);
 
-  // SVG dimensions
+  // SVG dimensions — padX=0 so points span full width, matching justify-between labels
   const W = 320;
   const H = 120;
-  const padX = 12;
+  const padX = 0;
   const padTop = 10;
   const padBot = 6;
-  const chartW = W - padX * 2;
+  const chartW = W;
   const chartH = H - padTop - padBot;
 
   // Convert values to points
@@ -182,7 +173,7 @@ function ActivityChart({ lessons, gradientId }: { lessons: LessonLike[]; gradien
   return (
     <div>
       <div className="relative">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-[110px]" fill="none">
+        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-[110px]" fill="none">
           {/* Gradient fill */}
           <defs>
             <linearGradient id={gradientId || "actGrad"} x1="0" y1="0" x2="0" y2="1">
@@ -263,6 +254,7 @@ export function CoursePlayer({
   const [currentVideoTime, setCurrentVideoTime] = useState(0);
   const [isFavorited, setIsFavorited] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(false);
+  const [videoEnded, setVideoEnded] = useState(false);
   // Track whether this is the first lesson load (use initialTime from API)
   const isFirstLoadRef = useRef(true);
   const autoAdvanceTimerRef = useRef<NodeJS.Timeout>();
@@ -273,6 +265,8 @@ export function CoursePlayer({
     handleProgress,
     handleComplete,
     handleTimeUpdate: hookTimeUpdate,
+    handleSeeking,
+    handleSeeked,
     saveBeforeSwitch,
     currentTimeRef,
   } = useVideoProgress({
@@ -418,7 +412,10 @@ export function CoursePlayer({
   const currentLesson = allLessons.find((l) => l.id === currentLessonId);
   const currentLessonIndex = allLessons.findIndex((l) => l.id === currentLessonId);
   const totalLessons = allLessons.length;
-  const completedLessons = allLessons.filter((l) => getProgress(l).completedAt).length;
+  const completedLessons = allLessons.filter((l) => {
+    const p = getProgress(l);
+    return !!p.completedAt || p.progressPercent >= 100;
+  }).length;
   const totalDuration = allLessons.reduce((sum, l) => sum + l.durationSeconds, 0);
   const progressPercent = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
 
@@ -448,6 +445,7 @@ export function CoursePlayer({
       setLessonSeekTime(targetProgress?.lastWatchedTimestamp || 0);
       setCurrentLessonId(lessonId);
       setCurrentVideoTime(0);
+      setVideoEnded(false);
       setSearchParams({ lesson: lessonId }, { replace: true });
       // On mobile, scroll up to video area after lesson select
       setTimeout(() => {
@@ -457,6 +455,15 @@ export function CoursePlayer({
       toast({ title: "This lesson is locked", description: "Complete previous lessons first.", variant: "warning" });
     }
   }, [allLessons, saveBeforeSwitch, getProgress, setSearchParams]);
+
+  const handleVideoEnded = useCallback(() => {
+    setVideoEnded(true);
+  }, []);
+
+  const nextLesson = currentLessonIndex < allLessons.length - 1
+    ? allLessons[currentLessonIndex + 1]
+    : null;
+  const nextLessonAvailable = nextLesson && !nextLesson.isLocked;
 
   const handleSeekToTimestamp = useCallback((time: number) => {
     videoRef.current?.seekTo(time);
@@ -610,7 +617,7 @@ export function CoursePlayer({
             <p className="text-caption text-text-3">This usually takes a few minutes. It will appear automatically when ready.</p>
           </div>
         ) : (
-          <div className="lg:h-full" style={{ boxShadow: '0 14px 40px rgba(21,25,35,0.08)', borderRadius: '22px' }}>
+          <div className="lg:h-full relative" style={{ boxShadow: '0 14px 40px rgba(21,25,35,0.08)', borderRadius: '22px' }}>
           <VideoPlayer
             ref={videoRef}
             src={videoSrc}
@@ -620,7 +627,48 @@ export function CoursePlayer({
             onProgress={handleProgress}
             onComplete={handleComplete}
             onTimeUpdate={handleVideoTimeUpdate}
+            onSeeking={handleSeeking}
+            onSeeked={handleSeeked}
+            onEnded={handleVideoEnded}
           />
+          {/* Next Lesson Overlay — shown when video reaches the end */}
+          {videoEnded && (
+            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/70 backdrop-blur-sm" style={{ borderRadius: '22px' }}>
+              {nextLessonAvailable ? (
+                <>
+                  <CheckCircle className="w-12 h-12 text-success mb-3" />
+                  <p className="text-white font-bold text-body mb-1">Lesson Complete!</p>
+                  <p className="text-white/70 text-body-sm mb-5">Up next:</p>
+                  <p className="text-white font-semibold text-body-sm mb-6 max-w-xs text-center truncate px-4">{nextLesson!.title}</p>
+                  <button
+                    onClick={() => handleLessonSelect(nextLesson!.id)}
+                    className="flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-white font-bold text-body-sm hover:bg-primary/90 transition-colors shadow-lg"
+                  >
+                    <Play className="w-5 h-5" fill="currentColor" />
+                    Play Next Lesson
+                  </button>
+                  <button
+                    onClick={() => setVideoEnded(false)}
+                    className="mt-3 text-white/60 text-caption hover:text-white/90 transition-colors"
+                  >
+                    Stay on this lesson
+                  </button>
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-14 h-14 text-success mb-3" />
+                  <p className="text-white font-bold text-h3 mb-1">{currentLessonIndex === allLessons.length - 1 ? 'Course Complete!' : 'Lesson Complete!'}</p>
+                  <p className="text-white/60 text-body-sm mb-5">{currentLessonIndex === allLessons.length - 1 ? 'You\'ve finished all lessons. Great job!' : 'The next lesson is locked.'}</p>
+                  <button
+                    onClick={() => setVideoEnded(false)}
+                    className="px-6 py-3 rounded-xl bg-white/20 text-white font-bold text-body-sm hover:bg-white/30 transition-colors"
+                  >
+                    Dismiss
+                  </button>
+                </>
+              )}
+            </div>
+          )}
           </div>
         )}
         </div>
@@ -789,8 +837,12 @@ export function CoursePlayer({
         <Tabs defaultValue="overview" className="flex-1 lg:flex-[2] lg:min-h-0 flex flex-col" style={{ minHeight: 0 }}>
           <TabsList className="w-full lg:w-max justify-start overflow-x-auto flex-shrink-0">
             <TabsTrigger value="overview" className="text-[13px] font-semibold lg:flex-none">Overview</TabsTrigger>
-            <TabsTrigger value="qa" className="text-[13px] font-semibold lg:flex-none">Q&A</TabsTrigger>
-            <TabsTrigger value="notes" className="text-[13px] font-semibold lg:flex-none">Notes</TabsTrigger>
+            {(currentLesson as any)?.qaEnabled !== false && (
+              <TabsTrigger value="qa" className="text-[13px] font-semibold lg:flex-none">Q&A</TabsTrigger>
+            )}
+            {(currentLesson as any)?.notesEnabled !== false && (
+              <TabsTrigger value="notes" className="text-[13px] font-semibold lg:flex-none">Notes</TabsTrigger>
+            )}
             <TabsTrigger value="resources" className="text-[13px] font-semibold lg:flex-none">Resources</TabsTrigger>
           </TabsList>
 
@@ -896,7 +948,7 @@ export function CoursePlayer({
       </div>
 
       {/* Desktop Sidebar - Lesson List */}
-      <aside className="hidden lg:flex w-[360px] flex-shrink-0 rounded-[22px] bg-white/85 dark:bg-card/85 border border-border/70 p-3.5 flex-col gap-3.5">
+      <aside className="hidden lg:flex w-[600px] flex-shrink-0 rounded-[22px] bg-white/85 dark:bg-card/85 border border-border/70 p-3.5 flex-col gap-3.5">
         <div className="flex items-center justify-between flex-shrink-0">
           <h3 className="text-[14px] font-extrabold text-text-1">Course content</h3>
           <span className="text-[12px] font-semibold text-text-3">{totalLessons} lessons</span>
@@ -928,7 +980,7 @@ export function CoursePlayer({
           <h4 className="text-[12px] font-extrabold text-text-1 mb-2">
             Your time on the course
           </h4>
-          <ActivityChart lessons={allLessons} gradientId={chartGradientId} />
+          <ActivityChart courseId={course.id} gradientId={chartGradientId} />
         </div>
       </aside>
 

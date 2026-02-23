@@ -139,6 +139,22 @@ app.post('/e/setup', async (req, res) => {
   }
 });
 
+// ── Debug: check watch_activity table ──
+app.get('/e/debug-watch', async (req, res) => {
+  try {
+    const setupKey = req.headers['x-setup-key'];
+    if (setupKey !== (process.env.SETUP_KEY || 'cxflow-lms-setup-2026')) {
+      return res.status(403).json({ error: 'Invalid setup key' });
+    }
+    const rows = await query<any[]>('SELECT * FROM watch_activity ORDER BY activityDate DESC LIMIT 20');
+    const nowUTC = new Date().toISOString();
+    const nowCST = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+    res.json({ nowUTC, nowCST, rowCount: rows.length, rows });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Schema Migration Endpoint (one-time use) ──
 app.post('/e/migrate', async (req, res) => {
   try {
@@ -173,6 +189,7 @@ app.post('/e/migrate', async (req, res) => {
         id VARCHAR(30) NOT NULL, title VARCHAR(191) NOT NULL, description TEXT NULL, videoUrl TEXT NULL,
         durationSeconds INTEGER NOT NULL DEFAULT 0, position INTEGER NOT NULL DEFAULT 0,
         isLocked BOOLEAN NOT NULL DEFAULT false, isFreePreview BOOLEAN NOT NULL DEFAULT false,
+        qaEnabled BOOLEAN NOT NULL DEFAULT true, notesEnabled BOOLEAN NOT NULL DEFAULT true,
         moduleId VARCHAR(30) NOT NULL, createdAt DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
         updatedAt DATETIME(3) NOT NULL, INDEX lessons_moduleId_idx(moduleId), PRIMARY KEY (id))`,
       `CREATE TABLE IF NOT EXISTS resources (
@@ -231,6 +248,27 @@ app.post('/e/migrate', async (req, res) => {
         UNIQUE INDEX ucs_user_course_type(userId, courseId, type),
         INDEX ucs_userId_idx(userId), INDEX ucs_courseId_idx(courseId),
         PRIMARY KEY (id))`,
+      `CREATE TABLE IF NOT EXISTS password_resets (
+        id VARCHAR(30) NOT NULL,
+        userId VARCHAR(30) NOT NULL,
+        token VARCHAR(128) NOT NULL,
+        expiresAt DATETIME(3) NOT NULL,
+        usedAt DATETIME(3) NULL DEFAULT NULL,
+        updatedAt DATETIME(3) NULL DEFAULT NULL,
+        createdAt DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+        INDEX pr_token_idx(token),
+        INDEX pr_userId_idx(userId),
+        PRIMARY KEY (id))`,
+      `CREATE TABLE IF NOT EXISTS watch_activity (
+        id VARCHAR(30) NOT NULL,
+        userId VARCHAR(30) NOT NULL,
+        courseId VARCHAR(30) NOT NULL,
+        activityDate DATE NOT NULL,
+        watchedSeconds INTEGER NOT NULL DEFAULT 0,
+        updatedAt DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+        UNIQUE INDEX wa_user_course_date(userId, courseId, activityDate),
+        INDEX wa_userId_idx(userId),
+        PRIMARY KEY (id))`,
     ];
 
     for (const sql of tableStatements) {
@@ -242,6 +280,20 @@ app.post('/e/migrate', async (req, res) => {
       `ALTER TABLE lessons ADD COLUMN videoStatus VARCHAR(20) NULL DEFAULT NULL`,
       `ALTER TABLE lessons ADD COLUMN encodingJobId VARCHAR(191) NULL DEFAULT NULL`,
       `ALTER TABLE lessons ADD COLUMN hlsUrl TEXT NULL DEFAULT NULL`,
+      `ALTER TABLE lessons ADD COLUMN qaEnabled BOOLEAN NOT NULL DEFAULT true`,
+      `ALTER TABLE lessons ADD COLUMN notesEnabled BOOLEAN NOT NULL DEFAULT true`,
+      // Notification preferences on users table
+      `ALTER TABLE users ADD COLUMN notifyEmailEnrollment BOOLEAN NOT NULL DEFAULT true`,
+      `ALTER TABLE users ADD COLUMN notifyEmailCompletion BOOLEAN NOT NULL DEFAULT true`,
+      `ALTER TABLE users ADD COLUMN notifyEmailNewStudent BOOLEAN NOT NULL DEFAULT true`,
+      `ALTER TABLE users ADD COLUMN notifyEmailReview BOOLEAN NOT NULL DEFAULT true`,
+      `ALTER TABLE users ADD COLUMN notifyInApp BOOLEAN NOT NULL DEFAULT true`,
+      // Watch analytics columns on lesson_progress
+      `ALTER TABLE lesson_progress ADD COLUMN watchedSeconds INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE lesson_progress ADD COLUMN viewCount INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE lesson_progress ADD COLUMN firstViewedAt DATETIME(3) NULL DEFAULT NULL`,
+      // Enrollment completion tracking
+      `ALTER TABLE enrollments ADD COLUMN completedAt DATETIME(3) NULL DEFAULT NULL`,
     ];
     for (const sql of alterStatements) {
       try { await execute(sql); } catch (e: any) {
@@ -250,10 +302,17 @@ app.post('/e/migrate', async (req, res) => {
       }
     }
 
+    // Backfill: set completedAt for old lessons that reached 100% but have no completedAt
+    try {
+      await execute(
+        `UPDATE lesson_progress SET completedAt = updatedAt WHERE completedAt IS NULL AND progressPercent >= 100`
+      );
+    } catch (e) { console.warn('[MIGRATE] backfill completedAt skipped:', e); }
+
     console.log('[MIGRATE] Tables created successfully');
     res.json({
       message: 'Migration complete - all tables created',
-      tables: ['users', 'courses', 'modules', 'lessons', 'resources', 'enrollments', 'lesson_progress', 'questions', 'answers', 'notes', 'reviews', 'notifications', 'user_course_saves'],
+      tables: ['users', 'courses', 'modules', 'lessons', 'resources', 'enrollments', 'lesson_progress', 'questions', 'answers', 'notes', 'reviews', 'notifications', 'user_course_saves', 'password_resets'],
     });
   } catch (error) {
     console.error('[MIGRATE] Error:', error);
