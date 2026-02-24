@@ -46,7 +46,8 @@ export default function PlayerPage() {
       };
     },
     enabled: !!id && !!token,
-    gcTime: 0, // Don't cache — always fetch fresh progress data on return
+    staleTime: 0,        // Always refetch on mount so we get the latest saved position
+    gcTime: 0,           // Clear cache on unmount so return visits always get fresh data
   });
 
   // Derive the lesson to play — recomputed whenever requestedLessonId or courseData changes

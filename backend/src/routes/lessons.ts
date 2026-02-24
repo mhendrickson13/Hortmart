@@ -3,6 +3,7 @@ import { query, queryOne, execute, genId, now } from '../db.js';
 import { authenticate, optionalAuth, AuthRequest } from '../middleware/auth.js';
 import { sendCourseCompleted } from '../email.js';
 import { createNotification } from './notifications.js';
+import { logActivity } from '../activity.js';
 
 const router = Router();
 
@@ -250,6 +251,8 @@ router.post('/:id/progress', authenticate, async (req: AuthRequest, res: Respons
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [progressId, enrollment.id, id, progressPercent, validTimestamp, ts, completedAt, watchedSecondsIncrement, viewInc > 0 ? 1 : 0, ts, ts]
       );
+      // First time this lesson is viewed
+      logActivity({ event: 'lesson.started', userId: req.user!.id, meta: { lessonId: id, courseId: mod.courseId } });
     }
 
     const progress = await queryOne<any>(
@@ -284,6 +287,7 @@ router.post('/:id/progress', authenticate, async (req: AuthRequest, res: Respons
     // ── Course completion detection ──
     // Only check if THIS lesson was just marked complete (completedAt was set in this request)
     if (completedAt) {
+      logActivity({ event: 'lesson.completed', userId: req.user!.id, meta: { lessonId: id, courseId: mod.courseId } });
       try {
         // Count total lessons in this course vs completed lessons for this enrollment
         const totalRow = await queryOne<any>(
@@ -324,6 +328,7 @@ router.post('/:id/progress', authenticate, async (req: AuthRequest, res: Respons
               link: `/courses/${mod.courseId}`,
             });
           }
+          logActivity({ event: 'course.completed', userId: req.user!.id, userName: user?.name || req.user!.email, meta: { courseId: mod.courseId, courseTitle: course?.title } });
           console.log(`[Completion] User ${req.user!.id} completed course ${mod.courseId} (${completedLessons}/${totalLessons} lessons)`);
         }
       } catch (e) { console.warn('[Completion] check error:', e); }

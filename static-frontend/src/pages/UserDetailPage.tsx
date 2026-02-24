@@ -12,7 +12,7 @@ import {
   EditPermissionsButton,
   ReviewRefundButton,
 } from "@/components/admin/user-detail-actions";
-import { ArrowLeft, Mail, BookOpen, Shield, AlertTriangle, ChevronDown, ChevronUp, Eye, Clock, CheckCircle, Circle, Play } from "lucide-react";
+import { ArrowLeft, Mail, BookOpen, Shield, AlertTriangle, ChevronDown, ChevronUp, Eye, Clock, CheckCircle, Circle, Play, LogIn, UserPlus, Ban, Unlock, Star, GraduationCap, History } from "lucide-react";
 import { formatCurrency, formatRelativeTime } from "@/lib/utils";
 
 /** Format seconds as "Xm Ys" */
@@ -29,6 +29,20 @@ function fmtDate(d: string | null | undefined) {
   return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
+/** Event display config */
+const EVENT_CONFIG: Record<string, { icon: React.ElementType; label: string; color: string }> = {
+  "user.registered":      { icon: UserPlus,     label: "Registered",           color: "text-primary" },
+  "user.login":           { icon: LogIn,        label: "Logged in",            color: "text-text-3" },
+  "user.blocked":         { icon: Ban,          label: "Blocked",              color: "text-danger" },
+  "user.unblocked":       { icon: Unlock,       label: "Unblocked",            color: "text-success" },
+  "user.created_by_admin":{ icon: UserPlus,     label: "Created by admin",     color: "text-warning" },
+  "enrollment.created":   { icon: BookOpen,     label: "Enrolled in course",   color: "text-primary" },
+  "lesson.started":       { icon: Play,         label: "Started lesson",       color: "text-text-3" },
+  "lesson.completed":     { icon: CheckCircle,  label: "Completed lesson",     color: "text-success" },
+  "course.completed":     { icon: GraduationCap,label: "Completed course",     color: "text-success" },
+  "review.created":       { icon: Star,         label: "Left a review",        color: "text-warning" },
+};
+
 export default function UserDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { token } = useAuth();
@@ -44,6 +58,12 @@ export default function UserDetailPage() {
   const { data: enrollData } = useQuery({
     queryKey: ["user-enrollments", id],
     queryFn: () => usersApi.getEnrollments(id!, token || undefined),
+    enabled: !!id,
+  });
+
+  const { data: activityData } = useQuery({
+    queryKey: ["user-activity", id],
+    queryFn: () => usersApi.getActivity(id!, { limit: 50 }, token || undefined),
     enabled: !!id,
   });
 
@@ -342,6 +362,51 @@ export default function UserDetailPage() {
               </div>
               <ReviewRefundButton />
             </div>
+          </div>
+
+          {/* Activity History */}
+          <div className="rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
+            <div className="flex items-center gap-2 mb-3">
+              <History className="w-4 h-4 text-text-3" />
+              <div className="text-[13px] font-black text-text-1">Activity History</div>
+              {activityData?.total != null && (
+                <span className="text-[11px] font-bold text-text-3 bg-muted rounded-full px-2 py-0.5 ml-auto">
+                  {activityData.total}
+                </span>
+              )}
+            </div>
+            {activityData?.activities && activityData.activities.length > 0 ? (
+              <div className="space-y-1 max-h-[400px] overflow-y-auto pr-1">
+                {activityData.activities.map((act: any) => {
+                  const cfg = EVENT_CONFIG[act.event] || { icon: Circle, label: act.event, color: "text-text-3" };
+                  const Icon = cfg.icon;
+                  const meta = act.meta || {};
+                  const detail = meta.courseTitle || meta.email || "";
+                  return (
+                    <div key={act.id} className="flex items-start gap-2.5 py-1.5 px-2 rounded-lg hover:bg-muted/40 transition-colors">
+                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${cfg.color} bg-current/10`}>
+                        <Icon className={`w-3.5 h-3.5 ${cfg.color}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[12px] font-bold text-text-1 leading-tight">
+                          {cfg.label}
+                        </div>
+                        {detail && (
+                          <div className="text-[11px] text-text-3 truncate mt-0.5" title={detail}>
+                            {detail}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-text-4 font-semibold flex-shrink-0 mt-0.5 whitespace-nowrap">
+                        {fmtDate(act.createdAt)}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-[12px] text-text-3 py-4 text-center">No activity recorded yet.</p>
+            )}
           </div>
         </div>
       </div>

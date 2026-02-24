@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/lib/auth-context";
-import { useAppPreferences } from "@/lib/theme-context";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -58,7 +58,7 @@ export function MobileNav({ user, variant = "learner", isOpen: externalIsOpen, o
   const [internalIsOpen, setInternalIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
-  const { t } = useAppPreferences();
+  const { t } = useTranslation();
   const navItems = variant === "admin" ? adminNavItems : learnerNavItems;
   const drawerRef = useRef<HTMLDivElement>(null);
   const startXRef = useRef<number>(0);

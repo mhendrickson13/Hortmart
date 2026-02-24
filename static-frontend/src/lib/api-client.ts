@@ -126,6 +126,21 @@ export const users = {
     request<{ message: string; enrollmentId: string }>(`/users/${id}/enroll`, { method: 'POST', body: { courseId }, token }),
   sendMessage: (id: string, data: { subject: string; message: string }, token?: string) =>
     request<{ message: string }>(`/users/${id}/message`, { method: 'POST', body: data, token }),
+  getActivity: (id: string, params?: { limit?: number; offset?: number }, token?: string) => {
+    const q = new URLSearchParams(params as Record<string, string>).toString();
+    return request<{ activities: any[]; total: number }>(`/users/${id}/activity?${q}`, { token });
+  },
+};
+
+// ==================== Settings ====================
+
+export const settings = {
+  get: (token?: string) =>
+    request<{ settings: Record<string, string> }>('/settings', { token }),
+  update: (data: Record<string, string>, token?: string) =>
+    request<{ settings: Record<string, string> }>('/settings', { method: 'PATCH', body: data, token }),
+  testWebhook: (token?: string) =>
+    request<{ success: boolean; status?: number; statusText?: string; error?: string }>('/settings/test-webhook', { method: 'POST', token }),
 };
 
 // ==================== Courses ====================

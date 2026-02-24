@@ -2,7 +2,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
-import { useAppPreferences } from "@/lib/theme-context";
+import { useTranslation } from "react-i18next";
 import {
   LayoutDashboard,
   GraduationCap,
@@ -34,7 +34,7 @@ const navItemKeys = [
 export function AdminSidebar({ user }: AdminSidebarProps) {
   const { pathname } = useLocation();
   const { logout } = useAuth();
-  const { t } = useAppPreferences();
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   const handleLogout = () => {

@@ -5,6 +5,7 @@ const db_js_1 = require("../db.js");
 const auth_js_1 = require("../middleware/auth.js");
 const email_js_1 = require("../email.js");
 const notifications_js_1 = require("./notifications.js");
+const activity_js_1 = require("../activity.js");
 const router = (0, express_1.Router)();
 // GET /lessons/:id
 router.get('/:id', auth_js_1.optionalAuth, async (req, res) => {
@@ -240,6 +241,8 @@ router.post('/:id/progress', auth_js_1.authenticate, async (req, res) => {
             const progressId = (0, db_js_1.genId)();
             await (0, db_js_1.execute)(`INSERT INTO lesson_progress (id, enrollmentId, lessonId, progressPercent, lastWatchedTimestamp, lastWatchedAt, completedAt, watchedSeconds, viewCount, firstViewedAt, updatedAt)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [progressId, enrollment.id, id, progressPercent, validTimestamp, ts, completedAt, watchedSecondsIncrement, viewInc > 0 ? 1 : 0, ts, ts]);
+            // First time this lesson is viewed
+            (0, activity_js_1.logActivity)({ event: 'lesson.started', userId: req.user.id, meta: { lessonId: id, courseId: mod.courseId } });
         }
         const progress = await (0, db_js_1.queryOne)('SELECT * FROM lesson_progress WHERE enrollmentId = ? AND lessonId = ?', [enrollment.id, id]);
         // ── Accumulate daily watch activity ──
@@ -263,6 +266,7 @@ router.post('/:id/progress', auth_js_1.authenticate, async (req, res) => {
         // ── Course completion detection ──
         // Only check if THIS lesson was just marked complete (completedAt was set in this request)
         if (completedAt) {
+            (0, activity_js_1.logActivity)({ event: 'lesson.completed', userId: req.user.id, meta: { lessonId: id, courseId: mod.courseId } });
             try {
                 // Count total lessons in this course vs completed lessons for this enrollment
                 const totalRow = await (0, db_js_1.queryOne)(`SELECT COUNT(*) as cnt FROM lessons l JOIN modules m ON l.moduleId = m.id WHERE m.courseId = ?`, [mod.courseId]);
@@ -291,6 +295,7 @@ router.post('/:id/progress', auth_js_1.authenticate, async (req, res) => {
                             link: `/courses/${mod.courseId}`,
                         });
                     }
+                    (0, activity_js_1.logActivity)({ event: 'course.completed', userId: req.user.id, userName: user?.name || req.user.email, meta: { courseId: mod.courseId, courseTitle: course?.title } });
                     console.log(`[Completion] User ${req.user.id} completed course ${mod.courseId} (${completedLessons}/${totalLessons} lessons)`);
                 }
             }

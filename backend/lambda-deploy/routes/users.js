@@ -8,6 +8,7 @@ const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const db_js_1 = require("../db.js");
 const auth_js_1 = require("../middleware/auth.js");
 const email_js_1 = require("../email.js");
+const activity_js_1 = require("../activity.js");
 const router = (0, express_1.Router)();
 // GET /users - List all users (Admin only)
 router.get('/', auth_js_1.authenticate, auth_js_1.requireAdmin, async (req, res) => {
@@ -480,6 +481,29 @@ router.get('/:id/enrollments', auth_js_1.authenticate, async (req, res) => {
         res.status(500).json({ error: 'Failed to get enrollments' });
     }
 });
+// GET /users/:id/activity - Activity history log (Admin only)
+router.get('/:id/activity', auth_js_1.authenticate, auth_js_1.requireAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+        const offset = parseInt(req.query.offset) || 0;
+        const rows = await (0, db_js_1.query)(`SELECT id, event, userName, meta, createdAt FROM activity_log WHERE userId = ? ORDER BY createdAt DESC LIMIT ? OFFSET ?`, [id, limit, offset]);
+        // Parse JSON meta
+        const activities = rows.map((r) => ({
+            id: r.id,
+            event: r.event,
+            userName: r.userName,
+            meta: r.meta ? (typeof r.meta === 'string' ? JSON.parse(r.meta) : r.meta) : null,
+            createdAt: r.createdAt,
+        }));
+        const countRow = await (0, db_js_1.queryOne)('SELECT COUNT(*) as cnt FROM activity_log WHERE userId = ?', [id]);
+        res.json({ activities, total: Number(countRow?.cnt ?? 0) });
+    }
+    catch (error) {
+        console.error('Get user activity error:', error);
+        res.status(500).json({ error: 'Failed to get activity' });
+    }
+});
 // POST /users - Create user (Admin only)
 router.post('/', auth_js_1.authenticate, auth_js_1.requireAdmin, async (req, res) => {
     try {
@@ -502,6 +526,7 @@ router.post('/', auth_js_1.authenticate, auth_js_1.requireAdmin, async (req, res
         const user = await (0, db_js_1.queryOne)('SELECT id, email, name, image, role, createdAt FROM users WHERE id = ?', [id]);
         // Send account-created email with temp password (fire-and-forget)
         (0, email_js_1.sendAccountCreated)(email, name || null, password).catch(() => { });
+        (0, activity_js_1.logActivity)({ event: 'user.created_by_admin', userId: id, userName: name || email, meta: { email, role: role || 'LEARNER', createdBy: req.user.id } });
         res.status(201).json({ user });
     }
     catch (error) {
@@ -522,6 +547,7 @@ router.post('/:id/block', auth_js_1.authenticate, auth_js_1.requireAdmin, async 
         const ts = (0, db_js_1.now)();
         await (0, db_js_1.execute)('UPDATE users SET blockedAt = ?, updatedAt = ? WHERE id = ?', [ts, ts, userId]);
         const user = await (0, db_js_1.queryOne)('SELECT id, email, name, role, blockedAt FROM users WHERE id = ?', [userId]);
+        (0, activity_js_1.logActivity)({ event: 'user.blocked', userId: userId, userName: user?.name || user?.email, meta: { blockedBy: req.user.id } });
         res.json({ user, message: 'User blocked successfully' });
     }
     catch (error) {
@@ -538,6 +564,7 @@ router.post('/:id/unblock', auth_js_1.authenticate, auth_js_1.requireAdmin, asyn
             return res.status(404).json({ error: 'User not found' });
         await (0, db_js_1.execute)('UPDATE users SET blockedAt = NULL, updatedAt = ? WHERE id = ?', [(0, db_js_1.now)(), userId]);
         const user = await (0, db_js_1.queryOne)('SELECT id, email, name, role, blockedAt FROM users WHERE id = ?', [userId]);
+        (0, activity_js_1.logActivity)({ event: 'user.unblocked', userId: userId, userName: user?.name || user?.email, meta: { unblockedBy: req.user.id } });
         res.json({ user, message: 'User unblocked successfully' });
     }
     catch (error) {

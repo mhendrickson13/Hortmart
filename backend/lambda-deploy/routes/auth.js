@@ -10,6 +10,7 @@ const crypto_1 = __importDefault(require("crypto"));
 const db_js_1 = require("../db.js");
 const auth_js_1 = require("../middleware/auth.js");
 const email_js_1 = require("../email.js");
+const activity_js_1 = require("../activity.js");
 const router = (0, express_1.Router)();
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const JWT_EXPIRES_IN = (process.env.JWT_EXPIRES_IN || '7d');
@@ -37,6 +38,7 @@ router.post('/register', async (req, res) => {
         const token = jsonwebtoken_1.default.sign({ userId: id }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
         // Send welcome email (fire-and-forget)
         (0, email_js_1.sendWelcome)(email, name || undefined).catch(() => { });
+        (0, activity_js_1.logActivity)({ event: 'user.registered', userId: id, userName: name || email, meta: { email } });
         res.status(201).json({ user, token });
     }
     catch (error) {
@@ -63,6 +65,7 @@ router.post('/login', async (req, res) => {
             return res.status(403).json({ error: 'Account is blocked. Please contact support.' });
         }
         const token = jsonwebtoken_1.default.sign({ userId: user.id }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+        (0, activity_js_1.logActivity)({ event: 'user.login', userId: user.id, userName: user.name || user.email, meta: { email: user.email } });
         res.json({
             user: {
                 id: user.id,

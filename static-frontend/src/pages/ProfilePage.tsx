@@ -3,7 +3,7 @@ import {
   users as usersApi,
   analytics as analyticsApi,
 } from "@/lib/api-client";
-import { useAppPreferences } from "@/lib/theme-context";
+import { useTranslation } from "react-i18next";
 import type {
   User,
   LearnerStats,
@@ -39,13 +39,14 @@ import { getInitials, formatCurrency, formatDate } from "@/lib/utils";
 
 export default function ProfilePage() {
   const { user, logout } = useAuth();
-  const { t } = useAppPreferences();
+  const { t } = useTranslation();
   const isCreator = user?.role === "CREATOR" || user?.role === "ADMIN";
 
   const { data: profileData, isLoading } = useQuery({
     queryKey: ["profile"],
     queryFn: () => usersApi.getProfile(),
     enabled: !!user,
+    staleTime: 10 * 60_000,
   });
 
   const { data: learnerStats } = useQuery({

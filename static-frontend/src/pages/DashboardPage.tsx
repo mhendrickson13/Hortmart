@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { analytics as analyticsApi } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
-import { useAppPreferences } from "@/lib/theme-context";
+import { useTranslation } from "react-i18next";
 import { StatCard } from "@/components/admin/stat-card";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -38,7 +38,7 @@ const RANGE_OPTIONS: { key: RangeKey; label: string }[] = [
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const { t } = useAppPreferences();
+  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState("");
   const [rangeKey, setRangeKey] = useState<RangeKey>("30d");
   const [showRangeMenu, setShowRangeMenu] = useState(false);
@@ -366,8 +366,9 @@ export default function DashboardPage() {
 
 function ProgressDonut({ data }: { data: Record<string, number> }) {
   const entries = progressEntries(data);
-  const total = entries.reduce((s, e) => s + e.count, 0) || 1;
-  const segments = entries.map((e) => ({ percent: (e.count / total) * 100, color: e.strokeColor }));
+  const total = entries.reduce((s, e) => s + e.count, 0);
+  const divisor = total || 1; // avoid division by zero but display real total
+  const segments = entries.map((e) => ({ percent: (e.count / divisor) * 100, color: e.strokeColor }));
   let cumulative = 0;
   const radius = 60;
   const circumference = 2 * Math.PI * radius;
@@ -376,7 +377,10 @@ function ProgressDonut({ data }: { data: Record<string, number> }) {
     <div className="flex justify-center">
       <div className="relative w-36 h-36">
         <svg viewBox="0 0 140 140" className="w-full h-full -rotate-90">
-          {segments.map((seg, i) => {
+          {total === 0 ? (
+            <circle cx="70" cy="70" r={radius} fill="none" strokeWidth="14"
+              stroke="currentColor" className="text-border/30" />
+          ) : segments.map((seg, i) => {
             const dashArray = `${(seg.percent / 100) * circumference} ${circumference}`;
             const dashOffset = -((cumulative / 100) * circumference);
             cumulative += seg.percent;

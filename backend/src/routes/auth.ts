@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import { queryOne, execute, genId, now, query } from '../db.js';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
 import { sendWelcome, sendPasswordReset } from '../email.js';
+import { logActivity } from '../activity.js';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
@@ -46,6 +47,8 @@ router.post('/register', async (req, res) => {
     // Send welcome email (fire-and-forget)
     sendWelcome(email, name || undefined).catch(() => {});
 
+    logActivity({ event: 'user.registered', userId: id, userName: name || email, meta: { email } });
+
     res.status(201).json({ user, token });
   } catch (error) {
     console.error('Register error:', error);
@@ -78,6 +81,8 @@ router.post('/login', async (req, res) => {
     }
 
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+
+    logActivity({ event: 'user.login', userId: user.id, userName: user.name || user.email, meta: { email: user.email } });
 
     res.json({
       user: {

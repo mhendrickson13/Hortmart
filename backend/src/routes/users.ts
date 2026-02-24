@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { query, queryOne, execute, genId, now, inPlaceholders } from '../db.js';
 import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth.js';
 import { sendAccountCreated, sendCustomMessage, sendEnrollmentConfirmation } from '../email.js';
+import { logActivity } from '../activity.js';
 
 const router = Router();
 
@@ -548,6 +549,36 @@ router.get('/:id/enrollments', authenticate, async (req: AuthRequest, res: Respo
   }
 });
 
+// GET /users/:id/activity - Activity history log (Admin only)
+router.get('/:id/activity', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+    const offset = parseInt(req.query.offset as string) || 0;
+
+    const rows = await query<any[]>(
+      `SELECT id, event, userName, meta, createdAt FROM activity_log WHERE userId = ? ORDER BY createdAt DESC LIMIT ? OFFSET ?`,
+      [id, limit, offset],
+    );
+
+    // Parse JSON meta
+    const activities = rows.map((r: any) => ({
+      id: r.id,
+      event: r.event,
+      userName: r.userName,
+      meta: r.meta ? (typeof r.meta === 'string' ? JSON.parse(r.meta) : r.meta) : null,
+      createdAt: r.createdAt,
+    }));
+
+    const countRow = await queryOne<any>('SELECT COUNT(*) as cnt FROM activity_log WHERE userId = ?', [id]);
+
+    res.json({ activities, total: Number(countRow?.cnt ?? 0) });
+  } catch (error) {
+    console.error('Get user activity error:', error);
+    res.status(500).json({ error: 'Failed to get activity' });
+  }
+});
+
 // POST /users - Create user (Admin only)
 router.post('/', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
@@ -580,6 +611,8 @@ router.post('/', authenticate, requireAdmin, async (req: AuthRequest, res: Respo
     // Send account-created email with temp password (fire-and-forget)
     sendAccountCreated(email, name || null, password).catch(() => {});
 
+    logActivity({ event: 'user.created_by_admin', userId: id, userName: name || email, meta: { email, role: role || 'LEARNER', createdBy: req.user!.id } });
+
     res.status(201).json({ user });
   } catch (error) {
     console.error('Create user error:', error);
@@ -605,6 +638,8 @@ router.post('/:id/block', authenticate, requireAdmin, async (req: AuthRequest, r
       [userId]
     );
 
+    logActivity({ event: 'user.blocked', userId: userId, userName: user?.name || user?.email, meta: { blockedBy: req.user!.id } });
+
     res.json({ user, message: 'User blocked successfully' });
   } catch (error) {
     console.error('Block user error:', error);
@@ -625,6 +660,8 @@ router.post('/:id/unblock', authenticate, requireAdmin, async (req: AuthRequest,
       'SELECT id, email, name, role, blockedAt FROM users WHERE id = ?',
       [userId]
     );
+
+    logActivity({ event: 'user.unblocked', userId: userId, userName: user?.name || user?.email, meta: { unblockedBy: req.user!.id } });
 
     res.json({ user, message: 'User unblocked successfully' });
   } catch (error) {

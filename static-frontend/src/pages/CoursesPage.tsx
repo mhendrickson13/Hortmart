@@ -5,7 +5,7 @@ import { CourseCard } from "@/components/learner/course-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search, SlidersHorizontal, X, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useAppPreferences } from "@/lib/theme-context";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/lib/auth-context";
 
 function CourseSkeleton() {
@@ -44,7 +44,7 @@ function FilterOption({ selected, label, onClick }: { selected: boolean; label: 
 }
 
 export default function CoursesPage() {
-  const { t } = useAppPreferences();
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -61,6 +61,7 @@ export default function CoursesPage() {
   const { data: categoriesData } = useQuery({
     queryKey: ["course-categories"],
     queryFn: () => coursesApi.getCategories(),
+    staleTime: 30 * 60_000,  // categories rarely change
   });
 
   // Close filter dropdown on click outside

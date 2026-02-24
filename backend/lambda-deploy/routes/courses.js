@@ -5,6 +5,8 @@ const db_js_1 = require("../db.js");
 const auth_js_1 = require("../middleware/auth.js");
 const notifications_js_1 = require("./notifications.js");
 const email_js_1 = require("../email.js");
+const cache_js_1 = require("../cache.js");
+const activity_js_1 = require("../activity.js");
 const router = (0, express_1.Router)();
 // ── Helper: build course list with stats ──
 async function enrichCourses(courseRows) {
@@ -158,8 +160,12 @@ router.get('/', auth_js_1.optionalAuth, async (req, res) => {
 // GET /courses/categories
 router.get('/categories', async (req, res) => {
     try {
-        const rows = await (0, db_js_1.query)('SELECT DISTINCT category FROM courses WHERE status = ? AND category IS NOT NULL', ['PUBLISHED']);
-        res.json({ categories: rows.map(r => r.category) });
+        const categories = await (0, cache_js_1.cached)('course-categories', 300, async () => {
+            const rows = await (0, db_js_1.query)('SELECT DISTINCT category FROM courses WHERE status = ? AND category IS NOT NULL', ['PUBLISHED']);
+            return rows.map(r => r.category);
+        });
+        res.set('Cache-Control', 'public, max-age=300');
+        res.json({ categories });
     }
     catch (error) {
         console.error('Get categories error:', error);
@@ -457,6 +463,7 @@ router.post('/:id/enroll', auth_js_1.authenticate, async (req, res) => {
                 }
             }
         }
+        (0, activity_js_1.logActivity)({ event: 'enrollment.created', userId: req.user.id, userName: learner?.name || req.user.email, meta: { courseId: id, courseTitle: courseInfo?.title } });
         res.status(201).json({ enrollment });
     }
     catch (error) {
@@ -522,26 +529,29 @@ router.get('/:id/progress', auth_js_1.authenticate, async (req, res) => {
         const enrollment = await (0, db_js_1.queryOne)('SELECT * FROM enrollments WHERE userId = ? AND courseId = ?', [req.user.id, id]);
         if (!enrollment)
             return res.status(404).json({ error: 'Not enrolled in this course' });
-        const course = await (0, db_js_1.queryOne)('SELECT * FROM courses WHERE id = ?', [id]);
+        // ── Batch 1: All independent queries in parallel ──
+        const [course, modulesRaw, allProgress, otherStudents, totalOtherRow] = await Promise.all([
+            (0, db_js_1.queryOne)('SELECT * FROM courses WHERE id = ?', [id]),
+            (0, db_js_1.query)('SELECT * FROM modules WHERE courseId = ? ORDER BY position ASC', [id]),
+            (0, db_js_1.query)('SELECT * FROM lesson_progress WHERE enrollmentId = ?', [enrollment.id]),
+            (0, db_js_1.query)(`SELECT u.id, u.name, u.image FROM enrollments e JOIN users u ON e.userId = u.id
+         WHERE e.courseId = ? AND e.userId != ? LIMIT 5`, [id, req.user.id]),
+            (0, db_js_1.queryOne)('SELECT COUNT(*) as cnt FROM enrollments WHERE courseId = ? AND userId != ?', [id, req.user.id]),
+        ]);
         const creator = await (0, db_js_1.queryOne)('SELECT id, name, image FROM users WHERE id = ?', [course?.creatorId]);
-        // Modules with lessons + resources — batch queries to avoid N+1
-        const modulesRaw = await (0, db_js_1.query)('SELECT * FROM modules WHERE courseId = ? ORDER BY position ASC', [id]);
-        // All lesson progress for this enrollment
-        const allProgress = await (0, db_js_1.query)('SELECT * FROM lesson_progress WHERE enrollmentId = ?', [enrollment.id]);
         const progressMap = new Map(allProgress.map(p => [p.lessonId, p]));
-        // Batch: all lessons for all modules at once
+        // ── Batch 2: Lessons + resources (depend on moduleIds) ──
         const moduleIds = modulesRaw.map(m => m.id);
         let allLessons = [];
+        let allResources = [];
         if (moduleIds.length > 0) {
             const ph = moduleIds.map(() => '?').join(', ');
             allLessons = await (0, db_js_1.query)(`SELECT * FROM lessons WHERE moduleId IN (${ph}) ORDER BY position ASC`, moduleIds);
-        }
-        // Batch: all resources for all lessons at once
-        const lessonIds = allLessons.map(l => l.id);
-        let allResources = [];
-        if (lessonIds.length > 0) {
-            const ph2 = lessonIds.map(() => '?').join(', ');
-            allResources = await (0, db_js_1.query)(`SELECT * FROM resources WHERE lessonId IN (${ph2}) ORDER BY createdAt ASC`, lessonIds);
+            const lessonIds = allLessons.map(l => l.id);
+            if (lessonIds.length > 0) {
+                const ph2 = lessonIds.map(() => '?').join(', ');
+                allResources = await (0, db_js_1.query)(`SELECT * FROM resources WHERE lessonId IN (${ph2}) ORDER BY createdAt ASC`, lessonIds);
+            }
         }
         // Build lookup maps
         const lessonsByModule = new Map();
@@ -600,10 +610,8 @@ router.get('/:id/progress', auth_js_1.authenticate, async (req, res) => {
                 }
             }
         }
-        // Other students
-        const otherStudents = await (0, db_js_1.query)(`SELECT u.id, u.name, u.image FROM enrollments e JOIN users u ON e.userId = u.id
-       WHERE e.courseId = ? AND e.userId != ? LIMIT 5`, [id, req.user.id]);
-        const totalOtherRow = await (0, db_js_1.queryOne)('SELECT COUNT(*) as cnt FROM enrollments WHERE courseId = ? AND userId != ?', [id, req.user.id]);
+        // Other students (already fetched in batch 1 above)
+        res.set('Cache-Control', 'private, max-age=30');
         res.json({
             id: course?.id, title: course?.title, description: course?.description,
             level: course?.level || 'ALL_LEVELS', language: course?.language || 'English',
@@ -955,6 +963,7 @@ router.post('/:id/reviews', auth_js_1.authenticate, async (req, res) => {
                 link: `/manage-courses/${id}`,
             });
         }
+        (0, activity_js_1.logActivity)({ event: 'review.created', userId: req.user.id, userName: user?.name || req.user.email, meta: { courseId: id, courseTitle: courseInfo?.title, rating } });
         res.status(201).json({ review: { ...review, user } });
     }
     catch (error) {

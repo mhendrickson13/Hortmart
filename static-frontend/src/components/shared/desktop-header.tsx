@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { DesktopNotificationsPopover } from "./desktop-notifications-popover";
 import { notifications as notificationsApi } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
-import { useAppPreferences } from "@/lib/theme-context";
+import { useTranslation } from "react-i18next";
 import { Search, Bell, HelpCircle, Shield, FileText } from "lucide-react";
 
 interface DesktopHeaderProps {
@@ -23,7 +23,7 @@ export function DesktopHeader({ user, variant = "learner", onSearchClick }: Desk
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const { user: authUser } = useAuth();
-  const { t } = useAppPreferences();
+  const { t } = useTranslation();
   const helpRef = useRef<HTMLDivElement>(null);
 
   // Close help dropdown on click outside
@@ -37,12 +37,13 @@ export function DesktopHeader({ user, variant = "learner", onSearchClick }: Desk
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // Fetch real unread count
+  // Fetch unread count — shared queryKey with mobile header; React Query deduplicates
   const { data: unreadData } = useQuery({
     queryKey: ["notifications-unread-count"],
     queryFn: () => notificationsApi.unreadCount(),
     enabled: !!authUser,
-    refetchInterval: 30000, // Poll every 30 seconds
+    staleTime: 60_000,           // fresh for 60s
+    refetchInterval: 60_000,     // poll every 60s (was 30s)
     refetchOnWindowFocus: true,
   });
 

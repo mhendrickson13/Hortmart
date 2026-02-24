@@ -30,12 +30,13 @@ export function MobileLayoutWrapper({
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const { user: authUser } = useAuth();
 
-  // Fetch real unread count
+  // Fetch unread count — shared queryKey with desktop header; React Query deduplicates
   const { data: unreadData } = useQuery({
     queryKey: ["notifications-unread-count"],
     queryFn: () => notificationsApi.unreadCount(),
     enabled: !!authUser,
-    refetchInterval: 30000,
+    staleTime: 60_000,           // fresh for 60s
+    refetchInterval: 60_000,     // poll every 60s (was 30s)
     refetchOnWindowFocus: true,
   });
 

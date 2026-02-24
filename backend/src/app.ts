@@ -19,6 +19,7 @@ import uploadsRoutes from './routes/uploads.js';
 import notificationsRoutes from './routes/notifications.js';
 import favouritesRoutes from './routes/favourites.js';
 import videoRoutes from './routes/video.js';
+import settingsRoutes from './routes/settings.js';
 
 export const app = express();
 
@@ -269,6 +270,24 @@ app.post('/e/migrate', async (req, res) => {
         UNIQUE INDEX wa_user_course_date(userId, courseId, activityDate),
         INDEX wa_userId_idx(userId),
         PRIMARY KEY (id))`,
+      `CREATE TABLE IF NOT EXISTS activity_log (
+        id VARCHAR(30) NOT NULL,
+        event VARCHAR(60) NOT NULL,
+        userId VARCHAR(30) NOT NULL,
+        userName VARCHAR(191) NULL,
+        meta JSON NULL,
+        createdAt DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+        INDEX al_userId_idx(userId),
+        INDEX al_event_idx(event),
+        INDEX al_createdAt_idx(createdAt),
+        PRIMARY KEY (id))`,
+      `CREATE TABLE IF NOT EXISTS app_settings (
+        id VARCHAR(30) NOT NULL,
+        \`key\` VARCHAR(100) NOT NULL,
+        value TEXT NOT NULL DEFAULT '',
+        updatedAt DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+        UNIQUE INDEX as_key_idx(\`key\`),
+        PRIMARY KEY (id))`,
     ];
 
     for (const sql of tableStatements) {
@@ -312,7 +331,7 @@ app.post('/e/migrate', async (req, res) => {
     console.log('[MIGRATE] Tables created successfully');
     res.json({
       message: 'Migration complete - all tables created',
-      tables: ['users', 'courses', 'modules', 'lessons', 'resources', 'enrollments', 'lesson_progress', 'questions', 'answers', 'notes', 'reviews', 'notifications', 'user_course_saves', 'password_resets'],
+      tables: ['users', 'courses', 'modules', 'lessons', 'resources', 'enrollments', 'lesson_progress', 'questions', 'answers', 'notes', 'reviews', 'notifications', 'user_course_saves', 'password_resets', 'watch_activity', 'activity_log', 'app_settings'],
     });
   } catch (error) {
     console.error('[MIGRATE] Error:', error);
@@ -386,6 +405,7 @@ app.use('/e/uploads', uploadsRoutes);
 app.use('/e/notifications', notificationsRoutes);
 app.use('/e/favourites', favouritesRoutes);
 app.use('/e/video', videoRoutes);
+app.use('/e/settings', settingsRoutes);
 
 // Error handling
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {

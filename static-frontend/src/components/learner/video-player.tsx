@@ -206,9 +206,32 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
     };
   }, [src, isYouTube]); // intentionally omit initialTime - use ref instead
 
-  // NOTE: initialTime is applied via the src-change effect (loadedmetadata handler)
-  // and HLS startPosition. We do NOT re-seek when initialTime changes during playback
-  // because progress saves update the parent's state which would cause a seek loop.
+  // Re-seek when initialTime changes AFTER initial load (stale→fresh correction from query refetch).
+  // Only applies if the user hasn't started playing yet, to avoid disrupting active playback.
+  const userHasPlayedRef = useRef(false);
+  useEffect(() => {
+    // Mark as played once user starts watching
+    const video = videoRef.current;
+    if (!video || isYouTube) return;
+    const markPlayed = () => { userHasPlayedRef.current = true; };
+    video.addEventListener('play', markPlayed, { once: true });
+    return () => { video.removeEventListener('play', markPlayed); };
+  }, [src, isYouTube]);
+  useEffect(() => {
+    // Reset when src changes (new lesson)
+    userHasPlayedRef.current = false;
+  }, [src]);
+  useEffect(() => {
+    if (userHasPlayedRef.current) return; // don't re-seek once user started watching
+    const video = videoRef.current;
+    if (!video || isYouTube || !src) return;
+    if (video.readyState < 1) return; // metadata not loaded yet — loadedmetadata handler will handle it
+    if (initialTime > 0 && Math.abs(video.currentTime - initialTime) > 1) {
+      console.log("[VideoPlayer] re-seek correction:", video.currentTime, "→", initialTime);
+      video.currentTime = initialTime;
+      setCurrentTime(initialTime);
+    }
+  }, [initialTime, src, isYouTube]);
 
   // ── Pause video when user is not watching ──
   // Like TikTok: pause when tab is hidden or window loses focus.

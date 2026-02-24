@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth-context";
-import { users as usersApi, uploads as uploadsApi } from "@/lib/api-client";
+import { users as usersApi, uploads as uploadsApi, settings as settingsApi } from "@/lib/api-client";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toaster";
@@ -24,6 +24,9 @@ import {
   Lock,
   Mail,
   Sparkles,
+  Webhook,
+  Send,
+  AlertTriangle,
 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -102,6 +105,7 @@ export default function SettingsPage() {
     queryKey: ["profile"],
     queryFn: () => usersApi.getProfile(),
     enabled: !!user,
+    staleTime: 10 * 60_000,  // profile data is stable
   });
   const profile = profileData?.user;
 
@@ -129,8 +133,21 @@ export default function SettingsPage() {
     queryKey: ["notification-preferences"],
     queryFn: () => usersApi.getNotificationPreferences(),
     enabled: !!user,
+    staleTime: 10 * 60_000,
   });
   const notifPrefs = notifData?.preferences;
+
+  /* ---- Webhook / Integrations (admin only) ---- */
+  const isAdminCheck = user?.role === "ADMIN" || user?.role === "CREATOR";
+  const { data: settingsData } = useQuery({
+    queryKey: ["app-settings"],
+    queryFn: () => settingsApi.get(),
+    enabled: !!user && isAdminCheck,
+  });
+  const [webhookUrl, setWebhookUrl] = useState("");
+  const [savingWebhook, setSavingWebhook] = useState(false);
+  const [testingWebhook, setTestingWebhook] = useState(false);
+  const [webhookTestResult, setWebhookTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   /* ---- Effects ---- */
   useEffect(() => {
@@ -139,6 +156,12 @@ export default function SettingsPage() {
       setBio(profile.bio ?? "");
     }
   }, [profile]);
+
+  useEffect(() => {
+    if (settingsData?.settings) {
+      setWebhookUrl(settingsData.settings.webhookUrl || "");
+    }
+  }, [settingsData]);
 
   /* ---- Handlers ---- */
 
@@ -252,6 +275,38 @@ export default function SettingsPage() {
       queryClient.invalidateQueries({ queryKey: ["notification-preferences"] });
     } catch {
       toast({ title: "Failed to update preference", variant: "error" });
+    }
+  };
+
+  const handleSaveWebhook = async () => {
+    setSavingWebhook(true);
+    setWebhookTestResult(null);
+    try {
+      await settingsApi.update({ webhookUrl: webhookUrl.trim() });
+      queryClient.invalidateQueries({ queryKey: ["app-settings"] });
+      toast({ title: "Webhook saved", variant: "success" });
+    } catch {
+      toast({ title: "Failed to save webhook", variant: "error" });
+    } finally {
+      setSavingWebhook(false);
+    }
+  };
+
+  const handleTestWebhook = async () => {
+    setTestingWebhook(true);
+    setWebhookTestResult(null);
+    try {
+      const res = await settingsApi.testWebhook();
+      setWebhookTestResult({
+        success: res.success,
+        message: res.success
+          ? `Success (${res.status} ${res.statusText})`
+          : res.error || `Failed (${res.status})`,
+      });
+    } catch (err: any) {
+      setWebhookTestResult({ success: false, message: err.message || "Request failed" });
+    } finally {
+      setTestingWebhook(false);
     }
   };
 
@@ -751,6 +806,107 @@ export default function SettingsPage() {
             </div>
           )}
         </div>
+
+        {/* ═══ INTEGRATIONS (Admin only) ═══ */}
+        {isAdmin && (
+          <div
+            className="rounded-2xl border border-border bg-card p-6"
+            style={{ boxShadow: "var(--shadow-card)" }}
+          >
+            <SectionHeader
+              icon={Webhook}
+              title="Integrations"
+              description="Connect external services via webhooks"
+            />
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-body-sm font-medium text-text-1 mb-1.5">
+                  Webhook URL
+                </label>
+                <p className="text-caption text-text-3 mb-2">
+                  All user activity events (login, enrollment, completion, etc.) will be sent as POST requests to this URL in real-time.
+                </p>
+                <Input
+                  value={webhookUrl}
+                  onChange={(e) => { setWebhookUrl(e.target.value); setWebhookTestResult(null); }}
+                  placeholder="https://example.com/webhook"
+                  className="h-11 font-mono text-body-sm"
+                  type="url"
+                />
+              </div>
+
+              {/* Webhook payload preview */}
+              <div className="rounded-xl bg-muted/60 border border-border/50 p-3">
+                <div className="text-[11px] font-bold text-text-3 uppercase tracking-wider mb-2">
+                  Payload example
+                </div>
+                <pre className="text-[11px] text-text-2 font-mono leading-relaxed overflow-x-auto whitespace-pre">
+{`{
+  "id": "abc123",
+  "event": "course.completed",
+  "userId": "usr_xxx",
+  "userName": "John Doe",
+  "meta": { "courseId": "crs_xx", "courseTitle": "..." },
+  "createdAt": "2026-02-24 12:00:00.000"
+}`}
+                </pre>
+              </div>
+
+              {/* Events list */}
+              <div className="rounded-xl bg-muted/40 border border-border/50 p-3">
+                <div className="text-[11px] font-bold text-text-3 uppercase tracking-wider mb-2">
+                  Events sent
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {["user.registered", "user.login", "enrollment.created", "lesson.started", "lesson.completed", "course.completed", "review.created", "user.blocked", "user.unblocked"].map((evt) => (
+                    <span key={evt} className="inline-flex items-center h-6 px-2.5 rounded-lg text-[11px] font-semibold bg-primary/10 text-primary border border-primary/15">
+                      {evt}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Test result */}
+              {webhookTestResult && (
+                <div
+                  className={`flex items-center gap-2 text-body-sm font-medium px-4 py-3 rounded-xl ${
+                    webhookTestResult.success
+                      ? "bg-success/10 text-success"
+                      : "bg-danger/10 text-danger"
+                  }`}
+                >
+                  {webhookTestResult.success ? (
+                    <Check className="w-4 h-4 flex-shrink-0" />
+                  ) : (
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                  )}
+                  {webhookTestResult.message}
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  onClick={handleSaveWebhook}
+                  disabled={savingWebhook}
+                  className="h-11 px-6 rounded-xl text-body-sm font-semibold bg-primary text-white hover:bg-primary-600 shadow-primary hover:shadow-primary-hover active:scale-[0.98] transition-all duration-200 disabled:opacity-50 inline-flex items-center gap-2"
+                >
+                  {savingWebhook ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  {savingWebhook ? "Saving..." : "Save"}
+                </button>
+                <button
+                  onClick={handleTestWebhook}
+                  disabled={testingWebhook || !webhookUrl.trim()}
+                  className="h-11 px-6 rounded-xl text-body-sm font-semibold border-2 border-border text-text-1 hover:bg-muted hover:border-primary/30 active:scale-[0.98] transition-all duration-200 disabled:opacity-50 inline-flex items-center gap-2"
+                >
+                  {testingWebhook ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  {testingWebhook ? "Testing..." : "Send Test"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ═══ APPEARANCE ═══ */}
         <div

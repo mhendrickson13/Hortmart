@@ -24,6 +24,7 @@ const uploads_js_1 = __importDefault(require("./routes/uploads.js"));
 const notifications_js_1 = __importDefault(require("./routes/notifications.js"));
 const favourites_js_1 = __importDefault(require("./routes/favourites.js"));
 const video_js_1 = __importDefault(require("./routes/video.js"));
+const settings_js_1 = __importDefault(require("./routes/settings.js"));
 exports.app = (0, express_1.default)();
 // CORS - allow S3, CloudFront, and local development origins
 const allowedOrigins = [
@@ -262,6 +263,24 @@ exports.app.post('/e/migrate', async (req, res) => {
         UNIQUE INDEX wa_user_course_date(userId, courseId, activityDate),
         INDEX wa_userId_idx(userId),
         PRIMARY KEY (id))`,
+            `CREATE TABLE IF NOT EXISTS activity_log (
+        id VARCHAR(30) NOT NULL,
+        event VARCHAR(60) NOT NULL,
+        userId VARCHAR(30) NOT NULL,
+        userName VARCHAR(191) NULL,
+        meta JSON NULL,
+        createdAt DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+        INDEX al_userId_idx(userId),
+        INDEX al_event_idx(event),
+        INDEX al_createdAt_idx(createdAt),
+        PRIMARY KEY (id))`,
+            `CREATE TABLE IF NOT EXISTS app_settings (
+        id VARCHAR(30) NOT NULL,
+        \`key\` VARCHAR(100) NOT NULL,
+        value TEXT NOT NULL DEFAULT '',
+        updatedAt DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+        UNIQUE INDEX as_key_idx(\`key\`),
+        PRIMARY KEY (id))`,
         ];
         for (const sql of tableStatements) {
             await (0, db_js_1.execute)(sql);
@@ -306,7 +325,7 @@ exports.app.post('/e/migrate', async (req, res) => {
         console.log('[MIGRATE] Tables created successfully');
         res.json({
             message: 'Migration complete - all tables created',
-            tables: ['users', 'courses', 'modules', 'lessons', 'resources', 'enrollments', 'lesson_progress', 'questions', 'answers', 'notes', 'reviews', 'notifications', 'user_course_saves', 'password_resets'],
+            tables: ['users', 'courses', 'modules', 'lessons', 'resources', 'enrollments', 'lesson_progress', 'questions', 'answers', 'notes', 'reviews', 'notifications', 'user_course_saves', 'password_resets', 'watch_activity', 'activity_log', 'app_settings'],
         });
     }
     catch (error) {
@@ -371,6 +390,7 @@ exports.app.use('/e/uploads', uploads_js_1.default);
 exports.app.use('/e/notifications', notifications_js_1.default);
 exports.app.use('/e/favourites', favourites_js_1.default);
 exports.app.use('/e/video', video_js_1.default);
+exports.app.use('/e/settings', settings_js_1.default);
 // Error handling
 exports.app.use((err, req, res, next) => {
     console.error(err.stack);

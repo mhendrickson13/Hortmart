@@ -39,6 +39,7 @@ router.get('/unread-count', authenticate, async (req: AuthRequest, res: Response
       'SELECT COUNT(*) as cnt FROM notifications WHERE userId = ? AND isRead = false',
       [req.user!.id]
     );
+    res.set('Cache-Control', 'private, max-age=30');
     res.json({ count: Number(row?.cnt ?? 0) });
   } catch (error) {
     console.error('Get unread count error:', error);

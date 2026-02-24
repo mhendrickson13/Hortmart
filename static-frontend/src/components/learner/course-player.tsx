@@ -110,8 +110,8 @@ function ActivityChart({ courseId, gradientId }: { courseId: string; gradientId?
       } catch (e) { console.warn('[ActivityChart] fetch error:', e); }
     };
     fetchActivity();
-    // Refresh every 30 seconds while watching
-    const interval = setInterval(fetchActivity, 30_000);
+    // Refresh every 2 minutes — activity data barely changes second-by-second
+    const interval = setInterval(fetchActivity, 120_000);
     return () => { cancelled = true; clearInterval(interval); };
   }, [courseId, token]);
 
@@ -294,6 +294,16 @@ export function CoursePlayer({
     console.log("[CoursePlayer] init lessonSeekTime:", initialTime, "lesson:", initialLessonId);
     return initialTime > 0 ? initialTime : 0;
   });
+
+  // Sync lessonSeekTime when initialTime prop changes (e.g. query refetch with fresh saved position)
+  const prevInitialTimeRef = useRef(initialTime);
+  useEffect(() => {
+    if (initialTime !== prevInitialTimeRef.current) {
+      console.log("[CoursePlayer] initialTime prop changed:", prevInitialTimeRef.current, "→", initialTime);
+      prevInitialTimeRef.current = initialTime;
+      setLessonSeekTime(initialTime > 0 ? initialTime : 0);
+    }
+  }, [initialTime]);
 
   // Scroll to current lesson when bottom sheet opens
   useEffect(() => {

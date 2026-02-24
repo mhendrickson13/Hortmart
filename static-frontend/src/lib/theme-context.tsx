@@ -6,47 +6,33 @@ import {
   useCallback,
   ReactNode,
 } from "react";
-import { translations, getTranslation, type TranslationKeys } from "./translations";
+import i18n from "./i18n";
 
 type Theme = "light" | "dark" | "system";
-type Language = "en" | "es" | "pt" | "fr";
 type Timezone = string;
 
 interface AppPreferences {
   theme: Theme;
-  language: Language;
   timezone: Timezone;
 }
 
 interface AppPreferencesContextType {
   theme: Theme;
   resolvedTheme: "light" | "dark";
-  language: Language;
   timezone: Timezone;
   setTheme: (theme: Theme) => void;
-  setLanguage: (language: Language) => void;
   setTimezone: (timezone: Timezone) => void;
   formatDate: (date: Date | string, options?: Intl.DateTimeFormatOptions) => string;
   formatTime: (date: Date | string) => string;
   formatDateTime: (date: Date | string) => string;
   formatRelativeTime: (date: Date | string) => string;
-  t: (path: string) => string;
-  translations: TranslationKeys;
 }
 
 const STORAGE_KEY = "app-preferences";
 
 const defaultPreferences: AppPreferences = {
   theme: "system",
-  language: "en",
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-};
-
-const languageNames: Record<Language, string> = {
-  en: "English",
-  es: "Español",
-  pt: "Português",
-  fr: "Français",
 };
 
 const AppPreferencesContext = createContext<AppPreferencesContextType | undefined>(
@@ -124,11 +110,16 @@ export function AppPreferencesProvider({ children }: { children: ReactNode }) {
     return () => mediaQuery.removeEventListener("change", handleChange);
   }, [preferences.theme, mounted]);
 
-  // Apply language
+  // Keep document lang in sync with i18next
   useEffect(() => {
     if (!mounted) return;
-    document.documentElement.lang = preferences.language;
-  }, [preferences.language, mounted]);
+    document.documentElement.lang = i18n.language;
+    const handler = (lng: string) => {
+      document.documentElement.lang = lng;
+    };
+    i18n.on("languageChanged", handler);
+    return () => { i18n.off("languageChanged", handler); };
+  }, [mounted]);
 
   // Save preferences to localStorage whenever they change
   const savePreferences = useCallback((newPrefs: AppPreferences) => {
@@ -147,14 +138,6 @@ export function AppPreferencesProvider({ children }: { children: ReactNode }) {
     });
   }, [savePreferences]);
 
-  const setLanguage = useCallback((language: Language) => {
-    setPreferences((prev) => {
-      const newPrefs = { ...prev, language };
-      savePreferences(newPrefs);
-      return newPrefs;
-    });
-  }, [savePreferences]);
-
   const setTimezone = useCallback((timezone: Timezone) => {
     setPreferences((prev) => {
       const newPrefs = { ...prev, timezone };
@@ -163,40 +146,43 @@ export function AppPreferencesProvider({ children }: { children: ReactNode }) {
     });
   }, [savePreferences]);
 
+  // Use i18next resolved language for Intl formatting
+  const locale = i18n.language || "en";
+
   // Date/time formatting utilities using the selected timezone
   const formatDate = useCallback(
     (date: Date | string, options?: Intl.DateTimeFormatOptions) => {
       const d = typeof date === "string" ? new Date(date) : date;
-      return new Intl.DateTimeFormat(preferences.language, {
+      return new Intl.DateTimeFormat(locale, {
         timeZone: preferences.timezone,
         dateStyle: "medium",
         ...options,
       }).format(d);
     },
-    [preferences.language, preferences.timezone]
+    [locale, preferences.timezone]
   );
 
   const formatTime = useCallback(
     (date: Date | string) => {
       const d = typeof date === "string" ? new Date(date) : date;
-      return new Intl.DateTimeFormat(preferences.language, {
+      return new Intl.DateTimeFormat(locale, {
         timeZone: preferences.timezone,
         timeStyle: "short",
       }).format(d);
     },
-    [preferences.language, preferences.timezone]
+    [locale, preferences.timezone]
   );
 
   const formatDateTime = useCallback(
     (date: Date | string) => {
       const d = typeof date === "string" ? new Date(date) : date;
-      return new Intl.DateTimeFormat(preferences.language, {
+      return new Intl.DateTimeFormat(locale, {
         timeZone: preferences.timezone,
         dateStyle: "medium",
         timeStyle: "short",
       }).format(d);
     },
-    [preferences.language, preferences.timezone]
+    [locale, preferences.timezone]
   );
 
   const formatRelativeTime = useCallback(
@@ -205,7 +191,7 @@ export function AppPreferencesProvider({ children }: { children: ReactNode }) {
       const now = new Date();
       const diffInSeconds = Math.floor((now.getTime() - d.getTime()) / 1000);
 
-      const rtf = new Intl.RelativeTimeFormat(preferences.language, {
+      const rtf = new Intl.RelativeTimeFormat(locale, {
         numeric: "auto",
       });
 
@@ -220,17 +206,8 @@ export function AppPreferencesProvider({ children }: { children: ReactNode }) {
         return rtf.format(-Math.floor(diffInSeconds / 2592000), "month");
       return rtf.format(-Math.floor(diffInSeconds / 31536000), "year");
     },
-    [preferences.language]
+    [locale]
   );
-
-  // Translation function
-  const t = useCallback(
-    (path: string) => getTranslation(preferences.language, path),
-    [preferences.language]
-  );
-
-  // Get current translations object
-  const currentTranslations = translations[preferences.language] as TranslationKeys;
 
   // Prevent flash of incorrect theme
   if (!mounted) {
@@ -239,17 +216,13 @@ export function AppPreferencesProvider({ children }: { children: ReactNode }) {
         value={{
           theme: "system",
           resolvedTheme: "light",
-          language: "en",
           timezone: "UTC",
           setTheme: () => {},
-          setLanguage: () => {},
           setTimezone: () => {},
           formatDate: () => "",
           formatTime: () => "",
           formatDateTime: () => "",
           formatRelativeTime: () => "",
-          t: (path: string) => getTranslation("en", path),
-          translations: translations.en,
         }}
       >
         {children}
@@ -262,17 +235,13 @@ export function AppPreferencesProvider({ children }: { children: ReactNode }) {
       value={{
         theme: preferences.theme,
         resolvedTheme,
-        language: preferences.language,
         timezone: preferences.timezone,
         setTheme,
-        setLanguage,
         setTimezone,
         formatDate,
         formatTime,
         formatDateTime,
         formatRelativeTime,
-        t,
-        translations: currentTranslations,
       }}
     >
       {children}
@@ -290,6 +259,4 @@ export function useAppPreferences() {
   return context;
 }
 
-// Helper exports
-export { languageNames };
-export type { Theme, Language, Timezone };
+export type { Theme, Timezone };
