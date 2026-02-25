@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, AlertTriangle, RefreshCw } from "lucide-react";
 
@@ -15,22 +16,23 @@ export function AdminErrorState({
   message,
   onRetry,
   onBack,
-  backLabel = "Go Back",
+  backLabel,
   variant = "error",
 }: AdminErrorStateProps) {
+  const { t } = useTranslation();
   const Icon = variant === "warning" ? AlertTriangle : AlertCircle;
   const iconColor = variant === "warning" ? "text-warning" : "text-danger";
   
   const defaultTitle = {
-    error: "Something went wrong",
-    warning: "Action required",
-    "not-found": "Not found",
+    error: t("admin.errorState.somethingWentWrong"),
+    warning: t("admin.errorState.actionRequired"),
+    "not-found": t("admin.errorState.notFound"),
   }[variant];
 
   const defaultMessage = {
-    error: "An error occurred while loading. Please try again.",
-    warning: "Please review the information and try again.",
-    "not-found": "The resource you're looking for doesn't exist.",
+    error: t("admin.errorState.errorMessage"),
+    warning: t("admin.errorState.warningMessage"),
+    "not-found": t("admin.errorState.notFoundMessage"),
   }[variant];
 
   return (
@@ -50,12 +52,12 @@ export function AdminErrorState({
         {onRetry && (
           <Button variant="secondary" onClick={onRetry}>
             <RefreshCw className="w-4 h-4 mr-2" />
-            Try Again
+            {t("admin.errorState.tryAgain")}
           </Button>
         )}
         {onBack && (
           <Button onClick={onBack}>
-            {backLabel}
+            {backLabel || t("admin.errorState.goBack")}
           </Button>
         )}
       </div>

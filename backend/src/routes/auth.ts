@@ -14,7 +14,7 @@ const JWT_EXPIRES_IN = (process.env.JWT_EXPIRES_IN || '7d') as string & jwt.Sign
 // POST /auth/register
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, name } = req.body;
+    const { email, password, name, role: requestedRole } = req.body;
 
     if (!email || !password || password.length < 6) {
       return res.status(400).json({ error: 'Valid email and password (min 6 chars) are required' });
@@ -25,6 +25,10 @@ router.post('/register', async (req, res) => {
     if (!emailRegex.test(email)) {
       return res.status(400).json({ error: 'Invalid email format' });
     }
+
+    // Validate role — only LEARNER or CREATOR allowed during registration
+    const allowedRoles = ['LEARNER', 'CREATOR'];
+    const role = allowedRoles.includes(requestedRole) ? requestedRole : 'LEARNER';
 
     const existing = await queryOne<any>('SELECT id FROM users WHERE email = ?', [email]);
     if (existing) {
@@ -37,10 +41,10 @@ router.post('/register', async (req, res) => {
 
     await execute(
       'INSERT INTO users (id, email, password, name, role, updatedAt) VALUES (?, ?, ?, ?, ?, ?)',
-      [id, email, hashedPassword, name || null, 'LEARNER', ts]
+      [id, email, hashedPassword, name || null, role, ts]
     );
 
-    const user = { id, email, name: name || null, role: 'LEARNER', createdAt: new Date() };
+    const user = { id, email, name: name || null, role, createdAt: new Date() };
 
     const token = jwt.sign({ userId: id }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 

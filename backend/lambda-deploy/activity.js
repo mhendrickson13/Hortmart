@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.logActivity = logActivity;
+exports.fireWebhook = fireWebhook;
 /**
  * Activity logging + webhook dispatch.
  * Every logged event is persisted in `activity_log` and optionally
@@ -24,10 +25,11 @@ async function logActivity(payload) {
     catch (e) {
         console.error('[Activity] insert error:', e);
     }
-    // 2. Webhook (fire-and-forget)
-    fireWebhook({ id, event, userId, userName, meta, createdAt: ts }).catch(() => { });
+    // Webhook dispatch is handled by the video-event endpoint only
 }
-/** Send payload to the configured webhook URL, if any. */
+/**
+ * Fire a payload to the configured webhook URL (fire-and-forget).
+ */
 async function fireWebhook(body) {
     try {
         const row = await (0, db_js_1.queryOne)(`SELECT value FROM app_settings WHERE \`key\` = 'webhookUrl'`);

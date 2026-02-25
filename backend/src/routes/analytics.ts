@@ -1,13 +1,16 @@
 import { Router, Response } from 'express';
 import { query, queryOne, execute, inPlaceholders } from '../db.js';
-import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth.js';
+import { authenticate, requireAdmin, requireCreatorOrAdmin, AuthRequest } from '../middleware/auth.js';
 import { cached } from '../cache.js';
 
 const router = Router();
 
-// GET /analytics - Dashboard analytics (Admin only)
-router.get('/', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+// GET /analytics - Dashboard analytics (Admin sees all, Creator sees own courses)
+router.get('/', authenticate, requireCreatorOrAdmin, async (req: AuthRequest, res: Response) => {
   try {
+    const isCreator = req.user!.role === 'CREATOR';
+    const creatorId = isCreator ? req.user!.id : null;
+
     // Accept optional date range: ?from=YYYY-MM-DD&to=YYYY-MM-DD
     let fromDate: Date;
     let toDate: Date;
@@ -21,41 +24,101 @@ router.get('/', authenticate, requireAdmin, async (req: AuthRequest, res: Respon
     }
     const fromStr = fromDate.toISOString().replace('T', ' ').replace('Z', '');
     const toStr = toDate.toISOString().replace('T', ' ').replace('Z', '');
-    const cacheKey = `analytics:${fromStr}:${toStr}`;
+    const cacheKey = `analytics:${creatorId || 'admin'}:${fromStr}:${toStr}`;
 
     const result = await cached(cacheKey, 120, async () => {
+      // ── Scope helpers: CREATOR sees only their courses ──
+      const cScope = isCreator ? ' AND c.creatorId = ?' : '';
+      const cScopeW = isCreator ? ' WHERE c.creatorId = ?' : '';
+      const cP = isCreator ? [creatorId!] : [];
+
       // ── BATCH 1: All independent count/aggregate queries in parallel ──
       const [
         usersRow, coursesRow, enrollmentsRow, revenueRow, activeRow,
         enrollmentsForCompletion, recentUsers, recentEnrollments,
         topCourses, roleRows, catRows, topLearners,
       ] = await Promise.all([
-        queryOne<any>("SELECT COUNT(*) as cnt FROM users WHERE role = 'LEARNER'"),
-        queryOne<any>('SELECT COUNT(*) as cnt FROM courses'),
-        queryOne<any>('SELECT COUNT(*) as cnt FROM enrollments WHERE enrolledAt >= ? AND enrolledAt <= ?', [fromStr, toStr]),
+        // Total users: Admin=all learners, Creator=unique learners in their courses
+        isCreator
+          ? queryOne<any>(
+              `SELECT COUNT(DISTINCT e.userId) as cnt FROM enrollments e JOIN courses c ON e.courseId = c.id WHERE c.creatorId = ?`, [creatorId])
+          : queryOne<any>("SELECT COUNT(*) as cnt FROM users WHERE role = 'LEARNER'"),
+        // Total courses
+        isCreator
+          ? queryOne<any>('SELECT COUNT(*) as cnt FROM courses WHERE creatorId = ?', [creatorId])
+          : queryOne<any>('SELECT COUNT(*) as cnt FROM courses'),
+        // Enrollments in range
+        isCreator
+          ? queryOne<any>(
+              `SELECT COUNT(*) as cnt FROM enrollments e JOIN courses c ON e.courseId = c.id WHERE c.creatorId = ? AND e.enrolledAt >= ? AND e.enrolledAt <= ?`,
+              [creatorId, fromStr, toStr])
+          : queryOne<any>('SELECT COUNT(*) as cnt FROM enrollments WHERE enrolledAt >= ? AND enrolledAt <= ?', [fromStr, toStr]),
+        // Revenue
         queryOne<any>(
           `SELECT COALESCE(SUM(c.price), 0) as revenue
            FROM enrollments e JOIN courses c ON e.courseId = c.id
-           WHERE e.enrolledAt >= ? AND e.enrolledAt <= ?`, [fromStr, toStr]),
-        queryOne<any>(
-          `SELECT COUNT(DISTINCT en.userId) as cnt
-           FROM lesson_progress lp JOIN enrollments en ON lp.enrollmentId = en.id
-           WHERE lp.lastWatchedAt >= ? AND lp.lastWatchedAt <= ?`, [fromStr, toStr]),
-        query<any[]>(`SELECT en.id as enrollmentId, en.courseId FROM enrollments en WHERE en.enrolledAt >= ? AND en.enrolledAt <= ?`, [fromStr, toStr]),
-        query<any[]>("SELECT createdAt FROM users WHERE role = 'LEARNER' AND createdAt >= ? AND createdAt <= ?", [fromStr, toStr]),
-        query<any[]>(`SELECT e.enrolledAt, c.price FROM enrollments e JOIN courses c ON e.courseId = c.id WHERE e.enrolledAt >= ? AND e.enrolledAt <= ?`, [fromStr, toStr]),
-        query<any[]>(
-          `SELECT c.id, c.title, c.price, COUNT(e.id) as enrollCount
-           FROM courses c LEFT JOIN enrollments e ON e.courseId = c.id AND e.enrolledAt >= ? AND e.enrolledAt <= ?
-           GROUP BY c.id ORDER BY enrollCount DESC LIMIT 10`, [fromStr, toStr]),
-        query<any[]>('SELECT role, COUNT(*) as cnt FROM users GROUP BY role'),
-        query<any[]>('SELECT category, COUNT(*) as cnt FROM courses WHERE category IS NOT NULL GROUP BY category'),
-        query<any[]>(
-          `SELECT e.id as enrollmentId, e.courseId, u.email, u.name, c.title as course,
-                  (SELECT MAX(lp2.lastWatchedAt) FROM lesson_progress lp2 WHERE lp2.enrollmentId = e.id) as lastActive
-           FROM enrollments e JOIN users u ON e.userId = u.id JOIN courses c ON e.courseId = c.id
-           WHERE e.enrolledAt >= ? AND e.enrolledAt <= ?
-           ORDER BY e.enrolledAt DESC LIMIT 10`, [fromStr, toStr]),
+           WHERE e.enrolledAt >= ? AND e.enrolledAt <= ?${cScope}`, [...[fromStr, toStr], ...cP]),
+        // Active users
+        isCreator
+          ? queryOne<any>(
+              `SELECT COUNT(DISTINCT en.userId) as cnt
+               FROM lesson_progress lp JOIN enrollments en ON lp.enrollmentId = en.id JOIN courses c ON en.courseId = c.id
+               WHERE lp.lastWatchedAt >= ? AND lp.lastWatchedAt <= ? AND c.creatorId = ?`, [fromStr, toStr, creatorId])
+          : queryOne<any>(
+              `SELECT COUNT(DISTINCT en.userId) as cnt
+               FROM lesson_progress lp JOIN enrollments en ON lp.enrollmentId = en.id
+               WHERE lp.lastWatchedAt >= ? AND lp.lastWatchedAt <= ?`, [fromStr, toStr]),
+        // Enrollments for completion calc
+        isCreator
+          ? query<any[]>(
+              `SELECT en.id as enrollmentId, en.courseId FROM enrollments en JOIN courses c ON en.courseId = c.id WHERE c.creatorId = ? AND en.enrolledAt >= ? AND en.enrolledAt <= ?`,
+              [creatorId, fromStr, toStr])
+          : query<any[]>(`SELECT en.id as enrollmentId, en.courseId FROM enrollments en WHERE en.enrolledAt >= ? AND en.enrolledAt <= ?`, [fromStr, toStr]),
+        // Recent user signups (Creator: new enrollments by date instead)
+        isCreator
+          ? query<any[]>(
+              `SELECT e.enrolledAt as createdAt FROM enrollments e JOIN courses c ON e.courseId = c.id WHERE c.creatorId = ? AND e.enrolledAt >= ? AND e.enrolledAt <= ?`,
+              [creatorId, fromStr, toStr])
+          : query<any[]>("SELECT createdAt FROM users WHERE role = 'LEARNER' AND createdAt >= ? AND createdAt <= ?", [fromStr, toStr]),
+        // Recent enrollments (revenue)
+        isCreator
+          ? query<any[]>(
+              `SELECT e.enrolledAt, c.price FROM enrollments e JOIN courses c ON e.courseId = c.id WHERE c.creatorId = ? AND e.enrolledAt >= ? AND e.enrolledAt <= ?`,
+              [creatorId, fromStr, toStr])
+          : query<any[]>(`SELECT e.enrolledAt, c.price FROM enrollments e JOIN courses c ON e.courseId = c.id WHERE e.enrolledAt >= ? AND e.enrolledAt <= ?`, [fromStr, toStr]),
+        // Top courses
+        isCreator
+          ? query<any[]>(
+              `SELECT c.id, c.title, c.price, COUNT(e.id) as enrollCount
+               FROM courses c LEFT JOIN enrollments e ON e.courseId = c.id AND e.enrolledAt >= ? AND e.enrolledAt <= ?
+               WHERE c.creatorId = ? GROUP BY c.id ORDER BY enrollCount DESC LIMIT 10`, [fromStr, toStr, creatorId])
+          : query<any[]>(
+              `SELECT c.id, c.title, c.price, COUNT(e.id) as enrollCount
+               FROM courses c LEFT JOIN enrollments e ON e.courseId = c.id AND e.enrolledAt >= ? AND e.enrolledAt <= ?
+               GROUP BY c.id ORDER BY enrollCount DESC LIMIT 10`, [fromStr, toStr]),
+        // Role distribution (Creator: show enrolled learner count)
+        isCreator
+          ? query<any[]>(
+              `SELECT 'LEARNER' as role, COUNT(DISTINCT e.userId) as cnt FROM enrollments e JOIN courses c ON e.courseId = c.id WHERE c.creatorId = ?`, [creatorId])
+          : query<any[]>('SELECT role, COUNT(*) as cnt FROM users GROUP BY role'),
+        // Category distribution
+        isCreator
+          ? query<any[]>('SELECT category, COUNT(*) as cnt FROM courses WHERE category IS NOT NULL AND creatorId = ? GROUP BY category', [creatorId])
+          : query<any[]>('SELECT category, COUNT(*) as cnt FROM courses WHERE category IS NOT NULL GROUP BY category'),
+        // Top learners
+        isCreator
+          ? query<any[]>(
+              `SELECT e.id as enrollmentId, e.courseId, u.email, u.name, c.title as course,
+                      (SELECT MAX(lp2.lastWatchedAt) FROM lesson_progress lp2 WHERE lp2.enrollmentId = e.id) as lastActive
+               FROM enrollments e JOIN users u ON e.userId = u.id JOIN courses c ON e.courseId = c.id
+               WHERE c.creatorId = ? AND e.enrolledAt >= ? AND e.enrolledAt <= ?
+               ORDER BY e.enrolledAt DESC LIMIT 10`, [creatorId, fromStr, toStr])
+          : query<any[]>(
+              `SELECT e.id as enrollmentId, e.courseId, u.email, u.name, c.title as course,
+                      (SELECT MAX(lp2.lastWatchedAt) FROM lesson_progress lp2 WHERE lp2.enrollmentId = e.id) as lastActive
+               FROM enrollments e JOIN users u ON e.userId = u.id JOIN courses c ON e.courseId = c.id
+               WHERE e.enrolledAt >= ? AND e.enrolledAt <= ?
+               ORDER BY e.enrolledAt DESC LIMIT 10`, [fromStr, toStr]),
       ]);
 
       const totalUsers = Number(usersRow?.cnt ?? 0);

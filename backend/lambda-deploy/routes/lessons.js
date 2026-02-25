@@ -7,6 +7,43 @@ const email_js_1 = require("../email.js");
 const notifications_js_1 = require("./notifications.js");
 const activity_js_1 = require("../activity.js");
 const router = (0, express_1.Router)();
+// ── Video event types dispatched to webhook ──
+const VALID_VIDEO_EVENTS = ['play', 'pause', 'ended', 'timeupdate', 'seeked', 'ratechange', 'visibilitychange'];
+// POST /lessons/video-event — Dispatch video player events to webhook
+router.post('/video-event', auth_js_1.authenticate, async (req, res) => {
+    try {
+        const { event, lessonId, courseId, currentTime, duration, playbackRate, visibilityState } = req.body;
+        if (!event || !VALID_VIDEO_EVENTS.includes(event)) {
+            return res.status(400).json({ error: `Invalid event. Must be one of: ${VALID_VIDEO_EVENTS.join(', ')}` });
+        }
+        if (!lessonId) {
+            return res.status(400).json({ error: 'lessonId is required' });
+        }
+        const user = await (0, db_js_1.queryOne)('SELECT name, email FROM users WHERE id = ?', [req.user.id]);
+        const payload = {
+            event,
+            userId: req.user.id,
+            userName: user?.name || user?.email || req.user.email,
+            lessonId,
+            courseId: courseId || null,
+            currentTime: currentTime ?? 0,
+            duration: duration ?? 0,
+            timestamp: new Date().toISOString(),
+        };
+        if (event === 'ratechange' && playbackRate !== undefined) {
+            payload.playbackRate = playbackRate;
+        }
+        if (event === 'visibilitychange' && visibilityState !== undefined) {
+            payload.visibilityState = visibilityState;
+        }
+        (0, activity_js_1.fireWebhook)(payload).catch(() => { });
+        res.json({ ok: true });
+    }
+    catch (error) {
+        console.error('Video event error:', error);
+        res.status(500).json({ error: 'Failed to process video event' });
+    }
+});
 // GET /lessons/:id
 router.get('/:id', auth_js_1.optionalAuth, async (req, res) => {
     try {
@@ -242,7 +279,7 @@ router.post('/:id/progress', auth_js_1.authenticate, async (req, res) => {
             await (0, db_js_1.execute)(`INSERT INTO lesson_progress (id, enrollmentId, lessonId, progressPercent, lastWatchedTimestamp, lastWatchedAt, completedAt, watchedSeconds, viewCount, firstViewedAt, updatedAt)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [progressId, enrollment.id, id, progressPercent, validTimestamp, ts, completedAt, watchedSecondsIncrement, viewInc > 0 ? 1 : 0, ts, ts]);
             // First time this lesson is viewed
-            (0, activity_js_1.logActivity)({ event: 'lesson.started', userId: req.user.id, meta: { lessonId: id, courseId: mod.courseId } });
+            (0, activity_js_1.logActivity)({ event: 'lesson.started', userId: req.user.id, userName: req.user.email, meta: { lessonId: id, courseId: mod.courseId } });
         }
         const progress = await (0, db_js_1.queryOne)('SELECT * FROM lesson_progress WHERE enrollmentId = ? AND lessonId = ?', [enrollment.id, id]);
         // ── Accumulate daily watch activity ──
@@ -266,7 +303,7 @@ router.post('/:id/progress', auth_js_1.authenticate, async (req, res) => {
         // ── Course completion detection ──
         // Only check if THIS lesson was just marked complete (completedAt was set in this request)
         if (completedAt) {
-            (0, activity_js_1.logActivity)({ event: 'lesson.completed', userId: req.user.id, meta: { lessonId: id, courseId: mod.courseId } });
+            (0, activity_js_1.logActivity)({ event: 'lesson.completed', userId: req.user.id, userName: req.user.email, meta: { lessonId: id, courseId: mod.courseId } });
             try {
                 // Count total lessons in this course vs completed lessons for this enrollment
                 const totalRow = await (0, db_js_1.queryOne)(`SELECT COUNT(*) as cnt FROM lessons l JOIN modules m ON l.moduleId = m.id WHERE m.courseId = ?`, [mod.courseId]);

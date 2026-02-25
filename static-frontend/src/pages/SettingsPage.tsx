@@ -1,4 +1,5 @@
 ﻿import { useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth-context";
 import { users as usersApi, uploads as uploadsApi, settings as settingsApi } from "@/lib/api-client";
@@ -99,6 +100,7 @@ export default function SettingsPage() {
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const { theme, setTheme } = useAppPreferences();
+  const { t } = useTranslation();
 
   /* ---- Data ---- */
   const { data: profileData } = useQuery({
@@ -167,7 +169,7 @@ export default function SettingsPage() {
 
   const handleSaveProfile = async () => {
     if (!name.trim()) {
-      toast({ title: "Name is required", variant: "error" });
+      toast({ title: t("settings.nameRequired"), variant: "error" });
       return;
     }
     setSavingProfile(true);
@@ -179,12 +181,12 @@ export default function SettingsPage() {
       updateUser({ name: res.user?.name ?? name.trim() });
       queryClient.invalidateQueries({ queryKey: ["profile"] });
       toast({
-        title: "Profile updated",
-        description: "Your profile has been successfully updated.",
+        title: t("settings.profileUpdated"),
+        description: t("settings.profileUpdateSuccess"),
         variant: "success",
       });
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "error" });
+      toast({ title: t("common.error"), description: error.message, variant: "error" });
     } finally {
       setSavingProfile(false);
     }
@@ -192,15 +194,15 @@ export default function SettingsPage() {
 
   const handleChangePassword = async () => {
     if (!currentPassword) {
-      setPasswordError("Current password is required");
+      setPasswordError(t("settings.currentPasswordRequired"));
       return;
     }
     if (newPassword !== confirmPassword) {
-      setPasswordError("Passwords do not match");
+      setPasswordError(t("settings.passwordsNotMatch"));
       return;
     }
     if (!allRulesMet) {
-      setPasswordError("Password does not meet all requirements");
+      setPasswordError(t("settings.passwordNotMeetRequirements"));
       return;
     }
     setPasswordError("");
@@ -211,15 +213,15 @@ export default function SettingsPage() {
         token ?? undefined
       );
       toast({
-        title: "Password updated",
-        description: "Your password has been successfully changed.",
+        title: t("settings.passwordUpdated"),
+        description: t("settings.passwordUpdateSuccess"),
         variant: "success",
       });
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
     } catch (error: any) {
-      setPasswordError(error.message || "Failed to change password");
+      setPasswordError(error.message || t("settings.failedToChangePassword"));
     } finally {
       setSavingPassword(false);
     }
@@ -231,11 +233,11 @@ export default function SettingsPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) {
-      toast({ title: "Please select an image file", variant: "error" });
+      toast({ title: t("settings.selectImageFile"), variant: "error" });
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      toast({ title: "Image must be under 5 MB", variant: "error" });
+      toast({ title: t("settings.imageSizeLimit"), variant: "error" });
       return;
     }
     setUploadingAvatar(true);
@@ -247,10 +249,10 @@ export default function SettingsPage() {
       );
       updateUser({ image: imageUrl } as any);
       queryClient.invalidateQueries({ queryKey: ["profile"] });
-      toast({ title: "Avatar updated", variant: "success" });
+      toast({ title: t("settings.avatarUpdated"), variant: "success" });
     } catch (err: any) {
       toast({
-        title: "Upload failed",
+        title: t("settings.uploadFailed"),
         description: err.message,
         variant: "error",
       });
@@ -263,8 +265,8 @@ export default function SettingsPage() {
   const handleThemeChange = (newTheme: Theme) => {
     setTheme(newTheme);
     toast({
-      title: "Theme updated",
-      description: `Switched to ${newTheme} mode`,
+      title: t("settings.themeUpdated"),
+      description: `${t("settings.switchedTo")} ${t(`settings.${newTheme}`).toLowerCase()} ${t("settings.mode")}`,
       variant: "success",
     });
   };
@@ -274,7 +276,7 @@ export default function SettingsPage() {
       await usersApi.updateNotificationPreferences({ [key]: value });
       queryClient.invalidateQueries({ queryKey: ["notification-preferences"] });
     } catch {
-      toast({ title: "Failed to update preference", variant: "error" });
+      toast({ title: t("settings.failedToUpdatePreference"), variant: "error" });
     }
   };
 
@@ -284,9 +286,9 @@ export default function SettingsPage() {
     try {
       await settingsApi.update({ webhookUrl: webhookUrl.trim() });
       queryClient.invalidateQueries({ queryKey: ["app-settings"] });
-      toast({ title: "Webhook saved", variant: "success" });
+      toast({ title: t("settings.webhookSaved"), variant: "success" });
     } catch {
-      toast({ title: "Failed to save webhook", variant: "error" });
+      toast({ title: t("settings.webhookSaveFailed"), variant: "error" });
     } finally {
       setSavingWebhook(false);
     }
@@ -300,11 +302,11 @@ export default function SettingsPage() {
       setWebhookTestResult({
         success: res.success,
         message: res.success
-          ? `Success (${res.status} ${res.statusText})`
-          : res.error || `Failed (${res.status})`,
+          ? t("settings.webhookTestSuccess", { status: res.status, statusText: res.statusText })
+          : res.error || t("settings.webhookTestFailedStatus", { status: res.status }),
       });
     } catch (err: any) {
-      setWebhookTestResult({ success: false, message: err.message || "Request failed" });
+      setWebhookTestResult({ success: false, message: err.message || t("settings.webhookTestFailed") });
     } finally {
       setTestingWebhook(false);
     }
@@ -313,10 +315,10 @@ export default function SettingsPage() {
   /* ---- Computed ---- */
   const roleName =
     user?.role === "ADMIN"
-      ? "Administrator"
+      ? t("roles.admin")
       : user?.role === "CREATOR"
-        ? "Creator"
-        : "Learner";
+        ? t("roles.creator")
+        : t("roles.learner");
 
   const memberSince = profile?.createdAt
     ? new Date(profile.createdAt as string).toLocaleDateString("en-US", {
@@ -328,35 +330,35 @@ export default function SettingsPage() {
   const themeOptions = [
     {
       id: "light" as Theme,
-      label: "Light",
+      label: t("settings.light"),
       icon: Sun,
-      desc: "Clean & bright",
+      desc: t("settings.cleanAndBright"),
       preview: "bg-white border-gray-200",
     },
     {
       id: "dark" as Theme,
-      label: "Dark",
+      label: t("settings.dark"),
       icon: Moon,
-      desc: "Easy on the eyes",
+      desc: t("settings.easyOnTheEyes"),
       preview: "bg-gray-900 border-gray-700",
     },
     {
       id: "system" as Theme,
-      label: "System",
+      label: t("settings.system"),
       icon: Monitor,
-      desc: "Match your device",
+      desc: t("settings.matchYourDevice"),
       preview: "bg-gradient-to-br from-white to-gray-900 border-gray-400",
     },
   ];
 
   /* ---- Password validation rules ---- */
   const passwordRules = [
-    { label: "8+ characters", met: newPassword.length >= 8 },
-    { label: "Uppercase", met: /[A-Z]/.test(newPassword) },
-    { label: "Lowercase", met: /[a-z]/.test(newPassword) },
-    { label: "Number", met: /\d/.test(newPassword) },
+    { label: t("settings.eightPlusChars"), met: newPassword.length >= 8 },
+    { label: t("settings.uppercase"), met: /[A-Z]/.test(newPassword) },
+    { label: t("settings.lowercase"), met: /[a-z]/.test(newPassword) },
+    { label: t("settings.number"), met: /\d/.test(newPassword) },
     {
-      label: "Special char",
+      label: t("settings.specialChar"),
       met: /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(newPassword),
     },
   ];
@@ -420,7 +422,7 @@ export default function SettingsPage() {
             <div>
               <div className="flex items-center gap-2.5 flex-wrap">
                 <h1 className="text-h2 text-text-1">
-                  {user?.name || "User"}
+                  {user?.name || t("settings.user")}
                 </h1>
                 <span className="inline-flex items-center gap-1 h-6 px-2.5 rounded-pill text-caption font-semibold bg-primary/10 text-primary border border-primary/15">
                   <Sparkles className="w-3 h-3" />
@@ -435,7 +437,7 @@ export default function SettingsPage() {
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <Calendar className="w-4 h-4 text-text-3" />
-                Member since {memberSince}
+                {t("settings.memberSince")} {memberSince}
               </span>
             </div>
           </div>
@@ -453,36 +455,36 @@ export default function SettingsPage() {
         >
           <SectionHeader
             icon={User}
-            title="Profile Details"
-            description="Update your personal information"
+            title={t("settings.profileDetails")}
+            description={t("settings.updatePersonalInfo")}
           />
 
           <div className="space-y-4">
             <div>
               <label className="block text-body-sm font-medium text-text-1 mb-1.5">
-                Display Name
+                {t("settings.displayName")}
               </label>
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Enter your name"
+                placeholder={t("settings.enterYourName")}
                 className="h-11"
               />
             </div>
 
             <div>
               <label className="block text-body-sm font-medium text-text-1 mb-1.5">
-                Bio
+                {t("settings.bio")}
               </label>
               <Textarea
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
-                placeholder="Tell us about yourself..."
+                placeholder={t("settings.bioPlaceholder")}
                 className="min-h-[100px] resize-none"
                 rows={3}
               />
               <p className="text-caption text-text-3 mt-1.5">
-                Brief description for your profile. Max 200 characters.
+                {t("settings.bioHelp")}
               </p>
             </div>
 
@@ -490,7 +492,7 @@ export default function SettingsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-body-sm font-medium text-text-1 mb-1.5">
-                    Email
+                    {t("settings.email")}
                   </label>
                   <div className="h-11 rounded-lg border border-border bg-muted/40 px-4 flex items-center text-body-sm text-text-2 truncate">
                     {user?.email}
@@ -498,7 +500,7 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <label className="block text-body-sm font-medium text-text-1 mb-1.5">
-                    Member Since
+                    {t("settings.memberSince")}
                   </label>
                   <div className="h-11 rounded-lg border border-border bg-muted/40 px-4 flex items-center text-body-sm text-text-2">
                     {memberSince}
@@ -519,7 +521,7 @@ export default function SettingsPage() {
                 ) : (
                   <Check className="w-4 h-4" />
                 )}
-                {savingProfile ? "Saving..." : "Save Changes"}
+                {savingProfile ? t("common.saving") : t("settings.saveChanges")}
               </button>
             </div>
           </div>
@@ -532,21 +534,21 @@ export default function SettingsPage() {
         >
           <SectionHeader
             icon={Shield}
-            title="Security"
-            description="Keep your account safe and secure"
+            title={t("settings.security")}
+            description={t("settings.securityDescription")}
           />
 
           <div className="space-y-4">
             <div>
               <label className="block text-body-sm font-medium text-text-1 mb-1.5">
-                Current Password
+                {t("settings.currentPassword")}
               </label>
               <div className="relative">
                 <Input
                   type={showCurrentPw ? "text" : "password"}
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
-                  placeholder="Enter current password"
+                  placeholder={t("settings.enterCurrentPassword")}
                   className="h-11 pr-11"
                 />
                 <button
@@ -567,14 +569,14 @@ export default function SettingsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-body-sm font-medium text-text-1 mb-1.5">
-                  New Password
+                  {t("settings.newPassword")}
                 </label>
                 <div className="relative">
                   <Input
                     type={showNewPw ? "text" : "password"}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Enter new password"
+                    placeholder={t("settings.enterNewPassword")}
                     className="h-11 pr-11"
                   />
                   <button
@@ -593,14 +595,14 @@ export default function SettingsPage() {
               </div>
               <div>
                 <label className="block text-body-sm font-medium text-text-1 mb-1.5">
-                  Confirm Password
+                  {t("settings.confirmPassword")}
                 </label>
                 <div className="relative">
                   <Input
                     type={showConfirmPw ? "text" : "password"}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Re-enter new password"
+                    placeholder={t("settings.reenterNewPassword")}
                     className="h-11 pr-11"
                   />
                   <button
@@ -630,10 +632,10 @@ export default function SettingsPage() {
               >
                 {newPassword === confirmPassword ? (
                   <>
-                    <Check className="w-4 h-4" /> Passwords match
+                    <Check className="w-4 h-4" /> {t("settings.passwordsMatch")}
                   </>
                 ) : (
-                  "Passwords do not match"
+                  t("settings.passwordsNotMatch")
                 )}
               </div>
             )}
@@ -644,7 +646,7 @@ export default function SettingsPage() {
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-caption font-medium text-text-2">
-                      Password strength
+                      {t("settings.passwordStrength")}
                     </span>
                     <span
                       className={`text-caption font-semibold ${
@@ -656,10 +658,10 @@ export default function SettingsPage() {
                       }`}
                     >
                       {rulesMet <= 2
-                        ? "Weak"
+                        ? t("settings.weak")
                         : rulesMet <= 4
-                          ? "Good"
-                          : "Strong"}
+                          ? t("settings.good")
+                          : t("settings.strong")}
                     </span>
                   </div>
                   <div className="h-1.5 bg-muted rounded-full overflow-hidden">
@@ -714,7 +716,7 @@ export default function SettingsPage() {
                 ) : (
                   <KeyRound className="w-4 h-4" />
                 )}
-                {savingPassword ? "Updating..." : "Update Password"}
+                {savingPassword ? t("common.updating") : t("settings.updatePassword")}
               </button>
             </div>
           </div>
@@ -727,26 +729,26 @@ export default function SettingsPage() {
         >
           <SectionHeader
             icon={Bell}
-            title="Notifications"
-            description="Choose what alerts you receive"
+            title={t("settings.notifications")}
+            description={t("settings.notificationsDescription")}
           />
 
           {notifPrefs ? (
             <div className="space-y-1">
               {[
                 {
-                  label: "In-App Notifications",
-                  desc: "Badges & alerts inside the app",
+                  label: t("settings.inAppNotifications"),
+                  desc: t("settings.inAppNotificationsDesc"),
                   key: "inApp",
                   checked: notifPrefs.inApp,
                   show: true,
                   icon: Bell,
                 },
                 {
-                  label: "Enrollment Emails",
+                  label: t("settings.enrollmentEmails"),
                   desc: isAdmin
-                    ? "When a student enrolls in your course"
-                    : "When you enroll in a new course",
+                    ? t("settings.enrollmentEmailsAdminDesc")
+                    : t("settings.enrollmentEmailsLearnerDesc"),
                   key: isAdmin ? "emailNewStudent" : "emailEnrollment",
                   checked: isAdmin
                     ? notifPrefs.emailNewStudent
@@ -755,18 +757,18 @@ export default function SettingsPage() {
                   icon: Mail,
                 },
                 {
-                  label: "Completion Emails",
+                  label: t("settings.completionEmails"),
                   desc: isAdmin
-                    ? "When a student completes your course"
-                    : "When you complete a course",
+                    ? t("settings.completionEmailsAdminDesc")
+                    : t("settings.completionEmailsLearnerDesc"),
                   key: "emailCompletion",
                   checked: notifPrefs.emailCompletion,
                   show: true,
                   icon: Check,
                 },
                 {
-                  label: "Review Emails",
-                  desc: "When a student leaves a review",
+                  label: t("settings.reviewEmails"),
+                  desc: t("settings.reviewEmailsDesc"),
                   key: "emailReview",
                   checked: notifPrefs.emailReview,
                   show: isAdmin,
@@ -815,22 +817,22 @@ export default function SettingsPage() {
           >
             <SectionHeader
               icon={Webhook}
-              title="Integrations"
-              description="Connect external services via webhooks"
+              title={t("settings.integrations")}
+              description={t("settings.integrationsDescription")}
             />
 
             <div className="space-y-4">
               <div>
                 <label className="block text-body-sm font-medium text-text-1 mb-1.5">
-                  Webhook URL
+                  {t("settings.webhookUrl")}
                 </label>
                 <p className="text-caption text-text-3 mb-2">
-                  All user activity events (login, enrollment, completion, etc.) will be sent as POST requests to this URL in real-time.
+                  {t("settings.webhookUrlDescription")}
                 </p>
                 <Input
                   value={webhookUrl}
                   onChange={(e) => { setWebhookUrl(e.target.value); setWebhookTestResult(null); }}
-                  placeholder="https://example.com/webhook"
+                  placeholder={t("settings.webhookPlaceholder")}
                   className="h-11 font-mono text-body-sm"
                   type="url"
                 />
@@ -839,16 +841,18 @@ export default function SettingsPage() {
               {/* Webhook payload preview */}
               <div className="rounded-xl bg-muted/60 border border-border/50 p-3">
                 <div className="text-[11px] font-bold text-text-3 uppercase tracking-wider mb-2">
-                  Payload example
+                  {t("settings.payloadExample")}
                 </div>
                 <pre className="text-[11px] text-text-2 font-mono leading-relaxed overflow-x-auto whitespace-pre">
 {`{
-  "id": "abc123",
-  "event": "course.completed",
+  "event": "play",
   "userId": "usr_xxx",
   "userName": "John Doe",
-  "meta": { "courseId": "crs_xx", "courseTitle": "..." },
-  "createdAt": "2026-02-24 12:00:00.000"
+  "lessonId": "les_xxx",
+  "courseId": "crs_xxx",
+  "currentTime": 42.5,
+  "duration": 360,
+  "timestamp": "2026-02-25T12:00:00.000Z"
 }`}
                 </pre>
               </div>
@@ -856,10 +860,10 @@ export default function SettingsPage() {
               {/* Events list */}
               <div className="rounded-xl bg-muted/40 border border-border/50 p-3">
                 <div className="text-[11px] font-bold text-text-3 uppercase tracking-wider mb-2">
-                  Events sent
+                  {t("settings.eventsSent")}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {["user.registered", "user.login", "enrollment.created", "lesson.started", "lesson.completed", "course.completed", "review.created", "user.blocked", "user.unblocked"].map((evt) => (
+                  {["play", "pause", "ended", "timeupdate", "seeked", "ratechange", "visibilitychange"].map((evt) => (
                     <span key={evt} className="inline-flex items-center h-6 px-2.5 rounded-lg text-[11px] font-semibold bg-primary/10 text-primary border border-primary/15">
                       {evt}
                     </span>
@@ -893,7 +897,7 @@ export default function SettingsPage() {
                   className="h-11 px-6 rounded-xl text-body-sm font-semibold bg-primary text-white hover:bg-primary-600 shadow-primary hover:shadow-primary-hover active:scale-[0.98] transition-all duration-200 disabled:opacity-50 inline-flex items-center gap-2"
                 >
                   {savingWebhook ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                  {savingWebhook ? "Saving..." : "Save"}
+                  {savingWebhook ? t("common.saving") : t("common.save")}
                 </button>
                 <button
                   onClick={handleTestWebhook}
@@ -901,7 +905,7 @@ export default function SettingsPage() {
                   className="h-11 px-6 rounded-xl text-body-sm font-semibold border-2 border-border text-text-1 hover:bg-muted hover:border-primary/30 active:scale-[0.98] transition-all duration-200 disabled:opacity-50 inline-flex items-center gap-2"
                 >
                   {testingWebhook ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                  {testingWebhook ? "Testing..." : "Send Test"}
+                  {testingWebhook ? t("settings.testing") : t("settings.sendTest")}
                 </button>
               </div>
             </div>
@@ -915,8 +919,8 @@ export default function SettingsPage() {
         >
           <SectionHeader
             icon={Palette}
-            title="Appearance"
-            description="Personalize how the app looks"
+            title={t("settings.appearance")}
+            description={t("settings.appearanceDescription")}
           />
 
           <div className="grid grid-cols-3 gap-3">
@@ -967,8 +971,8 @@ export default function SettingsPage() {
           >
             <SectionHeader
               icon={User}
-              title="Account"
-              description="Your account information"
+              title={t("settings.account")}
+              description={t("settings.accountDescription")}
             />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -978,7 +982,7 @@ export default function SettingsPage() {
                 </div>
                 <div className="min-w-0">
                   <div className="text-caption font-medium text-text-3 uppercase tracking-wider">
-                    Email
+                    {t("settings.email")}
                   </div>
                   <div className="text-body-sm font-medium text-text-1 truncate mt-0.5">
                     {user?.email}
@@ -991,7 +995,7 @@ export default function SettingsPage() {
                 </div>
                 <div className="min-w-0">
                   <div className="text-caption font-medium text-text-3 uppercase tracking-wider">
-                    Member Since
+                    {t("settings.memberSince")}
                   </div>
                   <div className="text-body-sm font-medium text-text-1 mt-0.5">
                     {memberSince}

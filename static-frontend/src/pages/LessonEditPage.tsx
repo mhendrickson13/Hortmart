@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { lessons as lessonsApi, apiClient, uploads as uploadsApi, video as videoApi } from "@/lib/api-client";
 import { VideoPlayer } from "@/components/learner/video-player";
@@ -62,6 +63,7 @@ interface LessonData {
 export default function LessonEditPage() {
   const { id: courseId, lessonId } = useParams<{ id: string; lessonId: string }>();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const queryClient = useQueryClient();
   const { data, isLoading, dataUpdatedAt } = useQuery({
@@ -83,9 +85,9 @@ export default function LessonEditPage() {
   if (!raw) {
     return (
       <div className="flex flex-col items-center justify-center flex-1 gap-4">
-        <p className="text-text-2 text-body">Lesson not found.</p>
+        <p className="text-text-2 text-body">{t("lessonEdit.lessonNotFound")}</p>
         <Link to={`/manage-courses/${courseId}/edit`} className="text-primary font-bold text-body-sm">
-          Back to course
+          {t("lessonEdit.backToCourse")}
         </Link>
       </div>
     );
@@ -109,8 +111,8 @@ export default function LessonEditPage() {
     module: raw.module,
   };
 
-  const courseName = lesson.module?.course?.title || "Course";
-  const moduleName = lesson.module?.title || "Module";
+  const courseName = lesson.module?.course?.title || t("courses.title");
+  const moduleName = lesson.module?.title || t("courses.module");
 
   return (
     <LessonEditor
@@ -143,6 +145,7 @@ function LessonEditor({
   onNavigateBack?: () => void;
 }) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [lesson, setLesson] = useState(initialLesson);
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -189,9 +192,9 @@ function LessonEditor({
         if (status.videoStatus === 'ready' || status.videoStatus === 'error') {
           if (encodingPollRef.current) clearInterval(encodingPollRef.current);
           if (status.videoStatus === 'ready') {
-            toast({ title: "Video encoded!", description: "HLS streaming is now available.", variant: "success" });
+            toast({ title: t("lessonEdit.videoEncoded"), description: t("lessonEdit.hlsStreamingAvailable"), variant: "success" });
           } else {
-            toast({ title: "Encoding failed", description: status.errorMessage || "Please try again.", variant: "error" });
+            toast({ title: t("lessonEdit.encodingFailedToast"), description: status.errorMessage || t("common.tryAgain"), variant: "error" });
           }
         }
       } catch { /* ignore poll errors */ }
@@ -287,13 +290,13 @@ function LessonEditor({
         const updated: any = (result as any).lesson || result;
         setLesson((l) => ({ ...l, ...updated }));
         setLastSaved(new Date());
-        toast({ title: "Saved", variant: "success" });
+        toast({ title: t("editCourse.saved"), variant: "success" });
         // Auto-detect duration when a video URL is set
         if (field === "videoUrl" && typeof value === "string" && value) {
           detectDuration(value);
         }
       } catch {
-        toast({ title: "Failed to save", variant: "error" });
+        toast({ title: t("editCourse.failedToSave"), variant: "error" });
       } finally {
         setSaving(false);
         setEditingField(null);
@@ -324,20 +327,20 @@ function LessonEditor({
         setNewFileUrl("");
         setShowUploadFile(false);
       }
-      toast({ title: "Resource added", variant: "success" });
+      toast({ title: t("lessonEdit.resourceAdded"), variant: "success" });
     } catch {
-      toast({ title: "Failed to add resource", variant: "error" });
+      toast({ title: t("lessonEdit.failedToAddResource"), variant: "error" });
     }
   };
 
   const removeResource = async (resourceId: string) => {
-    if (!window.confirm("Remove this resource?")) return;
+    if (!window.confirm(t("lessonEdit.removeResourceConfirm"))) return;
     try {
       await apiClient.resources.delete(resourceId);
       setResources((prev) => prev.filter((r) => r.id !== resourceId));
-      toast({ title: "Resource removed", variant: "success" });
+      toast({ title: t("lessonEdit.resourceRemoved"), variant: "success" });
     } catch {
-      toast({ title: "Failed to remove resource", variant: "error" });
+      toast({ title: t("lessonEdit.failedToRemoveResource"), variant: "error" });
     }
   };
 
@@ -345,11 +348,11 @@ function LessonEditor({
   const handleVideoUpload = useCallback(
     async (file: File) => {
       if (!file.type.startsWith("video/")) {
-        toast({ title: "Please select a video file", variant: "error" });
+        toast({ title: t("lessonEdit.pleaseSelectVideoFile"), variant: "error" });
         return;
       }
       if (file.size > 2 * 1024 * 1024 * 1024) {
-        toast({ title: "Video must be under 2GB", variant: "error" });
+        toast({ title: t("lessonEdit.videoSizeLimit"), variant: "error" });
         return;
       }
       setUploadingVideo(true);
@@ -365,14 +368,14 @@ function LessonEditor({
         setLesson((l) => ({ ...l, ...updated }));
         setVideoUploadProgress(100);
         setLastSaved(new Date());
-        toast({ title: "Video uploaded", variant: "success" });
+        toast({ title: t("lessonEdit.videoUploaded"), variant: "success" });
         // Backend auto-triggers encoding — start polling
         setEncodingStatus('encoding');
         setEncodingProgress(0);
         // Wait for duration detection (runs in parallel)
         await durationDetect;
       } catch (err: any) {
-        toast({ title: "Upload failed", description: err.message || "Try again", variant: "error" });
+        toast({ title: t("editCourse.uploadFailed"), description: err.message || t("lessonEdit.uploadFailedTryAgain"), variant: "error" });
       } finally {
         setUploadingVideo(false);
         setVideoUploadProgress(0);
@@ -415,9 +418,9 @@ function LessonEditor({
         });
         const resource: any = (result as any).resource || result;
         setResources((prev) => [...prev, resource as ResourceData]);
-        toast({ title: "Resource uploaded", variant: "success" });
+        toast({ title: t("lessonEdit.resourceUploaded"), variant: "success" });
       } catch (err: any) {
-        toast({ title: "Upload failed", description: err.message || "Try again", variant: "error" });
+        toast({ title: t("editCourse.uploadFailed"), description: err.message || t("lessonEdit.uploadFailedTryAgain"), variant: "error" });
       } finally {
         setUploadingResource(false);
       }
@@ -443,10 +446,10 @@ function LessonEditor({
   const lastSavedText = lastSaved
     ? (() => {
         const mins = Math.round((Date.now() - lastSaved.getTime()) / 60000);
-        if (mins < 1) return "Auto-saved just now";
-        return `Auto-saved ${mins} min ago`;
+        if (mins < 1) return t("editCourse.autoSavedJustNow");
+        return t("editCourse.autoSavedMinAgo", { mins });
       })()
-    : "Not saved yet";
+    : t("lessonEdit.notSavedYet");
 
   return (
     <>
@@ -461,19 +464,19 @@ function LessonEditor({
             <ArrowLeft className="w-4 h-4 text-text-1" />
           </Link>
           <div className="min-w-0">
-            <h1 className="text-[20px] font-black text-text-1 tracking-tight">Lesson editor</h1>
+            <h1 className="text-[20px] font-black text-text-1 tracking-tight">{t("lessonEdit.lessonEditor")}</h1>
             <div className="mt-1 text-[12px] font-extrabold text-text-3 truncate">
-              {courseName} &rarr; {moduleName} &rarr; Lesson {lesson.position + 1}
+              {courseName} &rarr; {moduleName} &rarr; {t("lessonEdit.lessonNumber", { number: lesson.position + 1 })}
             </div>
           </div>
         </div>
         <div className="flex items-center gap-2.5">
           <div className="flex items-center gap-2">
             <span className="h-[26px] px-2.5 rounded-full inline-flex items-center text-[11px] font-black tracking-[0.2px] bg-warning/14 text-amber-700 border border-warning/22">
-              {lesson.isFreePreview ? "FREE PREVIEW" : (lesson.videoUrl || lesson.hlsUrl || lesson.videoStatus === 'ready') ? "READY" : "DRAFT"}
+              {lesson.isFreePreview ? t("lessonEdit.freePreviewBadge") : (lesson.videoUrl || lesson.hlsUrl || lesson.videoStatus === 'ready') ? t("lessonEdit.readyBadge") : t("lessonEdit.draftBadge")}
             </span>
             <span className="text-[12px] font-extrabold text-text-3 hidden sm:inline">
-              {saving ? "Saving..." : lastSavedText}
+              {saving ? t("common.saving") : lastSavedText}
             </span>
           </div>
           <button
@@ -482,13 +485,13 @@ function LessonEditor({
               try {
                 if (!lesson.videoUrl && !lesson.hlsUrl && lesson.videoStatus !== 'ready') {
                   toast({
-                    title: "Add a video first",
-                    description: "Lessons need a video URL before they can be published.",
+                    title: t("lessonEdit.addVideoFirst"),
+                    description: t("lessonEdit.addVideoFirstDescription"),
                     variant: "warning",
                   });
                   return;
                 }
-                toast({ title: "Lesson is ready", description: "All changes have been saved.", variant: "success" });
+                toast({ title: t("lessonEdit.lessonIsReady"), description: t("lessonEdit.allChangesSaved"), variant: "success" });
                 onNavigateBack?.();
                 navigate(`/manage-courses/${courseId}/edit`);
               } finally {
@@ -499,7 +502,7 @@ function LessonEditor({
             className="h-10 px-3.5 rounded-[16px] border border-primary/55 bg-primary text-white font-black text-[13px] inline-flex items-center gap-2 shadow-[0_16px_34px_rgba(47,111,237,0.22)] whitespace-nowrap disabled:opacity-50"
           >
             <Send className="w-4 h-4" />
-            {isSavingAll ? "Saving..." : "Done editing"}
+            {isSavingAll ? t("common.saving") : t("lessonEdit.doneEditing")}
           </button>
         </div>
       </div>
@@ -508,11 +511,11 @@ function LessonEditor({
       <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-3 flex-1 min-h-0 mt-3">
         {/* Left Panel - Lesson Details */}
         <div className="rounded-[22px] bg-white/92 dark:bg-card/92 border border-border/95 shadow-[0_14px_28px_rgba(21,25,35,0.06)] dark:shadow-[0_14px_28px_rgba(0,0,0,0.25)] p-3.5 min-w-0 flex flex-col gap-3 overflow-auto">
-          <h2 className="text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">Lesson details</h2>
+          <h2 className="text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">{t("lessonEdit.lessonDetails")}</h2>
 
           {/* Title */}
           <div className="rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
-            <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">Title</div>
+            <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">{t("lessonEdit.title")}</div>
             {editingField === "title" ? (
               <Input
                 defaultValue={lesson.title}
@@ -543,7 +546,7 @@ function LessonEditor({
           {/* Duration & Access */}
           <div className="grid grid-cols-2 gap-2.5">
             <div className="rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
-              <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">Duration</div>
+              <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">{t("lessonEdit.duration")}</div>
               {editingField === "durationSeconds" ? (
                 <Input
                   type="number"
@@ -551,7 +554,7 @@ function LessonEditor({
                   defaultValue={lesson.durationSeconds}
                   autoFocus
                   className="mt-2"
-                  placeholder="Duration in seconds"
+                  placeholder={t("lessonEdit.durationPlaceholder")}
                   onBlur={(e) => {
                     const v = parseInt(e.target.value) || 0;
                     if (v !== lesson.durationSeconds) saveField("durationSeconds", v);
@@ -570,27 +573,27 @@ function LessonEditor({
                   className="mt-2 h-10 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 px-3.5 flex items-center text-text-1 font-black text-[13px] cursor-pointer hover:border-primary/40 transition-colors"
                   onClick={() => setEditingField("durationSeconds")}
                 >
-                  {lesson.durationSeconds > 0 ? formatDuration(lesson.durationSeconds) : "Not set"}
+                  {lesson.durationSeconds > 0 ? formatDuration(lesson.durationSeconds) : t("editCourse.notSet")}
                   <Pencil className="w-3.5 h-3.5 ml-auto text-text-3" />
                 </div>
               )}
             </div>
             <div className="rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
-              <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">Access</div>
+              <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">{t("lessonEdit.access")}</div>
               <select
                 value={lesson.isFreePreview ? "free" : "paid"}
                 onChange={(e) => saveField("isFreePreview", e.target.value === "free")}
                 className="mt-2 w-full h-10 px-3 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-[13px] font-black text-text-1 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
               >
-                <option value="paid">Paid</option>
-                <option value="free">Free preview</option>
+                <option value="paid">{t("lessonEdit.paid")}</option>
+                <option value="free">{t("lessonEdit.freePreview")}</option>
               </select>
             </div>
           </div>
 
           {/* Description */}
           <div className="rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
-            <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">Description</div>
+            <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">{t("lessonEdit.description")}</div>
             {editingField === "description" ? (
               <textarea
                 defaultValue={lesson.description}
@@ -606,22 +609,22 @@ function LessonEditor({
                 className="mt-2 text-[13px] font-black text-text-1 cursor-pointer hover:text-primary transition-colors min-h-[40px] flex items-start gap-2"
                 onClick={() => setEditingField("description")}
               >
-                <span className="flex-1">{lesson.description || "No description yet. Click to add."}</span>
+                <span className="flex-1">{lesson.description || t("lessonEdit.noDescriptionYet")}</span>
                 <Pencil className="w-3.5 h-3.5 text-text-3 flex-shrink-0 mt-0.5" />
               </div>
             )}
           </div>
 
           {/* Video Upload Zone */}
-          <h2 className="mt-1.5 text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">Video</h2>
+          <h2 className="mt-1.5 text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">{t("lessonEdit.video")}</h2>
           {/* Hidden video file input */}
           <input ref={videoInputRef} type="file" accept="video/*" className="hidden" onChange={handleVideoFileSelect} />
           <div className="rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
             {uploadingVideo ? (
               <div className="flex flex-col items-center justify-center py-10 border-2 border-dashed border-primary/40 rounded-[16px] bg-primary/5">
                 <Loader2 className="w-10 h-10 text-primary animate-spin mb-3" />
-                <div className="text-[13px] font-black text-text-1">Uploading video...</div>
-                <div className="text-[12px] font-extrabold text-text-3 mt-1">This may take a while for large files</div>
+                <div className="text-[13px] font-black text-text-1">{t("lessonEdit.uploadingVideo")}</div>
+                <div className="text-[12px] font-extrabold text-text-3 mt-1">{t("lessonEdit.uploadingLargeFile")}</div>
                 <div className="mt-3 w-48 h-1.5 bg-border/50 rounded-full overflow-hidden">
                   <div className="h-full bg-primary rounded-full transition-all duration-300" style={{ width: `${videoUploadProgress}%` }} />
                 </div>
@@ -666,20 +669,20 @@ function LessonEditor({
                       encodingStatus === 'error' ? 'text-red-600' :
                       'text-green-700'
                     }`}>
-                      {encodingStatus === 'encoding' ? `Encoding to HLS... ${encodingProgress}%` :
-                       encodingStatus === 'ready' ? 'Video ready \u2022 HLS streaming' :
-                       encodingStatus === 'error' ? 'Encoding failed' :
-                       'Video uploaded'}
+                      {encodingStatus === 'encoding' ? t("lessonEdit.encodingToHls", { progress: encodingProgress }) :
+                       encodingStatus === 'ready' ? t("lessonEdit.videoReadyHls") :
+                       encodingStatus === 'error' ? t("lessonEdit.encodingFailed") :
+                       t("lessonEdit.videoUploaded")}
                     </div>
                     <div className="text-[12px] font-extrabold text-text-3 mt-1 truncate">
-                      {lesson.durationSeconds > 0 ? formatDuration(lesson.durationSeconds) : "Duration not set"}
+                      {lesson.durationSeconds > 0 ? formatDuration(lesson.durationSeconds) : t("lessonEdit.durationNotSet")}
                       {" \u2022 "}
                       {lesson.videoUrl ? (
                         <a href={lesson.videoUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                          View source video
+                          {t("lessonEdit.viewSourceVideo")}
                         </a>
                       ) : lesson.hlsUrl ? (
-                        <span className="text-green-600">HLS encoded</span>
+                        <span className="text-green-600">{t("lessonEdit.hlsEncoded")}</span>
                       ) : null}
                     </div>
                     {encodingStatus === 'encoding' && (
@@ -696,27 +699,27 @@ function LessonEditor({
                             await videoApi.encode(lesson.id);
                             setEncodingStatus('encoding');
                             setEncodingProgress(0);
-                            toast({ title: "Re-encoding started", variant: "success" });
+                            toast({ title: t("lessonEdit.reEncodingStarted"), variant: "success" });
                           } catch (err: any) {
-                            toast({ title: "Failed to start encoding", description: err.message, variant: "error" });
+                            toast({ title: t("lessonEdit.failedToStartEncoding"), description: err.message, variant: "error" });
                           }
                         }}
                         className="h-8 px-3 rounded-[14px] text-[12px] font-black border border-amber-300 text-amber-700 hover:bg-amber-50 transition-colors"
                       >
-                        Retry
+                        {t("lessonEdit.retry")}
                       </button>
                     )}
                     <button
                       onClick={() => videoInputRef.current?.click()}
                       className="h-8 px-3 rounded-[14px] text-[12px] font-black border border-primary/30 text-primary hover:bg-primary/5 transition-colors"
                     >
-                      Replace
+                      {t("lessonEdit.replace")}
                     </button>
                     <button
                       onClick={() => saveField("videoUrl", "")}
                       className="h-8 px-3 rounded-[14px] text-[12px] font-black border border-red-200 dark:border-red-800 text-red-500 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
                     >
-                      Remove
+                      {t("lessonEdit.remove")}
                     </button>
                   </div>
                 </div>
@@ -733,9 +736,9 @@ function LessonEditor({
                   <div className="w-14 h-14 rounded-[14px] bg-primary/10 grid place-items-center text-primary mb-3">
                     <Film className="w-7 h-7" />
                   </div>
-                  <div className="text-[14px] font-black text-text-1">Click to upload or drag & drop</div>
+                  <div className="text-[14px] font-black text-text-1">{t("lessonEdit.clickToUploadOrDrag")}</div>
                   <div className="text-[12px] font-extrabold text-text-3 mt-1">
-                    MP4, WebM, MOV &bull; Max 2GB &bull; 1080p recommended
+                    {t("lessonEdit.videoRequirements")}
                   </div>
                 </div>
                 {/* Also allow URL input */}
@@ -743,7 +746,7 @@ function LessonEditor({
                   {editingField === "videoUrl" ? (
                     <div className="space-y-2">
                       <Input
-                        placeholder="Or paste a video URL (e.g., https://...)"
+                        placeholder={t("lessonEdit.pasteVideoUrlPlaceholder")}
                         autoFocus
                         onKeyDown={(e) => {
                           if (e.key === "Enter" && e.currentTarget.value) saveField("videoUrl", e.currentTarget.value);
@@ -754,7 +757,7 @@ function LessonEditor({
                     </div>
                   ) : (
                     <button onClick={() => setEditingField("videoUrl")} className="text-[12px] font-black text-primary hover:underline">
-                      Or paste a video URL
+                      {t("lessonEdit.pasteVideoUrl")}
                     </button>
                   )}
                 </div>
@@ -765,7 +768,7 @@ function LessonEditor({
 
         {/* Right Panel - Resources & Behavior */}
         <div className="rounded-[22px] bg-white/92 dark:bg-card/92 border border-border/95 shadow-[0_14px_28px_rgba(21,25,35,0.06)] dark:shadow-[0_14px_28px_rgba(0,0,0,0.25)] p-3.5 min-w-0 flex flex-col gap-3 overflow-auto">
-          <h2 className="text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">Resources</h2>
+          <h2 className="text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">{t("lessonEdit.resources")}</h2>
 
           <div className="rounded-[22px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
             {/* Resources list */}
@@ -781,12 +784,12 @@ function LessonEditor({
                       <div className="text-[12px] font-extrabold text-text-3 mt-0.5">
                         {resource.type === "link" ? (
                           <a href={resource.url} target="_blank" rel="noopener noreferrer" className="hover:text-primary">
-                            External link
+                            {t("lessonEdit.externalLink")}
                           </a>
                         ) : resource.fileSize ? (
                           `${(resource.fileSize / 1024 / 1024).toFixed(1)} MB`
                         ) : (
-                          "Downloadable"
+                          t("lessonEdit.downloadable")
                         )}
                       </div>
                     </div>
@@ -794,33 +797,33 @@ function LessonEditor({
                       onClick={() => removeResource(resource.id)}
                       className="h-[30px] px-2.5 rounded-[12px] text-[12px] font-black border border-red-200 dark:border-red-800 text-red-500 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
                     >
-                      Remove
+                      {t("lessonEdit.remove")}
                     </button>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="text-center py-4 text-text-3 text-[13px] font-bold">No resources yet.</div>
+              <div className="text-center py-4 text-text-3 text-[13px] font-bold">{t("lessonEdit.noResourcesYet")}</div>
             )}
 
             {/* Add link form */}
             {showAddLink && (
               <div className="mt-2.5 p-2.5 rounded-[16px] border border-primary/25 bg-primary/5 space-y-2">
-                <Input placeholder="Link title" value={newLinkTitle} onChange={(e) => setNewLinkTitle(e.target.value)} />
-                <Input placeholder="URL (https://...)" value={newLinkUrl} onChange={(e) => setNewLinkUrl(e.target.value)} />
+                <Input placeholder={t("lessonEdit.linkTitlePlaceholder")} value={newLinkTitle} onChange={(e) => setNewLinkTitle(e.target.value)} />
+                <Input placeholder={t("lessonEdit.urlPlaceholder")} value={newLinkUrl} onChange={(e) => setNewLinkUrl(e.target.value)} />
                 <div className="flex gap-2">
                   <button
                     onClick={() => addResource("link")}
                     disabled={!newLinkTitle.trim() || !newLinkUrl.trim()}
                     className="h-9 px-3 rounded-[14px] border border-primary/55 bg-primary text-white font-black text-[12px] disabled:opacity-50"
                   >
-                    Add link
+                    {t("lessonEdit.addLink")}
                   </button>
                   <button
                     onClick={() => { setShowAddLink(false); setNewLinkTitle(""); setNewLinkUrl(""); }}
                     className="h-9 px-3 rounded-[14px] border border-border/95 bg-white/95 dark:bg-card/95 text-text-2 font-black text-[12px]"
                   >
-                    Cancel
+                    {t("common.cancel")}
                   </button>
                 </div>
               </div>
@@ -830,7 +833,7 @@ function LessonEditor({
             {uploadingResource && (
               <div className="mt-2.5 flex items-center gap-2 p-2.5 rounded-[16px] border border-primary/25 bg-primary/5">
                 <Loader2 className="w-4 h-4 text-primary animate-spin" />
-                <span className="text-[12px] font-black text-text-1">Uploading file...</span>
+                <span className="text-[12px] font-black text-text-1">{t("lessonEdit.uploadingFile")}</span>
               </div>
             )}
 
@@ -845,20 +848,20 @@ function LessonEditor({
                 className="flex-1 h-9 rounded-[14px] border border-primary/55 bg-primary text-white font-black text-[12px] inline-flex items-center justify-center gap-1.5 shadow-[0_16px_34px_rgba(47,111,237,0.22)] disabled:opacity-50"
               >
                 <Upload className="w-3.5 h-3.5" />
-                Upload file
+                {t("lessonEdit.uploadFile")}
               </button>
               <button
                 onClick={() => { setShowAddLink(true); }}
                 className="flex-1 h-9 rounded-[14px] border border-border/95 bg-white/95 dark:bg-card/95 text-text-1 font-black text-[12px] inline-flex items-center justify-center gap-1.5 hover:bg-muted transition-colors"
               >
                 <Link2 className="w-3.5 h-3.5" />
-                Add link
+                {t("lessonEdit.addLink")}
               </button>
             </div>
           </div>
 
           {/* Lesson Features */}
-          <h2 className="mt-1.5 text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">Lesson features</h2>
+          <h2 className="mt-1.5 text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">{t("lessonEdit.lessonFeatures")}</h2>
 
           <div className="rounded-[22px] border border-border/95 bg-white/95 dark:bg-card/95 p-3 space-y-2.5">
             <button
@@ -870,8 +873,8 @@ function LessonEditor({
                 <div className="w-4 h-4 rounded-full bg-white shadow-sm" />
               </div>
               <div className="text-left">
-                <div className="font-black text-text-1 text-[13px]">Q&A enabled</div>
-                <div className="mt-0.5 text-[12px] font-extrabold text-text-3">Learners can ask questions on this lesson.</div>
+                <div className="font-black text-text-1 text-[13px]">{t("lessonEdit.qaEnabled")}</div>
+                <div className="mt-0.5 text-[12px] font-extrabold text-text-3">{t("lessonEdit.qaEnabledDescription")}</div>
               </div>
             </button>
             <button
@@ -883,8 +886,8 @@ function LessonEditor({
                 <div className="w-4 h-4 rounded-full bg-white shadow-sm" />
               </div>
               <div className="text-left">
-                <div className="font-black text-text-1 text-[13px]">Notes enabled</div>
-                <div className="mt-0.5 text-[12px] font-extrabold text-text-3">Learners can take timestamped notes.</div>
+                <div className="font-black text-text-1 text-[13px]">{t("lessonEdit.notesEnabled")}</div>
+                <div className="mt-0.5 text-[12px] font-extrabold text-text-3">{t("lessonEdit.notesEnabledDescription")}</div>
               </div>
             </button>
           </div>
@@ -893,20 +896,20 @@ function LessonEditor({
           <div className="mt-auto flex gap-2.5">
             <button
               onClick={() => {
-                toast({ title: "All changes saved", variant: "success" });
+                toast({ title: t("lessonEdit.allChangesSavedToast"), variant: "success" });
                 onNavigateBack?.();
                 navigate(`/manage-courses/${courseId}/edit`);
               }}
               className="flex-1 h-10 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-text-1 font-black text-[13px] inline-flex items-center justify-center gap-2 shadow-[0_14px_28px_rgba(21,25,35,0.06)] dark:shadow-[0_14px_28px_rgba(0,0,0,0.25)]"
             >
               <ArrowLeft className="w-4 h-4" />
-              Back to course
+              {t("lessonEdit.backToCourse")}
             </button>
             <button
               onClick={async () => {
                 setIsSavingAll(true);
                 try {
-                  toast({ title: "Lesson saved successfully", variant: "success" });
+                  toast({ title: t("lessonEdit.lessonSavedSuccessfully"), variant: "success" });
                   onNavigateBack?.();
                   navigate(`/manage-courses/${courseId}/edit`);
                 } finally {
@@ -917,7 +920,7 @@ function LessonEditor({
               className="flex-1 h-10 rounded-[16px] border border-primary/55 bg-primary text-white font-black text-[13px] inline-flex items-center justify-center gap-2 shadow-[0_16px_34px_rgba(47,111,237,0.22)] disabled:opacity-50"
             >
               <Save className="w-4 h-4" />
-              {isSavingAll ? "Saving..." : "Save & return"}
+              {isSavingAll ? t("common.saving") : t("lessonEdit.saveAndReturn")}
             </button>
           </div>
         </div>

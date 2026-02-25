@@ -12,4 +12,8 @@ export interface ActivityPayload {
  * Never throws — failures are logged to console.
  */
 export declare function logActivity(payload: ActivityPayload): Promise<void>;
+/**
+ * Fire a payload to the configured webhook URL (fire-and-forget).
+ */
+export declare function fireWebhook(body: Record<string, any>): Promise<void>;
 //# sourceMappingURL=activity.d.ts.map

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { courses as coursesApi } from "@/lib/api-client";
@@ -16,6 +17,7 @@ type TabKey = "overview" | "students" | "funnel";
 export default function CourseAnalyticsPage() {
   const { id } = useParams<{ id: string }>();
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
+  const { t } = useTranslation();
 
   const { data: courseData } = useQuery({
     queryKey: ["course", id],
@@ -43,15 +45,15 @@ export default function CourseAnalyticsPage() {
 
   const analytics = data?.analytics;
   const overview = analytics?.overview;
-  const courseTitle = courseData?.course?.title || "Course";
+  const courseTitle = courseData?.course?.title || t("courseAnalytics.courseFallback");
   const lessonStats = analytics?.lessonStats || [];
   const topStudents = analytics?.topStudents || [];
   const enrollmentTrend = analytics?.enrollmentTrend || [];
 
   const tabs: { key: TabKey; label: string; icon: any }[] = [
-    { key: "overview", label: "Overview", icon: BarChart3 },
-    { key: "students", label: "Top Students", icon: Users },
-    { key: "funnel", label: "Completion Funnel", icon: TrendingUp },
+    { key: "overview", label: t("analytics.overview"), icon: BarChart3 },
+    { key: "students", label: t("courseAnalytics.topStudents"), icon: Users },
+    { key: "funnel", label: t("analytics.completionFunnel"), icon: TrendingUp },
   ];
 
   return (
@@ -62,27 +64,27 @@ export default function CourseAnalyticsPage() {
           <ArrowLeft className="w-4 h-4 text-text-1" />
         </Link>
         <div>
-          <h1 className="text-h2 font-bold text-text-1">Course Analytics</h1>
+          <h1 className="text-h2 font-bold text-text-1">{t("courseAnalytics.title")}</h1>
           <p className="text-body-sm text-text-3 mt-0.5">{courseTitle}</p>
         </div>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <StatCard title="Enrollments" value={String(overview?.totalEnrollments ?? 0)} icon={GraduationCap} color="blue" />
-        <StatCard title="Avg Progress" value={`${overview?.averageProgress ?? 0}%`} icon={Target} color="green" />
-        <StatCard title="Completion" value={`${overview?.completionRate ?? 0}%`} icon={TrendingUp} color="amber" />
-        <StatCard title="Revenue" value={formatCurrency(overview?.totalRevenue ?? 0)} icon={DollarSign} color="red" />
+        <StatCard title={t("analytics.enrollments")} value={String(overview?.totalEnrollments ?? 0)} icon={GraduationCap} color="blue" />
+        <StatCard title={t("courseAnalytics.avgProgress")} value={`${overview?.averageProgress ?? 0}%`} icon={Target} color="green" />
+        <StatCard title={t("courseAnalytics.completion")} value={`${overview?.completionRate ?? 0}%`} icon={TrendingUp} color="amber" />
+        <StatCard title={t("analytics.revenue")} value={formatCurrency(overview?.totalRevenue ?? 0)} icon={DollarSign} color="red" />
       </div>
 
       {/* Tabs */}
       <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl w-fit">
-        {tabs.map((t) => {
-          const Icon = t.icon;
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
           return (
-            <button key={t.key} onClick={() => setActiveTab(t.key)}
-              className={`h-9 px-4 rounded-lg text-body-sm font-semibold inline-flex items-center gap-1.5 transition-all ${activeTab === t.key ? "bg-white dark:bg-card shadow-sm text-text-1" : "text-text-3 hover:text-text-2"}`}>
-              <Icon className="w-3.5 h-3.5" />{t.label}
+            <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+              className={`h-9 px-4 rounded-lg text-body-sm font-semibold inline-flex items-center gap-1.5 transition-all ${activeTab === tab.key ? "bg-white dark:bg-card shadow-sm text-text-1" : "text-text-3 hover:text-text-2"}`}>
+              <Icon className="w-3.5 h-3.5" />{tab.label}
             </button>
           );
         })}
@@ -93,7 +95,7 @@ export default function CourseAnalyticsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Enrollment Trend */}
           <Card className="lg:col-span-2 p-5">
-            <h3 className="text-body font-bold text-text-1 mb-5">Enrollment Trend</h3>
+            <h3 className="text-body font-bold text-text-1 mb-5">{t("courseAnalytics.enrollmentTrend")}</h3>
             {enrollmentTrend.length > 0 ? (
               <div className="flex items-end gap-1.5 h-[200px]">
                 {enrollmentTrend.slice(-14).map((d: any, i: number) => {
@@ -110,14 +112,14 @@ export default function CourseAnalyticsPage() {
             ) : (
               <div className="flex flex-col items-center justify-center h-[200px] text-text-3">
                 <BarChart3 className="w-10 h-10 mb-2 opacity-30" />
-                <p className="text-body-sm">No enrollment data yet</p>
+                <p className="text-body-sm">{t("courseAnalytics.noEnrollmentData")}</p>
               </div>
             )}
           </Card>
 
           {/* Lesson Performance */}
           <Card className="p-5">
-            <h3 className="text-body font-bold text-text-1 mb-4">Lesson Performance</h3>
+            <h3 className="text-body font-bold text-text-1 mb-4">{t("courseAnalytics.lessonPerformance")}</h3>
             <div className="space-y-2 max-h-[300px] overflow-y-auto">
               {lessonStats.length > 0 ? lessonStats.map((lesson: any) => (
                 <div key={lesson.lessonId} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-muted/50 transition-colors">
@@ -132,7 +134,7 @@ export default function CourseAnalyticsPage() {
               )) : (
                 <div className="flex flex-col items-center justify-center py-8 text-text-3">
                   <BookOpen className="w-8 h-8 mb-2 opacity-30" />
-                  <p className="text-body-sm">No lesson data yet</p>
+                  <p className="text-body-sm">{t("courseAnalytics.noLessonData")}</p>
                 </div>
               )}
             </div>
@@ -143,7 +145,7 @@ export default function CourseAnalyticsPage() {
       {/* ── STUDENTS TAB ── */}
       {activeTab === "students" && (
         <Card className="p-5">
-          <h3 className="text-body font-bold text-text-1 mb-4">Top Students</h3>
+          <h3 className="text-body font-bold text-text-1 mb-4">{t("courseAnalytics.topStudents")}</h3>
           <div className="space-y-2">
             {topStudents.length > 0 ? topStudents.map((student: any, i: number) => (
               <div key={student.userId || i} className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted/50 transition-colors">
@@ -151,9 +153,9 @@ export default function CourseAnalyticsPage() {
                   {student.name?.charAt(0) || "#"}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-body-sm font-semibold text-text-1 truncate">{student.name || "Student"}</div>
+                  <div className="text-body-sm font-semibold text-text-1 truncate">{student.name || t("courseAnalytics.studentFallback")}</div>
                   <div className="text-caption text-text-3 mt-0.5">
-                    {student.completedAt ? `Completed on ${new Date(student.completedAt).toLocaleDateString()}` : "In progress"}
+                    {student.completedAt ? t("courseAnalytics.completedOn", { date: new Date(student.completedAt).toLocaleDateString() }) : t("courses.inProgress")}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
@@ -167,7 +169,7 @@ export default function CourseAnalyticsPage() {
             )) : (
               <div className="flex flex-col items-center justify-center py-10 text-text-3">
                 <Users className="w-10 h-10 mb-2 opacity-30" />
-                <p className="text-body-sm">No student data yet</p>
+                <p className="text-body-sm">{t("courseAnalytics.noStudentData")}</p>
               </div>
             )}
           </div>
@@ -177,15 +179,15 @@ export default function CourseAnalyticsPage() {
       {/* ── FUNNEL TAB ── */}
       {activeTab === "funnel" && (
         <Card className="p-5">
-          <h3 className="text-body font-bold text-text-1 mb-5">Completion Funnel</h3>
+          <h3 className="text-body font-bold text-text-1 mb-5">{t("analytics.completionFunnel")}</h3>
           <div className="space-y-3">
-            <FunnelStep label="Enrolled" value={overview?.totalEnrollments ?? 0} percent={100} color="bg-primary" />
-            <FunnelStep label="Started (>0%)" value={overview?.activeStudents ?? 0}
+            <FunnelStep label={t("analytics.enrolled")} value={overview?.totalEnrollments ?? 0} percent={100} color="bg-primary" />
+            <FunnelStep label={t("analytics.started")} value={overview?.activeStudents ?? 0}
               percent={overview?.totalEnrollments ? Math.round(((overview.activeStudents ?? 0) / overview.totalEnrollments) * 100) : 0} color="bg-accent" />
-            <FunnelStep label="Halfway (>50%)"
+            <FunnelStep label={t("courseAnalytics.halfway")}
               value={Math.round((overview?.averageProgress ?? 0) / 100 * (overview?.totalEnrollments ?? 0) * 0.5)}
               percent={Math.round((overview?.averageProgress ?? 0) / 2)} color="bg-warning" />
-            <FunnelStep label="Completed (100%)"
+            <FunnelStep label={t("courseAnalytics.completedFull")}
               value={Math.round((overview?.completionRate ?? 0) / 100 * (overview?.totalEnrollments ?? 0))}
               percent={Math.round(overview?.completionRate ?? 0)} color="bg-success" />
           </div>

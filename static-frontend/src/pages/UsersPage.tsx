@@ -1,9 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { users as usersApi } from "@/lib/api-client";
 import { UsersList } from "@/components/admin/users-list";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function UsersPage() {
+  const { t } = useTranslation();
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["admin-users"],
     queryFn: () => usersApi.list({ limit: 100 }),
@@ -12,9 +14,9 @@ export default function UsersPage() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center flex-1 gap-4 py-20">
-        <p className="text-text-2 text-body font-bold">Failed to load users</p>
-        <p className="text-text-3 text-body-sm">{(error as any)?.message || "Something went wrong"}</p>
-        <button onClick={() => refetch()} className="h-10 px-4 rounded-[16px] border border-primary/55 bg-primary text-white font-black text-[13px]">Try again</button>
+        <p className="text-text-2 text-body font-bold">{t("users.failedToLoad")}</p>
+        <p className="text-text-3 text-body-sm">{(error as any)?.message || t("errors.somethingWentWrong")}</p>
+        <button onClick={() => refetch()} className="h-10 px-4 rounded-[16px] border border-primary/55 bg-primary text-white font-black text-[13px]">{t("common.tryAgain")}</button>
       </div>
     );
   }

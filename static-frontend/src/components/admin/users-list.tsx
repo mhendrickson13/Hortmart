@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
@@ -71,6 +72,7 @@ export function UsersList({
   completedCount,
   onRefresh,
 }: UsersListProps) {
+  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState("");
 
   const filterUsers = (users: UserData[]) => {
@@ -109,10 +111,10 @@ export function UsersList({
       <div className="flex items-center justify-between gap-3 h-14 flex-shrink-0">
         <div>
           <h1 className="text-[22px] font-black tracking-tight text-text-1">
-            Users
+            {t("users.title")}
           </h1>
           <p className="text-[12px] font-extrabold text-text-3 mt-0.5">
-            Manage learners and access
+            {t("admin.usersList.manageLearnersAndAccess")}
           </p>
         </div>
         <div className="flex items-center gap-2.5">
@@ -121,7 +123,7 @@ export function UsersList({
             <Search className="w-4 h-4 flex-shrink-0" />
             <input
               type="text"
-              placeholder="Search users..."
+              placeholder={t("users.searchUsers")}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="flex-1 bg-transparent outline-none placeholder:text-text-3 text-text-1"
@@ -135,19 +137,19 @@ export function UsersList({
       <Tabs defaultValue="all" className="flex-1">
         <TabsList>
           <TabsTrigger value="all">
-            All{" "}
+            {t("common.all")}{" "}
             <span className="ml-1.5 text-text-3">
               ({filteredAllUsers.length})
             </span>
           </TabsTrigger>
           <TabsTrigger value="active">
-            Active{" "}
+            {t("users.active")}{" "}
             <span className="ml-1.5 text-text-3">
               ({filteredActiveUsers.length})
             </span>
           </TabsTrigger>
           <TabsTrigger value="blocked">
-            Blocked{" "}
+            {t("admin.usersList.blocked")}{" "}
             <span className="ml-1.5 text-text-3">
               ({filteredBlockedUsers.length})
             </span>
@@ -177,6 +179,7 @@ function UserList({
   users: UserData[];
   searchQuery: string;
 }) {
+  const { t } = useTranslation();
   if (users.length === 0) {
     return (
       <Card className="p-8 text-center">
@@ -184,12 +187,12 @@ function UserList({
           <Users className="w-8 h-8 text-primary" />
         </div>
         <h3 className="text-h3 font-semibold text-text-1 mb-2">
-          {searchQuery ? "No users found" : "No users yet"}
+          {searchQuery ? t("admin.usersList.noUsersFound") : t("admin.usersList.noUsersYet")}
         </h3>
         <p className="text-body-sm text-text-2">
           {searchQuery
-            ? `No users matching "${searchQuery}"`
-            : "Users will appear here once they enroll in your courses."}
+            ? t("admin.usersList.noUsersMatching", { query: searchQuery })
+            : t("admin.usersList.usersWillAppear")}
         </p>
       </Card>
     );
@@ -199,11 +202,11 @@ function UserList({
     <Card className="p-3.5">
       {/* Table Header - matches design */}
       <div className="hidden sm:grid grid-cols-[1.4fr_0.8fr_0.6fr_0.6fr_0.6fr] gap-2.5 items-center px-3 py-2.5 text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">
-        <div>User</div>
-        <div>Courses</div>
-        <div>Last active</div>
-        <div>Status</div>
-        <div className="text-right">Actions</div>
+        <div>{t("admin.usersList.user")}</div>
+        <div>{t("admin.usersList.courses")}</div>
+        <div>{t("admin.usersList.lastActive")}</div>
+        <div>{t("admin.usersList.status")}</div>
+        <div className="text-right">{t("admin.usersList.actions")}</div>
       </div>
 
       {/* User Rows */}
@@ -235,7 +238,7 @@ function UserList({
                     {user.email}
                   </div>
                   <div className="text-[12px] font-extrabold text-text-3 mt-1">
-                    {user.name || "Unnamed User"}
+                    {user.name || t("admin.usersList.unnamedUser")}
                   </div>
                 </div>
               </div>
@@ -263,7 +266,7 @@ function UserList({
                   to={`/users/${user.id}`}
                   className="hidden sm:inline-flex h-[34px] px-3 rounded-[14px] items-center text-[12px] font-black bg-primary/10 border border-primary/14 text-primary-600 hover:bg-primary/15 transition-colors"
                 >
-                  View
+                  {t("admin.usersList.view")}
                 </Link>
                 <Link
                   to={`/users/${user.id}`}

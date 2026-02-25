@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { LogoIcon } from "@/components/shared/logo";
 import { useAuth } from "@/lib/auth-context";
-import { Check, X, Mail, AtSign, Globe } from "lucide-react";
+import { Check, X, Mail, AtSign, Globe, BookOpen, PenTool } from "lucide-react";
 import { validateEmail, validateName, hasStartedEmail, PASSWORD_REQUIREMENTS, EMAIL_REQUIREMENTS } from "@/lib/validation";
 
 // ── Email validation indicator ──
@@ -119,6 +119,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [role, setRole] = useState<"LEARNER" | "CREATOR">("LEARNER");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -134,10 +135,10 @@ export default function RegisterPage() {
     if (!isFormValid) return;
     setIsLoading(true);
     try {
-      const result = await register({ email: email.trim(), password, name: name.trim() });
+      const result = await register({ email: email.trim(), password, name: name.trim(), role });
       if (result.success) {
-        // Auto-login sets user in context, redirect to courses (default for new learners)
-        navigate("/courses", { replace: true });
+        // Creator goes to dashboard, learner goes to courses
+        navigate(role === "CREATOR" ? "/dashboard" : "/courses", { replace: true });
       } else {
         setError(result.error || "Registration failed. Please try again.");
       }
@@ -156,7 +157,49 @@ export default function RegisterPage() {
             <LogoIcon size="lg" />
           </div>
           <h1 className="text-h2 font-bold text-center text-text-1 mb-2">Create an account</h1>
-          <p className="text-body-sm text-text-2 text-center mb-8">Start your learning journey today</p>
+          <p className="text-body-sm text-text-2 text-center mb-6">Choose your role and start your journey</p>
+
+          {/* Role selector */}
+          <div className="grid grid-cols-2 gap-3 mb-6">
+            <button
+              type="button"
+              onClick={() => setRole("LEARNER")}
+              className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all duration-200 ${
+                role === "LEARNER"
+                  ? "border-primary bg-primary/5 shadow-sm"
+                  : "border-surface-3 bg-surface-1 hover:border-text-3"
+              }`}
+            >
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
+                role === "LEARNER" ? "bg-primary/15 text-primary" : "bg-surface-3 text-text-3"
+              }`}>
+                <BookOpen className="w-5 h-5" />
+              </div>
+              <span className={`text-body-sm font-bold transition-colors ${
+                role === "LEARNER" ? "text-primary" : "text-text-2"
+              }`}>Learner</span>
+              <span className="text-[11px] text-text-3 text-center leading-tight">Browse & take courses</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setRole("CREATOR")}
+              className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all duration-200 ${
+                role === "CREATOR"
+                  ? "border-primary bg-primary/5 shadow-sm"
+                  : "border-surface-3 bg-surface-1 hover:border-text-3"
+              }`}
+            >
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
+                role === "CREATOR" ? "bg-primary/15 text-primary" : "bg-surface-3 text-text-3"
+              }`}>
+                <PenTool className="w-5 h-5" />
+              </div>
+              <span className={`text-body-sm font-bold transition-colors ${
+                role === "CREATOR" ? "text-primary" : "text-text-2"
+              }`}>Creator</span>
+              <span className="text-[11px] text-text-3 text-center leading-tight">Create & sell courses</span>
+            </button>
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Name */}

@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { analytics as analyticsApi } from "@/lib/api-client";
 import { StatCard } from "@/components/admin/stat-card";
@@ -31,27 +32,27 @@ function getDateRange(key: RangeKey): DateRange {
     case "7d": {
       const from = new Date(now);
       from.setDate(from.getDate() - 7);
-      return { from: fmt(from), to: today, label: "Last 7 days" };
+      return { from: fmt(from), to: today, label: "analytics.last7Days" };
     }
     case "14d": {
       const from = new Date(now);
       from.setDate(from.getDate() - 14);
-      return { from: fmt(from), to: today, label: "Last 14 days" };
+      return { from: fmt(from), to: today, label: "analytics.last14Days" };
     }
     case "30d": {
       const from = new Date(now);
       from.setDate(from.getDate() - 30);
-      return { from: fmt(from), to: today, label: "Last 30 days" };
+      return { from: fmt(from), to: today, label: "analytics.last30Days" };
     }
     default:
-      return { from: today, to: today, label: "Custom" };
+      return { from: today, to: today, label: "analytics.custom" };
   }
 }
 
 const RANGE_OPTIONS: { key: RangeKey; label: string }[] = [
-  { key: "7d", label: "Last 7 days" },
-  { key: "14d", label: "Last 14 days" },
-  { key: "30d", label: "Last 30 days" },
+  { key: "7d", label: "analytics.last7Days" },
+  { key: "14d", label: "analytics.last14Days" },
+  { key: "30d", label: "analytics.last30Days" },
 ];
 
 export default function AnalyticsPage() {
@@ -60,6 +61,7 @@ export default function AnalyticsPage() {
   const [showRangeMenu, setShowRangeMenu] = useState(false);
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
+  const { t } = useTranslation();
 
   const range = useMemo(() => {
     if (rangeKey === "custom" && customFrom && customTo) {
@@ -67,6 +69,8 @@ export default function AnalyticsPage() {
     }
     return getDateRange(rangeKey);
   }, [rangeKey, customFrom, customTo]);
+
+  const displayRangeLabel = rangeKey === "custom" ? range.label : t(range.label);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["analytics-overview", range.from, range.to],
@@ -79,8 +83,8 @@ export default function AnalyticsPage() {
         <div className="w-16 h-16 rounded-full bg-danger/10 flex items-center justify-center mb-2">
           <BarChart3 className="w-7 h-7 text-danger" />
         </div>
-        <p className="text-text-1 text-body font-bold">Failed to load analytics</p>
-        <button onClick={() => refetch()} className="h-10 px-6 rounded-2xl bg-primary text-white font-bold text-body-sm shadow-primary hover:shadow-primary-hover transition-all">Try again</button>
+        <p className="text-text-1 text-body font-bold">{t("analytics.failedToLoad")}</p>
+        <button onClick={() => refetch()} className="h-10 px-6 rounded-2xl bg-primary text-white font-bold text-body-sm shadow-primary hover:shadow-primary-hover transition-all">{t("common.tryAgain")}</button>
       </div>
     );
   }
@@ -147,9 +151,9 @@ export default function AnalyticsPage() {
   const totalEnrollmentsThisPeriod = enrollmentTrend.reduce((s: number, e: any) => s + (e.count || 0), 0);
 
   const tabs: { key: TabKey; label: string }[] = [
-    { key: "sales", label: "Sales & Revenue" },
-    { key: "progress", label: "Learner Progress" },
-    { key: "users", label: "Courses & Users" },
+    { key: "sales", label: t("analytics.salesAndRevenue") },
+    { key: "progress", label: t("analytics.learnerProgress") },
+    { key: "users", label: t("analytics.coursesAndUsers") },
   ];
 
   return (
@@ -157,8 +161,8 @@ export default function AnalyticsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-h1 font-bold text-text-1">Analytics</h1>
-          <p className="text-body-sm text-text-3 mt-1">{range.label} — All courses</p>
+          <h1 className="text-h1 font-bold text-text-1">{t("analytics.title")}</h1>
+          <p className="text-body-sm text-text-3 mt-1">{displayRangeLabel} — {t("analytics.allCoursesLabel")}</p>
         </div>
         <div className="flex items-center gap-2">
           {/* Date Range Picker */}
@@ -168,7 +172,7 @@ export default function AnalyticsPage() {
               className="h-9 px-3.5 rounded-xl border border-border bg-white dark:bg-card text-text-1 font-semibold text-body-sm inline-flex items-center gap-2 hover:bg-muted/50 transition-colors"
             >
               <Calendar className="w-4 h-4 text-text-3" />
-              {range.label}
+              {displayRangeLabel}
               <ChevronDown className="w-3.5 h-3.5 text-text-3" />
             </button>
             {showRangeMenu && (
@@ -182,19 +186,19 @@ export default function AnalyticsPage() {
                         onClick={() => { setRangeKey(opt.key); setShowRangeMenu(false); }}
                         className={`w-full text-left px-4 py-2.5 text-body-sm transition-colors ${rangeKey === opt.key ? "bg-primary/10 text-primary font-semibold" : "text-text-2 hover:bg-muted/50"}`}
                       >
-                        {opt.label}
+                        {t(opt.label)}
                       </button>
                     ))}
                   </div>
                   <div className="border-t border-border px-4 py-3">
-                    <p className="text-caption font-semibold text-text-3 mb-2">Custom range</p>
+                    <p className="text-caption font-semibold text-text-3 mb-2">{t("analytics.customRange")}</p>
                     <div className="space-y-2">
                       <div>
-                        <label className="text-[10px] text-text-3 mb-0.5 block">From</label>
+                        <label className="text-[10px] text-text-3 mb-0.5 block">{t("analytics.from")}</label>
                         <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="w-full h-9 px-2.5 rounded-lg border border-border bg-surface-2 text-body-sm text-text-1" />
                       </div>
                       <div>
-                        <label className="text-[10px] text-text-3 mb-0.5 block">To</label>
+                        <label className="text-[10px] text-text-3 mb-0.5 block">{t("analytics.to")}</label>
                         <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="w-full h-9 px-2.5 rounded-lg border border-border bg-surface-2 text-body-sm text-text-1" />
                       </div>
                     </div>
@@ -202,25 +206,25 @@ export default function AnalyticsPage() {
                       onClick={() => { if (customFrom && customTo) { setRangeKey("custom"); setShowRangeMenu(false); } }}
                       disabled={!customFrom || !customTo}
                       className="mt-3 w-full h-9 rounded-lg bg-primary text-white text-body-sm font-semibold disabled:opacity-40 hover:bg-primary/90 transition-colors"
-                    >Apply</button>
+                    >{t("analytics.apply")}</button>
                   </div>
                 </div>
               </>
             )}
           </div>
-          <button onClick={() => toast({ title: "Export started", description: "Analytics data will be ready shortly", variant: "success" })}
+          <button onClick={() => toast({ title: t("analytics.exportStarted"), description: t("analytics.exportDescription"), variant: "success" })}
             className="h-9 px-3.5 rounded-xl border border-border bg-white dark:bg-card text-text-1 font-semibold text-body-sm inline-flex items-center gap-2 hover:bg-muted/50 transition-colors">
-            <Download className="w-4 h-4 text-text-3" /> Export
+            <Download className="w-4 h-4 text-text-3" /> {t("analytics.export")}
           </button>
         </div>
       </div>
 
       {/* Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <StatCard title="Total Revenue" value={formatCurrency(overview?.totalRevenue ?? 0)} change={revenueChange} changeLabel="vs last period" icon={DollarSign} color="blue" />
-        <StatCard title="Enrollments" value={formatNumber(overview?.totalEnrollments ?? 0)} change={enrollmentChange} changeLabel="vs last period" icon={ShoppingCart} color="green" />
-        <StatCard title="Completion Rate" value={`${overview?.completionRate ?? 0}%`} changeLabel="Avg across courses" icon={TrendingUp} color="amber" />
-        <StatCard title="Active Learners" value={formatNumber(overview?.activeUsers ?? 0)} changeLabel={`${formatNumber(overview?.totalUsers ?? 0)} total users`} icon={Users} color="red" />
+        <StatCard title={t("analytics.totalRevenue")} value={formatCurrency(overview?.totalRevenue ?? 0)} change={revenueChange} changeLabel={t("analytics.vsLastPeriod")} icon={DollarSign} color="blue" />
+        <StatCard title={t("analytics.enrollments")} value={formatNumber(overview?.totalEnrollments ?? 0)} change={enrollmentChange} changeLabel={t("analytics.vsLastPeriod")} icon={ShoppingCart} color="green" />
+        <StatCard title={t("analytics.completionRate")} value={`${overview?.completionRate ?? 0}%`} changeLabel={t("analytics.avgAcrossCourses")} icon={TrendingUp} color="amber" />
+        <StatCard title={t("analytics.activeLearners")} value={formatNumber(overview?.activeUsers ?? 0)} changeLabel={t("analytics.totalUsersCount", { num: formatNumber(overview?.totalUsers ?? 0) })} icon={Users} color="red" />
       </div>
 
       {/* Tabs */}
@@ -240,12 +244,12 @@ export default function AnalyticsPage() {
             <Card className="lg:col-span-2 p-5">
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <h3 className="text-body font-bold text-text-1">Revenue & Enrollments</h3>
-                  <p className="text-caption text-text-3 mt-0.5">Last 14 days</p>
+                  <h3 className="text-body font-bold text-text-1">{t("analytics.revenueAndEnrollments")}</h3>
+                  <p className="text-caption text-text-3 mt-0.5">{t("analytics.last14Days")}</p>
                 </div>
                 <div className="flex items-center gap-4 text-caption text-text-3">
-                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-primary" />Revenue</span>
-                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-success" />Enrollments</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-primary" />{t("analytics.revenue")}</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-success" />{t("analytics.enrollments")}</span>
                 </div>
               </div>
               <ChartBars data={chartDays} />
@@ -253,12 +257,12 @@ export default function AnalyticsPage() {
 
             {/* Period Summary */}
             <Card className="p-5">
-              <h3 className="text-body font-bold text-text-1 mb-4">Period Summary</h3>
+              <h3 className="text-body font-bold text-text-1 mb-4">{t("analytics.periodSummary")}</h3>
               <div className="space-y-5">
-                <SummaryItem label="Total Revenue" value={formatCurrency(totalRevenueThisPeriod)} change={revenueChange} />
-                <SummaryItem label="Total Enrollments" value={String(totalEnrollmentsThisPeriod)} change={enrollmentChange} />
-                <SummaryItem label="Avg Revenue/Enrollment" value={formatCurrency(totalEnrollmentsThisPeriod > 0 ? totalRevenueThisPeriod / totalEnrollmentsThisPeriod : 0)} />
-                <SummaryItem label="Active Learners" value={String(overview?.activeUsers ?? 0)} />
+                <SummaryItem label={t("analytics.totalRevenue")} value={formatCurrency(totalRevenueThisPeriod)} change={revenueChange} />
+                <SummaryItem label={t("analytics.totalEnrollments")} value={String(totalEnrollmentsThisPeriod)} change={enrollmentChange} />
+                <SummaryItem label={t("analytics.avgRevenuePerEnrollment")} value={formatCurrency(totalEnrollmentsThisPeriod > 0 ? totalRevenueThisPeriod / totalEnrollmentsThisPeriod : 0)} />
+                <SummaryItem label={t("analytics.activeLearners")} value={String(overview?.activeUsers ?? 0)} />
               </div>
             </Card>
           </div>
@@ -266,9 +270,9 @@ export default function AnalyticsPage() {
           {/* Top Courses by revenue (horizontal bars) */}
           <Card className="p-5">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-body font-bold text-text-1">Top 5 Courses by Revenue</h3>
+              <h3 className="text-body font-bold text-text-1">{t("analytics.topCoursesByRevenue")}</h3>
               <Link to="/manage-courses" className="text-caption text-primary font-semibold hover:underline inline-flex items-center gap-1">
-                All courses <ChevronRight className="w-3.5 h-3.5" />
+                {t("analytics.allCoursesLabel")} <ChevronRight className="w-3.5 h-3.5" />
               </Link>
             </div>
             {topCourses.length > 0 ? (
@@ -288,7 +292,7 @@ export default function AnalyticsPage() {
                 })}
               </div>
             ) : (
-              <EmptyState icon={BookOpen} message="No course data yet" />
+              <EmptyState icon={BookOpen} message={t("analytics.noCourseData")} />
             )}
           </Card>
         </div>
@@ -300,13 +304,13 @@ export default function AnalyticsPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Progress Distribution */}
             <Card className="p-5">
-              <h3 className="text-body font-bold text-text-1 mb-4">Progress Distribution</h3>
+              <h3 className="text-body font-bold text-text-1 mb-4">{t("analytics.progressDistribution")}</h3>
               <ProgressDonut data={progressBuckets} />
               <div className="mt-4 space-y-2">
                 {progressEntries(progressBuckets).map(({ label, count, color }) => (
                   <div key={label} className="flex items-center gap-3">
                     <span className={`w-3 h-3 rounded-full ${color} flex-shrink-0`} />
-                    <span className="text-caption text-text-2 flex-1">{label}</span>
+                    <span className="text-caption text-text-2 flex-1">{label === "Completed" ? t("analytics.completed") : label}</span>
                     <span className="text-caption font-bold text-text-1">{count}</span>
                   </div>
                 ))}
@@ -315,7 +319,7 @@ export default function AnalyticsPage() {
 
             {/* Top Learners */}
             <Card className="p-5">
-              <h3 className="text-body font-bold text-text-1 mb-4">Top Learners</h3>
+              <h3 className="text-body font-bold text-text-1 mb-4">{t("analytics.topLearners")}</h3>
               {topLearners.length > 0 ? (
                 <div className="space-y-2">
                   {topLearners.map((l: any, i: number) => (
@@ -338,18 +342,18 @@ export default function AnalyticsPage() {
                   ))}
                 </div>
               ) : (
-                <EmptyState icon={Users} message="No learner data yet" />
+                <EmptyState icon={Users} message={t("analytics.noLearnerData")} />
               )}
             </Card>
           </div>
 
           {/* Completion Funnel */}
           <Card className="p-5">
-            <h3 className="text-body font-bold text-text-1 mb-5">Completion Funnel</h3>
+            <h3 className="text-body font-bold text-text-1 mb-5">{t("analytics.completionFunnel")}</h3>
             <div className="space-y-3">
-              <FunnelStep label="Enrolled" value={overview?.totalEnrollments ?? 0} percent={100} color="bg-primary" />
-              <FunnelStep label="Started (>0%)" value={overview?.activeUsers ?? 0} percent={overview?.totalEnrollments ? Math.round(((overview?.activeUsers ?? 0) / overview.totalEnrollments) * 100) : 0} color="bg-accent" />
-              <FunnelStep label="Completed" value={progressBuckets["completed"] || 0} percent={overview?.totalEnrollments ? Math.round(((progressBuckets["completed"] || 0) / overview.totalEnrollments) * 100) : 0} color="bg-success" />
+              <FunnelStep label={t("analytics.enrolled")} value={overview?.totalEnrollments ?? 0} percent={100} color="bg-primary" />
+              <FunnelStep label={t("analytics.started")} value={overview?.activeUsers ?? 0} percent={overview?.totalEnrollments ? Math.round(((overview?.activeUsers ?? 0) / overview.totalEnrollments) * 100) : 0} color="bg-accent" />
+              <FunnelStep label={t("analytics.completed")} value={progressBuckets["completed"] || 0} percent={overview?.totalEnrollments ? Math.round(((progressBuckets["completed"] || 0) / overview.totalEnrollments) * 100) : 0} color="bg-success" />
             </div>
           </Card>
         </div>
@@ -362,9 +366,9 @@ export default function AnalyticsPage() {
             {/* Course Performance Table */}
             <Card className="p-5">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-body font-bold text-text-1">Course Performance</h3>
+                <h3 className="text-body font-bold text-text-1">{t("analytics.coursePerformance")}</h3>
                 <Link to="/manage-courses" className="text-caption text-primary font-semibold hover:underline inline-flex items-center gap-1">
-                  View all <ChevronRight className="w-3.5 h-3.5" />
+                  {t("analytics.viewAll")} <ChevronRight className="w-3.5 h-3.5" />
                 </Link>
               </div>
               {topCourses.length > 0 ? (
@@ -377,14 +381,14 @@ export default function AnalyticsPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="text-body-sm font-semibold text-text-1 truncate group-hover:text-primary transition-colors">{course.title}</div>
-                        <div className="text-caption text-text-3 mt-0.5">{course.enrollments} enrolled{course.rating ? ` · ★ ${Number(course.rating).toFixed(1)}` : ""}</div>
+                        <div className="text-caption text-text-3 mt-0.5">{t("analytics.enrolledCount", { count: course.enrollments })}{course.rating ? ` · ★ ${Number(course.rating).toFixed(1)}` : ""}</div>
                       </div>
                       <div className="text-body-sm font-bold text-text-1 flex-shrink-0">{formatCurrency(course.revenue)}</div>
                     </Link>
                   ))}
                 </div>
               ) : (
-                <EmptyState icon={BookOpen} message="No courses yet" />
+                <EmptyState icon={BookOpen} message={t("analytics.noCourses")} />
               )}
             </Card>
 
@@ -392,7 +396,7 @@ export default function AnalyticsPage() {
             <div className="space-y-4">
               {/* User Roles */}
               <Card className="p-5">
-                <h3 className="text-body font-bold text-text-1 mb-4">User Distribution</h3>
+                <h3 className="text-body font-bold text-text-1 mb-4">{t("analytics.userDistribution")}</h3>
                 <div className="space-y-3">
                   {Object.entries(userDistribution).map(([role, count]) => {
                     const total = Object.values(userDistribution).reduce((a, b) => a + b, 0) || 1;
@@ -416,7 +420,7 @@ export default function AnalyticsPage() {
               {/* Categories */}
               {categoryDistribution.length > 0 && (
                 <Card className="p-5">
-                  <h3 className="text-body font-bold text-text-1 mb-4">Categories</h3>
+                  <h3 className="text-body font-bold text-text-1 mb-4">{t("analytics.categories")}</h3>
                   <div className="space-y-3">
                     {categoryDistribution.map((cat: any) => {
                       const maxCat = Math.max(...categoryDistribution.map((c: any) => c.count), 1);
@@ -445,11 +449,12 @@ export default function AnalyticsPage() {
 /* ──────────────── Sub-components ──────────────── */
 
 function ChartBars({ data }: { data: { label: string; revenue: number; enrollments: number }[] }) {
+  const { t } = useTranslation();
   if (data.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-[220px] text-text-3">
         <BarChart3 className="w-10 h-10 mb-2 opacity-30" />
-        <p className="text-body-sm">No data for this period</p>
+        <p className="text-body-sm">{t("analytics.noDataForPeriod")}</p>
       </div>
     );
   }
@@ -488,6 +493,7 @@ function SummaryItem({ label, value, change }: { label: string; value: string; c
 }
 
 function ProgressDonut({ data }: { data: Record<string, number> }) {
+  const { t } = useTranslation();
   const entries = progressEntries(data);
   const total = entries.reduce((s, e) => s + e.count, 0);
   const divisor = total || 1; // avoid division by zero but display real total
@@ -516,7 +522,7 @@ function ProgressDonut({ data }: { data: Record<string, number> }) {
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className="text-h2 font-bold text-text-1">{total}</span>
-          <span className="text-caption text-text-3">Learners</span>
+          <span className="text-caption text-text-3">{t("analytics.learners")}</span>
         </div>
       </div>
     </div>

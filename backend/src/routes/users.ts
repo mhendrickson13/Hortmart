@@ -1,15 +1,18 @@
 import { Router, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { query, queryOne, execute, genId, now, inPlaceholders } from '../db.js';
-import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth.js';
+import { authenticate, requireAdmin, requireCreatorOrAdmin, AuthRequest } from '../middleware/auth.js';
 import { sendAccountCreated, sendCustomMessage, sendEnrollmentConfirmation } from '../email.js';
 import { logActivity } from '../activity.js';
 
 const router = Router();
 
-// GET /users - List all users (Admin only)
-router.get('/', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+// GET /users - List users (Admin sees all, Creator sees enrolled learners)
+router.get('/', authenticate, requireCreatorOrAdmin, async (req: AuthRequest, res: Response) => {
   try {
+    const isCreator = req.user!.role === 'CREATOR';
+    const creatorId = isCreator ? req.user!.id : null;
+
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
     const search = req.query.search as string;
@@ -18,6 +21,12 @@ router.get('/', authenticate, requireAdmin, async (req: AuthRequest, res: Respon
     // Build WHERE clause — always exclude ADMIN accounts from the user list
     const conditions: string[] = ["u.role != 'ADMIN'"];
     const params: any[] = [];
+
+    // Creator scope: only users enrolled in creator's courses
+    if (isCreator) {
+      conditions.push('u.id IN (SELECT DISTINCT e.userId FROM enrollments e JOIN courses c ON e.courseId = c.id WHERE c.creatorId = ?)');
+      params.push(creatorId);
+    }
 
     if (role) {
       conditions.push('u.role = ?');
@@ -347,8 +356,21 @@ router.patch('/password', authenticate, async (req: AuthRequest, res: Response) 
 router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    if (req.user!.role !== 'ADMIN' && req.user!.id !== id) {
-      return res.status(403).json({ error: 'Access denied' });
+    const isAdmin = req.user!.role === 'ADMIN';
+    const isCreator = req.user!.role === 'CREATOR';
+    const isSelf = req.user!.id === id;
+
+    // Access: self, admin, or creator (if user is enrolled in their courses)
+    if (!isAdmin && !isSelf) {
+      if (isCreator) {
+        const enrolled = await queryOne<any>(
+          'SELECT 1 FROM enrollments e JOIN courses c ON e.courseId = c.id WHERE e.userId = ? AND c.creatorId = ? LIMIT 1',
+          [id, req.user!.id]
+        );
+        if (!enrolled) return res.status(403).json({ error: 'Access denied' });
+      } else {
+        return res.status(403).json({ error: 'Access denied' });
+      }
     }
 
     const user = await queryOne<any>(
@@ -458,9 +480,17 @@ router.delete('/:id', authenticate, async (req: AuthRequest, res: Response) => {
 router.get('/:id/enrollments', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    if (req.user!.role !== 'ADMIN' && req.user!.id !== id) {
+    const isAdmin = req.user!.role === 'ADMIN';
+    const isCreator = req.user!.role === 'CREATOR';
+    const isSelf = req.user!.id === id;
+
+    if (!isAdmin && !isSelf && !isCreator) {
       return res.status(403).json({ error: 'Access denied' });
     }
+
+    // Creator: only show enrollments in their courses
+    const creatorFilter = (isCreator && !isSelf) ? ' AND c.creatorId = ?' : '';
+    const creatorParams = (isCreator && !isSelf) ? [req.user!.id] : [];
 
     const enrollments = await query<any[]>(
       `SELECT e.*, c.id as c_id, c.title as c_title, c.coverImage, c.price,
@@ -468,9 +498,9 @@ router.get('/:id/enrollments', authenticate, async (req: AuthRequest, res: Respo
        FROM enrollments e
        JOIN courses c ON e.courseId = c.id
        LEFT JOIN users u ON c.creatorId = u.id
-       WHERE e.userId = ?
+       WHERE e.userId = ?${creatorFilter}
        ORDER BY e.enrolledAt DESC`,
-      [id]
+      [id, ...creatorParams]
     );
 
     const result = [];
@@ -549,10 +579,19 @@ router.get('/:id/enrollments', authenticate, async (req: AuthRequest, res: Respo
   }
 });
 
-// GET /users/:id/activity - Activity history log (Admin only)
-router.get('/:id/activity', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+// GET /users/:id/activity - Activity history log (Admin or Creator for their enrolled users)
+router.get('/:id/activity', authenticate, requireCreatorOrAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
+
+    // Creator: verify user is enrolled in their courses
+    if (req.user!.role === 'CREATOR') {
+      const enrolled = await queryOne<any>(
+        'SELECT 1 FROM enrollments e JOIN courses c ON e.courseId = c.id WHERE e.userId = ? AND c.creatorId = ? LIMIT 1',
+        [id, req.user!.id]
+      );
+      if (!enrolled) return res.status(403).json({ error: 'Access denied' });
+    }
     const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
     const offset = parseInt(req.query.offset as string) || 0;
 

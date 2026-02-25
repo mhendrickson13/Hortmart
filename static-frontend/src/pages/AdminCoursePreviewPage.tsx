@@ -14,6 +14,7 @@ import {
   Heart, Bookmark, Share2, X,
 } from "lucide-react";
 import { formatDuration, formatPrice, getInitials, cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 const API_URL = import.meta.env.VITE_API_URL || "";
 
@@ -29,6 +30,7 @@ function AdminCoursePreviewContent() {
   const { id } = useParams<{ id: string }>();
   const { user, token } = useAuth();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [course, setCourse] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showAllModules, setShowAllModules] = useState(false);
@@ -104,8 +106,8 @@ function AdminCoursePreviewContent() {
 
   if (!course) return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-background gap-4">
-      <p className="text-text-2">Course not found</p>
-      <Button variant="outline" onClick={() => navigate("/manage-courses")}>Back to Courses</Button>
+      <p className="text-text-2">{t("coursePreview.courseNotFound")}</p>
+      <Button variant="outline" onClick={() => navigate("/manage-courses")}>{t("coursePreview.backToCourses")}</Button>
     </div>
   );
 
@@ -132,8 +134,8 @@ function AdminCoursePreviewContent() {
         <div className="max-w-6xl mx-auto px-4 lg:px-6 py-2.5 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Eye className="w-4 h-4 flex-shrink-0" />
-            <span className="text-sm font-semibold">Preview Mode</span>
-            <span className="text-xs opacity-80 hidden sm:inline">— This is how learners see your course</span>
+            <span className="text-sm font-semibold">{t("coursePreview.previewMode")}</span>
+            <span className="text-xs opacity-80 hidden sm:inline">— {t("coursePreview.previewModeHint")}</span>
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -143,7 +145,7 @@ function AdminCoursePreviewContent() {
               onClick={() => navigate(`/manage-courses/${id}/edit`)}
             >
               <Pencil className="w-3 h-3 mr-1" />
-              Edit Course
+              {t("courses.editCourse")}
             </Button>
             <Button
               variant="outline"
@@ -152,7 +154,7 @@ function AdminCoursePreviewContent() {
               onClick={() => navigate(`/manage-courses/${id}/edit`)}
             >
               <ArrowLeft className="w-3 h-3 mr-1" />
-              Back
+              {t("common.back")}
             </Button>
           </div>
         </div>
@@ -169,7 +171,7 @@ function AdminCoursePreviewContent() {
               ) : videoSrc ? (
                 <VideoPlayer ref={videoPlayerRef} src={videoSrc} signingParams={signingParams} className="w-full h-full" />
               ) : (
-                <div className="absolute inset-0 flex items-center justify-center text-white/60 text-sm">No video available</div>
+                <div className="absolute inset-0 flex items-center justify-center text-white/60 text-sm">{t("coursePreview.noVideoAvailable")}</div>
               )}
             </div>
             <div className="flex items-center justify-between px-1">
@@ -212,7 +214,7 @@ function AdminCoursePreviewContent() {
                 <AvatarImage src={course.creator?.image || undefined} />
                 <AvatarFallback className="text-[9px]">{getInitials(course.creator?.name || "I")}</AvatarFallback>
               </Avatar>
-              <span className="text-caption font-semibold text-primary-600">{course.creator?.name || "Instructor"}</span>
+              <span className="text-caption font-semibold text-primary-600">{course.creator?.name || t("courses.instructor")}</span>
             </div>
             {reviewCount > 0 && (
               <div className="flex items-center gap-0.5">
@@ -237,29 +239,29 @@ function AdminCoursePreviewContent() {
           <div className="flex items-center gap-2 p-2.5 rounded-xl bg-card border border-border/60">
             <BarChart3 className="w-4 h-4 text-primary flex-shrink-0" />
             <div className="min-w-0">
-              <div className="text-[10px] text-text-3 uppercase">Level</div>
+              <div className="text-[10px] text-text-3 uppercase">{t("courses.level")}</div>
               <div className="text-caption font-semibold text-text-1 truncate">{(course.level || "ALL_LEVELS").replace("_", " ")}</div>
             </div>
           </div>
           <div className="flex items-center gap-2 p-2.5 rounded-xl bg-card border border-border/60">
             <Clock className="w-4 h-4 text-primary flex-shrink-0" />
             <div className="min-w-0">
-              <div className="text-[10px] text-text-3 uppercase">Duration</div>
+              <div className="text-[10px] text-text-3 uppercase">{t("courses.duration")}</div>
               <div className="text-caption font-semibold text-text-1">{formatDuration(totalDuration)}</div>
             </div>
           </div>
           <div className="flex items-center gap-2 p-2.5 rounded-xl bg-card border border-border/60">
             <BookOpen className="w-4 h-4 text-primary flex-shrink-0" />
             <div className="min-w-0">
-              <div className="text-[10px] text-text-3 uppercase">Lessons</div>
-              <div className="text-caption font-semibold text-text-1">{totalLessons} lessons</div>
+              <div className="text-[10px] text-text-3 uppercase">{t("courses.lessons")}</div>
+              <div className="text-caption font-semibold text-text-1">{t("coursePreview.lessonsCount", { count: totalLessons })}</div>
             </div>
           </div>
           <div className="flex items-center gap-2 p-2.5 rounded-xl bg-card border border-border/60">
             <Globe className="w-4 h-4 text-primary flex-shrink-0" />
             <div className="min-w-0">
-              <div className="text-[10px] text-text-3 uppercase">Language</div>
-              <div className="text-caption font-semibold text-text-1 truncate">{course.language || "English"}</div>
+              <div className="text-[10px] text-text-3 uppercase">{t("editCourse.language")}</div>
+              <div className="text-caption font-semibold text-text-1 truncate">{course.language || t("coursePreview.defaultLanguage")}</div>
             </div>
           </div>
         </div>
@@ -267,7 +269,7 @@ function AdminCoursePreviewContent() {
         {/* What You'll Learn */}
         {learningOutcomes.length > 0 && (
           <Card className="p-4">
-            <h2 className="text-body-sm font-bold text-text-1 mb-3">What you'll learn</h2>
+            <h2 className="text-body-sm font-bold text-text-1 mb-3">{t("editCourse.whatYoullLearn")}</h2>
             <div className="space-y-2">
               {learningOutcomes.map((outcome: string, idx: number) => (
                 <div key={idx} className="flex items-start gap-2">
@@ -281,22 +283,22 @@ function AdminCoursePreviewContent() {
 
         {/* Description */}
         <Card className="p-4">
-          <h2 className="text-body-sm font-bold text-text-1 mb-2">About this course</h2>
-          <p className="text-caption text-text-2 whitespace-pre-line leading-relaxed">{course.description || "No description available."}</p>
+          <h2 className="text-body-sm font-bold text-text-1 mb-2">{t("courses.aboutCourse")}</h2>
+          <p className="text-caption text-text-2 whitespace-pre-line leading-relaxed">{course.description || t("coursePreview.noDescription")}</p>
         </Card>
 
         {/* Instructor */}
         <Card className="p-4">
-          <h2 className="text-body-sm font-bold text-text-1 mb-3">Instructor</h2>
+          <h2 className="text-body-sm font-bold text-text-1 mb-3">{t("courses.instructor")}</h2>
           <div className="flex items-start gap-3">
             <Avatar className="w-12 h-12">
               <AvatarImage src={course.creator?.image || undefined} />
               <AvatarFallback>{getInitials(course.creator?.name || "I")}</AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <h3 className="text-body-sm font-bold text-text-1">{course.creator?.name || "Instructor"}</h3>
-              <p className="text-caption text-primary-600 mb-1">Course Instructor</p>
-              <p className="text-caption text-text-2 leading-relaxed">{course.creator?.bio || "Experienced instructor."}</p>
+              <h3 className="text-body-sm font-bold text-text-1">{course.creator?.name || t("courses.instructor")}</h3>
+              <p className="text-caption text-primary-600 mb-1">{t("coursePreview.courseInstructor")}</p>
+              <p className="text-caption text-text-2 leading-relaxed">{course.creator?.bio || t("coursePreview.experiencedInstructor")}</p>
             </div>
           </div>
         </Card>
@@ -332,7 +334,7 @@ function AdminCoursePreviewContent() {
                     <AvatarImage src={course.creator?.image || undefined} />
                     <AvatarFallback className="text-[10px]">{getInitials(course.creator?.name || "I")}</AvatarFallback>
                   </Avatar>
-                  <span className="text-body-sm text-text-2">by <span className="text-primary-600 font-semibold">{course.creator?.name || "Instructor"}</span></span>
+                  <span className="text-body-sm text-text-2">{t("coursePreview.by")} <span className="text-primary-600 font-semibold">{course.creator?.name || t("courses.instructor")}</span></span>
                 </div>
 
                 {reviewCount > 0 && <span className="text-border">|</span>}
@@ -350,9 +352,9 @@ function AdminCoursePreviewContent() {
                     {course.enrolledStudents && course.enrolledStudents.length > 0 && (
                       <div className="flex -space-x-1.5">
                         {course.enrolledStudents.slice(0, Math.min(3, enrollmentCount)).map((student: any, idx: number) => (
-                          <div key={student.id} className="w-6 h-6 rounded-full border-2 border-white overflow-hidden flex-shrink-0" title={student.name || 'Student'}>
+                          <div key={student.id} className="w-6 h-6 rounded-full border-2 border-white overflow-hidden flex-shrink-0" title={student.name || t("coursePreview.studentFallback")}>
                             {student.image ? (
-                              <img src={student.image} alt={student.name || 'Student'} className="w-full h-full object-cover" />
+                              <img src={student.image} alt={student.name || t("coursePreview.studentFallback")} className="w-full h-full object-cover" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-[9px] font-bold text-white" style={{ background: idx % 3 === 0 ? 'linear-gradient(135deg, #2f6fed, #38bdf8)' : idx % 3 === 1 ? 'linear-gradient(135deg, #38bdf8, #8cffcb)' : 'linear-gradient(135deg, #8cffcb, #2f6fed)' }}>
                                 {(student.name || 'S').charAt(0).toUpperCase()}
@@ -367,7 +369,7 @@ function AdminCoursePreviewContent() {
                         )}
                       </div>
                     )}
-                    <span className="text-body-sm text-text-3">{enrollmentCount.toLocaleString()} {enrollmentCount === 1 ? 'student' : 'students'}</span>
+                    <span className="text-body-sm text-text-3">{enrollmentCount.toLocaleString()} {enrollmentCount === 1 ? t("courses.student") : t("courses.students")}</span>
                   </div>
                 )}
 
@@ -391,13 +393,13 @@ function AdminCoursePreviewContent() {
                   ) : videoSrc ? (
                     <VideoPlayer ref={videoPlayerRef} src={videoSrc} signingParams={signingParams} className="w-full h-full" />
                   ) : (
-                    <div className="absolute inset-0 flex items-center justify-center text-white/60">No video available for this lesson</div>
+                    <div className="absolute inset-0 flex items-center justify-center text-white/60">{t("coursePreview.noVideoForLesson")}</div>
                   )}
                 </Card>
                 <div className="flex items-center justify-between">
-                  <p className="text-body-sm font-semibold text-text-1 truncate flex-1">Now Playing: {playingLessonTitle}</p>
+                  <p className="text-body-sm font-semibold text-text-1 truncate flex-1">{t("coursePreview.nowPlaying", { title: playingLessonTitle })}</p>
                   <button onClick={stopVideo} className="flex items-center gap-1 text-caption text-text-3 hover:text-text-1 transition-colors">
-                    <X className="w-4 h-4" /> Close
+                    <X className="w-4 h-4" /> {t("common.close")}
                   </button>
                 </div>
               </div>
@@ -429,14 +431,14 @@ function AdminCoursePreviewContent() {
               </div>
               <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-card border border-border shadow-soft-1">
                 <Globe className="w-4 h-4 text-primary" />
-                <span className="text-body-sm font-medium text-text-1">{course.language || "English"}</span>
+                <span className="text-body-sm font-medium text-text-1">{course.language || t("coursePreview.defaultLanguage")}</span>
               </div>
             </div>
 
             {/* What You'll Learn */}
             {learningOutcomes.length > 0 && (
               <Card className="p-6 shadow-soft-1">
-                <h2 className="text-h3 font-bold text-text-1 mb-4">What you'll learn</h2>
+                <h2 className="text-h3 font-bold text-text-1 mb-4">{t("editCourse.whatYoullLearn")}</h2>
                 <div className="grid grid-cols-2 gap-3">
                   {learningOutcomes.map((outcome: string, idx: number) => (
                     <div key={idx} className="flex items-start gap-3">
@@ -450,22 +452,22 @@ function AdminCoursePreviewContent() {
 
             {/* Description */}
             <Card className="p-6 shadow-soft-1">
-              <h2 className="text-h3 font-bold text-text-1 mb-3">About this course</h2>
-              <div className="text-body text-text-2 whitespace-pre-line leading-relaxed">{course.description || "No description available."}</div>
+              <h2 className="text-h3 font-bold text-text-1 mb-3">{t("courses.aboutCourse")}</h2>
+              <div className="text-body text-text-2 whitespace-pre-line leading-relaxed">{course.description || t("coursePreview.noDescription")}</div>
             </Card>
 
             {/* Instructor */}
             <Card className="p-6 shadow-soft-1">
-              <h2 className="text-h3 font-bold text-text-1 mb-4">Instructor</h2>
+              <h2 className="text-h3 font-bold text-text-1 mb-4">{t("courses.instructor")}</h2>
               <div className="flex items-start gap-4">
                 <Avatar className="w-20 h-20 shadow-soft-1">
                   <AvatarImage src={course.creator?.image || undefined} />
                   <AvatarFallback className="text-lg">{getInitials(course.creator?.name || "I")}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-h3 font-bold text-text-1">{course.creator?.name || "Instructor"}</h3>
-                  <p className="text-body-sm text-primary-600 mb-2">Course Instructor</p>
-                  <p className="text-body-sm text-text-2 leading-relaxed">{course.creator?.bio || "Experienced instructor."}</p>
+                  <h3 className="text-h3 font-bold text-text-1">{course.creator?.name || t("courses.instructor")}</h3>
+                  <p className="text-body-sm text-primary-600 mb-2">{t("coursePreview.courseInstructor")}</p>
+                  <p className="text-body-sm text-text-2 leading-relaxed">{course.creator?.bio || t("coursePreview.experiencedInstructor")}</p>
                 </div>
               </div>
             </Card>
@@ -477,20 +479,20 @@ function AdminCoursePreviewContent() {
               {/* Price & Action */}
               <Card className="p-5 shadow-soft-2">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="text-h1 font-bold text-text-1">{course.price === 0 || !course.price ? "Free" : formatPrice(course.price)}</div>
-                  <Pill variant="default" size="sm" className="bg-amber-100 text-amber-700 border-amber-200">Preview</Pill>
+                  <div className="text-h1 font-bold text-text-1">{course.price === 0 || !course.price ? t("courses.free") : formatPrice(course.price)}</div>
+                  <Pill variant="default" size="sm" className="bg-amber-100 text-amber-700 border-amber-200">{t("courses.preview")}</Pill>
                 </div>
                 <Button onClick={playFirst} className="w-full h-12 text-body font-semibold">
                   <Play className="w-4 h-4 mr-2" />
-                  Play Course
+                  {t("coursePreview.playCourse")}
                 </Button>
                 <div className="mt-5 pt-5 border-t border-border space-y-3">
-                  <p className="text-caption font-semibold text-text-1 uppercase tracking-wide">This course includes</p>
+                  <p className="text-caption font-semibold text-text-1 uppercase tracking-wide">{t("coursePreview.thisCourseIncludes")}</p>
                   <div className="space-y-2">
-                    <div className="flex items-center gap-3 text-body-sm text-text-2"><Play className="w-4 h-4 text-primary" /><span>{formatDuration(totalDuration)} of on-demand video</span></div>
-                    <div className="flex items-center gap-3 text-body-sm text-text-2"><BarChart3 className="w-4 h-4 text-primary" /><span>{totalLessons} lessons</span></div>
-                    <div className="flex items-center gap-3 text-body-sm text-text-2"><Globe className="w-4 h-4 text-primary" /><span>Lifetime access</span></div>
-                    <div className="flex items-center gap-3 text-body-sm text-text-2"><CheckCircle2 className="w-4 h-4 text-primary" /><span>Certificate of completion</span></div>
+                    <div className="flex items-center gap-3 text-body-sm text-text-2"><Play className="w-4 h-4 text-primary" /><span>{t("coursePreview.onDemandVideo", { duration: formatDuration(totalDuration) })}</span></div>
+                    <div className="flex items-center gap-3 text-body-sm text-text-2"><BarChart3 className="w-4 h-4 text-primary" /><span>{t("coursePreview.lessonsCount", { count: totalLessons })}</span></div>
+                    <div className="flex items-center gap-3 text-body-sm text-text-2"><Globe className="w-4 h-4 text-primary" /><span>{t("coursePreview.lifetimeAccess")}</span></div>
+                    <div className="flex items-center gap-3 text-body-sm text-text-2"><CheckCircle2 className="w-4 h-4 text-primary" /><span>{t("coursePreview.certificateOfCompletion")}</span></div>
                   </div>
                 </div>
               </Card>
@@ -517,11 +519,12 @@ function AdminCoursePreviewContent() {
 
 /* ---- Mobile Curriculum ---- */
 function PreviewCurriculumMobile({ course, visibleModules, totalModules, totalLessons, hasMoreModules, showAllModules, onToggle, onPlayLesson, playingLessonId }: any) {
+  const { t } = useTranslation();
   return (
     <Card className="p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-body-sm font-bold text-text-1">Course Content</h3>
-        <span className="text-[11px] text-text-3">{totalModules} modules · {totalLessons} lessons</span>
+        <h3 className="text-body-sm font-bold text-text-1">{t("courses.courseContent")}</h3>
+        <span className="text-[11px] text-text-3">{t("coursePreview.modulesAndLessons", { modules: totalModules, lessons: totalLessons })}</span>
       </div>
       <div className={cn("space-y-3", showAllModules && "max-h-[50vh] overflow-y-auto")}>
         {visibleModules.map((mod: any, idx: number) => (
@@ -546,7 +549,7 @@ function PreviewCurriculumMobile({ course, visibleModules, totalModules, totalLe
                     <span className="text-[11px] font-medium truncate flex-1 text-text-1">{lesson.title}</span>
                     <div className="flex items-center gap-1.5 flex-shrink-0">
                       <span className="text-[10px] text-text-3">{formatDuration(lesson.durationSeconds || 0)}</span>
-                      <Pill size="sm" className="text-[9px] px-1.5 py-0.5">Preview</Pill>
+                      <Pill size="sm" className="text-[9px] px-1.5 py-0.5">{t("courses.preview")}</Pill>
                     </div>
                   </div>
                 </button>
@@ -557,7 +560,7 @@ function PreviewCurriculumMobile({ course, visibleModules, totalModules, totalLe
       </div>
       {hasMoreModules && (
         <button onClick={onToggle} className="w-full mt-3 pt-3 border-t border-border flex items-center justify-center gap-1 text-caption font-semibold text-primary">
-          {showAllModules ? <><ChevronUp className="w-3.5 h-3.5" />Show less</> : <><ChevronDown className="w-3.5 h-3.5" />View all {totalModules} modules</>}
+          {showAllModules ? <><ChevronUp className="w-3.5 h-3.5" />{t("coursePreview.showLess")}</> : <><ChevronDown className="w-3.5 h-3.5" />{t("coursePreview.viewAllModules", { count: totalModules })}</>}
         </button>
       )}
     </Card>
@@ -566,11 +569,12 @@ function PreviewCurriculumMobile({ course, visibleModules, totalModules, totalLe
 
 /* ---- Desktop Curriculum ---- */
 function PreviewCurriculumDesktop({ course, visibleModules, totalModules, totalLessons, hasMoreModules, showAllModules, onToggle, onPlayLesson, playingLessonId }: any) {
+  const { t } = useTranslation();
   return (
     <Card className="p-5 shadow-soft-1">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-body font-bold text-text-1">Course Content</h3>
-        <span className="text-caption text-text-3">{totalModules} modules &middot; {totalLessons} lessons</span>
+        <h3 className="text-body font-bold text-text-1">{t("courses.courseContent")}</h3>
+        <span className="text-caption text-text-3">{t("coursePreview.modulesAndLessons", { modules: totalModules, lessons: totalLessons })}</span>
       </div>
       <div className={cn("space-y-4", showAllModules && "max-h-[60vh] overflow-y-auto pr-2")}>
         {visibleModules.map((mod: any, idx: number) => (
@@ -597,7 +601,7 @@ function PreviewCurriculumDesktop({ course, visibleModules, totalModules, totalL
                     <p className="text-caption font-medium truncate flex-1 text-text-1">{lesson.title}</p>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <span className="text-[11px] text-text-3">{formatDuration(lesson.durationSeconds || 0)}</span>
-                      <Pill size="sm" className="text-[10px] px-1.5 py-0.5">Preview</Pill>
+                      <Pill size="sm" className="text-[10px] px-1.5 py-0.5">{t("courses.preview")}</Pill>
                     </div>
                   </div>
                 </button>
@@ -608,7 +612,7 @@ function PreviewCurriculumDesktop({ course, visibleModules, totalModules, totalL
       </div>
       {hasMoreModules && (
         <button onClick={onToggle} className="w-full mt-4 pt-4 border-t border-border flex items-center justify-center gap-2 text-body-sm font-semibold text-primary hover:text-primary-600 transition-colors">
-          {showAllModules ? <><ChevronUp className="w-4 h-4" />Show less</> : <><ChevronDown className="w-4 h-4" />View all {totalModules} modules</>}
+          {showAllModules ? <><ChevronUp className="w-4 h-4" />{t("coursePreview.showLess")}</> : <><ChevronDown className="w-4 h-4" />{t("coursePreview.viewAllModules", { count: totalModules })}</>}
         </button>
       )}
     </Card>

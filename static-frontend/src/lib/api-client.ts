@@ -233,6 +233,16 @@ export const lessons = {
     request<{ resources: Resource[] }>(`/lessons/${id}/resources`),
   createResource: (id: string, data: CreateResourceData, token?: string) =>
     request<{ resource: Resource }>(`/lessons/${id}/resources`, { method: 'POST', body: data, token }),
+  sendVideoEvent: (data: {
+    event: 'play' | 'pause' | 'ended' | 'timeupdate' | 'seeked' | 'ratechange' | 'visibilitychange';
+    lessonId: string;
+    courseId?: string;
+    currentTime?: number;
+    duration?: number;
+    playbackRate?: number;
+    visibilityState?: string;
+  }, token?: string) =>
+    request<{ ok: boolean }>('/lessons/video-event', { method: 'POST', body: data, token }),
 };
 
 // ==================== Questions & Answers ====================

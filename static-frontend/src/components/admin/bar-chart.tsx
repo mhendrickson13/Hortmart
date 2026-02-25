@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 
 interface BarChartProps {
@@ -146,6 +147,7 @@ export function ProgressDistribution({
   height = 112,
   className,
 }: ProgressDistributionProps) {
+  const { t } = useTranslation();
   const maxCount = Math.max(...Object.values(data), 1);
   const colors: Record<string, string> = {
     "0-25": "bg-text-1/8",
@@ -169,7 +171,7 @@ export function ProgressDistribution({
               style={{ height: `${Math.max(heightPercent, 10)}%` }}
             />
             <span className="text-[10px] text-text-3 font-semibold whitespace-nowrap">
-              {label === "completed" ? "Done" : label}
+              {label === "completed" ? t("admin.barChart.done") : label}
             </span>
           </div>
         );

@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Search, Plus, Download, Calendar } from "lucide-react";
@@ -29,8 +30,11 @@ export function AdminPageHeader({
   secondaryActions,
   children,
 }: AdminPageHeaderProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
+
+  const resolvedSearchPlaceholder = searchPlaceholder || t("admin.pageHeader.searchDefault");
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,7 +65,7 @@ export function AdminPageHeader({
               <Search className="w-4 h-4 flex-shrink-0" />
               <input
                 type="text"
-                placeholder={searchPlaceholder}
+                placeholder={resolvedSearchPlaceholder}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="flex-1 bg-transparent outline-none placeholder:text-text-3 text-text-1"
@@ -125,7 +129,8 @@ export function SegmentSwitcher({ options, value, onChange }: SegmentSwitcherPro
 }
 
 // Date range button - matches design
-export function DateRangeButton({ label = "Last 30 days", onClick }: { label?: string; onClick?: () => void }) {
+export function DateRangeButton({ label, onClick }: { label?: string; onClick?: () => void }) {
+  const { t } = useTranslation();
   return (
     <Button
       variant="secondary"
@@ -133,13 +138,14 @@ export function DateRangeButton({ label = "Last 30 days", onClick }: { label?: s
       className="h-10 rounded-[16px] px-3.5 gap-2 font-bold text-[13px] border border-border/95 bg-white/95 dark:bg-card/95"
     >
       <Calendar className="w-4 h-4" />
-      {label}
+      {label || t("admin.pageHeader.last30Days")}
     </Button>
   );
 }
 
 // Export button - matches design
 export function ExportButton({ onClick }: { onClick?: () => void }) {
+  const { t } = useTranslation();
   return (
     <Button
       variant="secondary"
@@ -147,7 +153,7 @@ export function ExportButton({ onClick }: { onClick?: () => void }) {
       className="h-10 rounded-[16px] px-3.5 gap-2 font-bold text-[13px] border border-border/95 bg-white/95 dark:bg-card/95"
     >
       <Download className="w-4 h-4" />
-      Export
+      {t("admin.pageHeader.export")}
     </Button>
   );
 }

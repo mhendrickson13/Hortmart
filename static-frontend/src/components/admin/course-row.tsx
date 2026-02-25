@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { cn, formatPrice, formatRelativeTime } from "@/lib/utils";
 import { Pill } from "@/components/ui/pill";
 import { Edit, RotateCcw, Trash2 } from "lucide-react";
@@ -23,6 +24,7 @@ interface CourseRowProps {
 }
 
 export function CourseRow({ course, variant = "default", onRestore, onDelete }: CourseRowProps) {
+  const { t } = useTranslation();
   const isPublished = course.status === "PUBLISHED";
   const isDraft = course.status === "DRAFT";
   const isArchived = course.status === "ARCHIVED";
@@ -46,7 +48,7 @@ export function CourseRow({ course, variant = "default", onRestore, onDelete }: 
               {course.title}
             </div>
             <div className="text-[12px] font-extrabold text-text-3 mt-1">
-              {enrollmentCount.toLocaleString()} learners
+              {t("admin.courseRow.learnersCount", { num: enrollmentCount.toLocaleString() })}
             </div>
           </div>
         </div>
@@ -82,8 +84,8 @@ export function CourseRow({ course, variant = "default", onRestore, onDelete }: 
           </div>
           <div className="text-[12px] font-extrabold text-text-3 mt-1">
             {course.updatedAt 
-              ? `Updated ${formatRelativeTime(course.updatedAt)}`
-              : `${enrollmentCount.toLocaleString()} learners`
+              ? t("admin.courseRow.updated", { time: formatRelativeTime(course.updatedAt) })
+              : t("admin.courseRow.learnersCount", { num: enrollmentCount.toLocaleString() })
             }
           </div>
         </div>
@@ -124,13 +126,13 @@ export function CourseRow({ course, variant = "default", onRestore, onDelete }: 
               to={`/manage-courses/${course.id}/edit`}
               className="hidden sm:inline-flex h-[34px] px-3 rounded-[14px] items-center text-[12px] font-black bg-primary/10 border border-primary/14 text-primary-600 hover:bg-primary/15 transition-colors"
             >
-              Edit
+              {t("common.edit")}
             </Link>
             <Link 
               to={`/manage-courses/${course.id}/analytics`}
               className="hidden sm:inline-flex h-[34px] px-3 rounded-[14px] items-center text-[12px] font-black bg-white/95 dark:bg-card/95 border border-border/95 text-text-1 hover:bg-muted transition-colors"
             >
-              Analytics
+              {t("nav.analytics")}
             </Link>
             <Link 
               to={`/manage-courses/${course.id}/edit`}
@@ -146,14 +148,14 @@ export function CourseRow({ course, variant = "default", onRestore, onDelete }: 
               to={`/manage-courses/${course.id}/edit`}
               className="hidden sm:inline-flex h-[34px] px-3 rounded-[14px] items-center text-[12px] font-black bg-primary/10 border border-primary/14 text-primary-600 hover:bg-primary/15 transition-colors"
             >
-              Continue
+              {t("admin.courseRow.continue")}
             </Link>
             <Link 
               to={`/course/${course.id}`}
               target="_blank"
               className="hidden sm:inline-flex h-[34px] px-3 rounded-[14px] items-center text-[12px] font-black bg-white/95 dark:bg-card/95 border border-border/95 text-text-1 hover:bg-muted transition-colors"
             >
-              Preview
+              {t("courses.preview")}
             </Link>
             <Link 
               to={`/manage-courses/${course.id}/edit`}
@@ -170,14 +172,14 @@ export function CourseRow({ course, variant = "default", onRestore, onDelete }: 
               className="hidden sm:inline-flex h-[34px] px-3 rounded-[14px] items-center gap-1.5 text-[12px] font-black bg-white/95 dark:bg-card/95 border border-border/95 text-text-1 hover:bg-muted transition-colors"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              Restore
+              {t("admin.courseRow.restore")}
             </button>
             <button 
               onClick={() => onDelete?.(course.id)}
               className="hidden sm:inline-flex h-[34px] px-3 rounded-[14px] items-center gap-1.5 text-[12px] font-black bg-white/95 dark:bg-card/95 border border-red-200 dark:border-red-800 text-red-500 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              Delete
+              {t("common.delete")}
             </button>
             <button 
               onClick={() => onRestore?.(course.id)}
@@ -194,13 +196,14 @@ export function CourseRow({ course, variant = "default", onRestore, onDelete }: 
 
 // Table header component for courses list - matches .thead
 export function CourseRowHeader() {
+  const { t } = useTranslation();
   return (
     <div className="hidden sm:grid grid-cols-[1.6fr_0.6fr_0.6fr_0.6fr_0.6fr] gap-2.5 items-center px-3 py-2.5 text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">
-      <div>Course</div>
-      <div>Status</div>
-      <div>Price</div>
-      <div>Students</div>
-      <div className="text-right">Actions</div>
+      <div>{t("admin.courseRow.course")}</div>
+      <div>{t("admin.courseRow.status")}</div>
+      <div>{t("admin.courseRow.price")}</div>
+      <div>{t("admin.courseRow.students")}</div>
+      <div className="text-right">{t("admin.courseRow.actions")}</div>
     </div>
   );
 }

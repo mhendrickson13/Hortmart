@@ -16,7 +16,7 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  register: (data: { email: string; password: string; name?: string }) => Promise<{ success: boolean; error?: string }>;
+  register: (data: { email: string; password: string; name?: string; role?: "LEARNER" | "CREATOR" }) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   updateUser: (user: Partial<AuthUser>) => void;
 }
@@ -107,7 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const register = useCallback(async (data: { email: string; password: string; name?: string }) => {
+  const register = useCallback(async (data: { email: string; password: string; name?: string; role?: "LEARNER" | "CREATOR" }) => {
     try {
       const response = await fetch(`${API_BASE_URL}/auth/register`, {
         method: "POST",

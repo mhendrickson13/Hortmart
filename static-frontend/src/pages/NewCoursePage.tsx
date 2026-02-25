@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, Link } from "react-router-dom";
 import { courses as coursesApi } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,7 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import { useToast } from "@/components/ui/toaster";
 
 export default function NewCoursePage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -34,10 +36,10 @@ export default function NewCoursePage() {
         level: level as any,
         price: parseFloat(price) || 0,
       });
-      toast({ title: "Course created", description: "Your new course has been created." });
+      toast({ title: t("courses.courseCreated"), description: t("courses.courseCreatedDesc") });
       navigate(`/manage-courses/${result.course.id}/edit`);
     } catch (error: any) {
-      toast({ title: "Error", description: error.message || "Failed to create course", variant: "error" });
+      toast({ title: t("common.error"), description: error.message || t("courses.failedToCreate"), variant: "error" });
     } finally {
       setLoading(false);
     }
@@ -50,53 +52,53 @@ export default function NewCoursePage() {
           <ArrowLeft className="w-4 h-4 text-text-1" />
         </Link>
         <div>
-          <h1 className="text-[20px] font-black tracking-tight text-text-1">New Course</h1>
-          <p className="text-[12px] font-extrabold text-text-3 mt-1">Create a new course</p>
+          <h1 className="text-[20px] font-black tracking-tight text-text-1">{t("courses.newCourse")}</h1>
+          <p className="text-[12px] font-extrabold text-text-3 mt-1">{t("courses.createCourseDescription")}</p>
         </div>
       </div>
 
       <Card className="p-6 max-w-2xl">
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <Label htmlFor="title">Course Title *</Label>
-            <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Introduction to Web Development" required className="mt-1.5" />
+            <Label htmlFor="title">{t("courses.courseTitle")} *</Label>
+            <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("courses.courseTitlePlaceholder")} required className="mt-1.5" />
           </div>
           <div>
-            <Label htmlFor="subtitle">Subtitle</Label>
-            <Input id="subtitle" value={subtitle} onChange={(e) => setSubtitle(e.target.value)} placeholder="A brief tagline for your course" className="mt-1.5" />
+            <Label htmlFor="subtitle">{t("courses.subtitleLabel")}</Label>
+            <Input id="subtitle" value={subtitle} onChange={(e) => setSubtitle(e.target.value)} placeholder={t("courses.subtitlePlaceholder")} className="mt-1.5" />
           </div>
           <div>
-            <Label htmlFor="description">Description</Label>
-            <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What will students learn?" rows={4} className="mt-1.5" />
+            <Label htmlFor="description">{t("courses.description")}</Label>
+            <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("courses.descriptionPlaceholder")} rows={4} className="mt-1.5" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="category">Category</Label>
-              <Input id="category" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. Programming" className="mt-1.5" />
+              <Label htmlFor="category">{t("courses.category")}</Label>
+              <Input id="category" value={category} onChange={(e) => setCategory(e.target.value)} placeholder={t("courses.categoryPlaceholder")} className="mt-1.5" />
             </div>
             <div>
-              <Label>Level</Label>
+              <Label>{t("courses.level")}</Label>
               <Select value={level} onValueChange={setLevel}>
                 <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL_LEVELS">All Levels</SelectItem>
-                  <SelectItem value="BEGINNER">Beginner</SelectItem>
-                  <SelectItem value="INTERMEDIATE">Intermediate</SelectItem>
-                  <SelectItem value="ADVANCED">Advanced</SelectItem>
+                  <SelectItem value="ALL_LEVELS">{t("courses.allLevels")}</SelectItem>
+                  <SelectItem value="BEGINNER">{t("courses.beginner")}</SelectItem>
+                  <SelectItem value="INTERMEDIATE">{t("courses.intermediate")}</SelectItem>
+                  <SelectItem value="ADVANCED">{t("courses.advanced")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
           <div>
-            <Label htmlFor="price">Price (USD)</Label>
+            <Label htmlFor="price">{t("courses.priceUSD")}</Label>
             <Input id="price" type="number" min="0" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} className="mt-1.5" />
           </div>
           <div className="flex gap-3 pt-2">
             <Button type="submit" disabled={loading || !title.trim()}>
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              Create Course
+              {t("courses.createCourse")}
             </Button>
-            <Button type="button" variant="secondary" onClick={() => navigate("/manage-courses")}>Cancel</Button>
+            <Button type="button" variant="secondary" onClick={() => navigate("/manage-courses")}>{t("common.cancel")}</Button>
           </div>
         </form>
       </Card>

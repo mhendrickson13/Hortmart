@@ -17,7 +17,7 @@ const JWT_EXPIRES_IN = (process.env.JWT_EXPIRES_IN || '7d');
 // POST /auth/register
 router.post('/register', async (req, res) => {
     try {
-        const { email, password, name } = req.body;
+        const { email, password, name, role: requestedRole } = req.body;
         if (!email || !password || password.length < 6) {
             return res.status(400).json({ error: 'Valid email and password (min 6 chars) are required' });
         }
@@ -26,6 +26,9 @@ router.post('/register', async (req, res) => {
         if (!emailRegex.test(email)) {
             return res.status(400).json({ error: 'Invalid email format' });
         }
+        // Validate role — only LEARNER or CREATOR allowed during registration
+        const allowedRoles = ['LEARNER', 'CREATOR'];
+        const role = allowedRoles.includes(requestedRole) ? requestedRole : 'LEARNER';
         const existing = await (0, db_js_1.queryOne)('SELECT id FROM users WHERE email = ?', [email]);
         if (existing) {
             return res.status(409).json({ error: 'Email already registered' });
@@ -33,8 +36,8 @@ router.post('/register', async (req, res) => {
         const hashedPassword = await bcryptjs_1.default.hash(password, 10);
         const id = (0, db_js_1.genId)();
         const ts = (0, db_js_1.now)();
-        await (0, db_js_1.execute)('INSERT INTO users (id, email, password, name, role, updatedAt) VALUES (?, ?, ?, ?, ?, ?)', [id, email, hashedPassword, name || null, 'LEARNER', ts]);
-        const user = { id, email, name: name || null, role: 'LEARNER', createdAt: new Date() };
+        await (0, db_js_1.execute)('INSERT INTO users (id, email, password, name, role, updatedAt) VALUES (?, ?, ?, ?, ?, ?)', [id, email, hashedPassword, name || null, role, ts]);
+        const user = { id, email, name: name || null, role, createdAt: new Date() };
         const token = jsonwebtoken_1.default.sign({ userId: id }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
         // Send welcome email (fire-and-forget)
         (0, email_js_1.sendWelcome)(email, name || undefined).catch(() => { });

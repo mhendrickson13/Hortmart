@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { apiClient, courses as coursesApi } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "@/components/ui/toaster";
@@ -31,6 +32,7 @@ function SendMessageModal({
   userEmail: string;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const { token } = useAuth();
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
@@ -48,10 +50,10 @@ function SendMessageModal({
     setSending(true);
     try {
       await apiClient.users.sendMessage(userId, { subject: subject.trim(), message: message.trim() }, token || undefined);
-      toast({ title: "Email sent", description: `Message sent to ${userEmail}`, variant: "success" });
+      toast({ title: t("admin.userActions.emailSent"), description: t("admin.userActions.messageSentTo", { email: userEmail }), variant: "success" });
       onClose();
     } catch (error) {
-      toast({ title: error instanceof Error ? error.message : "Failed to send email", variant: "error" });
+      toast({ title: error instanceof Error ? error.message : t("admin.userActions.failedToSendEmail"), variant: "error" });
     } finally {
       setSending(false);
     }
@@ -62,8 +64,8 @@ function SendMessageModal({
       <div ref={modalRef} className="w-full max-w-lg bg-white dark:bg-card rounded-2xl shadow-xl border border-border/80 overflow-hidden animate-fade-in">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border/80">
           <div>
-            <h2 className="text-[15px] font-black text-text-1">Send message</h2>
-            <p className="text-[12px] text-text-3 mt-0.5">To: {userName || userEmail}</p>
+            <h2 className="text-[15px] font-black text-text-1">{t("admin.userActions.sendMessage")}</h2>
+            <p className="text-[12px] text-text-3 mt-0.5">{t("admin.userActions.subject")}: {userName || userEmail}</p>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-surface-2 transition-colors">
             <X className="w-4 h-4 text-text-2" />
@@ -71,22 +73,22 @@ function SendMessageModal({
         </div>
         <div className="p-5 space-y-4">
           <div>
-            <label className="text-[12px] font-bold text-text-2 mb-1.5 block">Subject</label>
+            <label className="text-[12px] font-bold text-text-2 mb-1.5 block">{t("admin.userActions.subject")}</label>
             <input
               type="text"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              placeholder="Email subject..."
+              placeholder={t("admin.userActions.emailSubjectPlaceholder")}
               className="w-full h-10 px-3 rounded-xl border border-border/80 bg-white dark:bg-card text-[13px] text-text-1 placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-primary/30"
               autoFocus
             />
           </div>
           <div>
-            <label className="text-[12px] font-bold text-text-2 mb-1.5 block">Message</label>
+            <label className="text-[12px] font-bold text-text-2 mb-1.5 block">{t("admin.userActions.message")}</label>
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              placeholder="Write your message..."
+              placeholder={t("admin.userActions.writeMessagePlaceholder")}
               rows={5}
               className="w-full px-3 py-2.5 rounded-xl border border-border/80 bg-white dark:bg-card text-[13px] text-text-1 placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
             />
@@ -94,7 +96,7 @@ function SendMessageModal({
         </div>
         <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-border/80 bg-surface-1/50">
           <button onClick={onClose} className="h-9 px-4 rounded-xl text-[13px] font-bold text-text-2 hover:bg-surface-2 transition-colors">
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             onClick={handleSend}
@@ -102,7 +104,7 @@ function SendMessageModal({
             className="h-9 px-4 rounded-xl text-[13px] font-bold bg-primary text-white inline-flex items-center gap-2 disabled:opacity-50 transition-colors hover:bg-primary/90"
           >
             {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-            {sending ? "Sending..." : "Send email"}
+            {sending ? t("admin.userActions.sending") : t("admin.userActions.sendEmail")}
           </button>
         </div>
       </div>
@@ -125,6 +127,7 @@ function AddCourseModal({
   onClose: () => void;
   onEnrolled: () => void;
 }) {
+  const { t } = useTranslation();
   const { token } = useAuth();
   const [search, setSearch] = useState("");
   const [coursesList, setCoursesList] = useState<any[]>([]);
@@ -157,11 +160,11 @@ function AddCourseModal({
     setEnrolling(courseId);
     try {
       await apiClient.users.enrollInCourse(userId, courseId, token || undefined);
-      toast({ title: "Enrolled", description: `${userName || "User"} enrolled in "${courseTitle}"`, variant: "success" });
+      toast({ title: t("admin.userActions.enrolled"), description: t("admin.userActions.enrolledInCourse", { name: userName || t("settings.user"), course: courseTitle }), variant: "success" });
       onEnrolled();
       onClose();
     } catch (error) {
-      toast({ title: error instanceof Error ? error.message : "Failed to enroll", variant: "error" });
+      toast({ title: error instanceof Error ? error.message : t("admin.userActions.failedToEnroll"), variant: "error" });
     } finally {
       setEnrolling(null);
     }
@@ -172,8 +175,8 @@ function AddCourseModal({
       <div className="w-full max-w-lg bg-white dark:bg-card rounded-2xl shadow-xl border border-border/80 overflow-hidden animate-fade-in max-h-[80vh] flex flex-col">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border/80 flex-shrink-0">
           <div>
-            <h2 className="text-[15px] font-black text-text-1">Add course</h2>
-            <p className="text-[12px] text-text-3 mt-0.5">Enroll {userName || "user"} in a course</p>
+            <h2 className="text-[15px] font-black text-text-1">{t("admin.userActions.addCourse")}</h2>
+            <p className="text-[12px] text-text-3 mt-0.5">{t("admin.userActions.enrollUserInCourse", { name: userName || t("settings.user") })}</p>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-surface-2 transition-colors">
             <X className="w-4 h-4 text-text-2" />
@@ -186,7 +189,7 @@ function AddCourseModal({
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search courses..."
+              placeholder={t("admin.userActions.searchCourses")}
               className="w-full h-10 pl-9 pr-3 rounded-xl border border-border/80 bg-white dark:bg-card text-[13px] text-text-1 placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-primary/30"
               autoFocus
             />
@@ -199,7 +202,7 @@ function AddCourseModal({
             </div>
           ) : filtered.length === 0 ? (
             <p className="text-[13px] text-text-3 text-center py-12">
-              {search ? "No matching courses found" : "No available courses to enroll"}
+              {search ? t("admin.userActions.noMatchingCourses") : t("admin.userActions.noAvailableCourses")}
             </p>
           ) : (
             <div className="space-y-2 mt-2">
@@ -218,7 +221,7 @@ function AddCourseModal({
                     className="h-8 px-3 rounded-xl text-[12px] font-bold bg-primary text-white inline-flex items-center gap-1.5 disabled:opacity-50 hover:bg-primary/90 transition-colors flex-shrink-0"
                   >
                     {enrolling === course.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
-                    {enrolling === course.id ? "Enrolling..." : "Enroll"}
+                    {enrolling === course.id ? t("admin.userActions.enrolling") : t("admin.userActions.enroll")}
                   </button>
                 </div>
               ))}
@@ -251,6 +254,7 @@ export function UserHeaderActions({
   existingCourseIds = [],
   onEnrolled,
 }: UserHeaderActionsProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [blocking, setBlocking] = useState(false);
   const [isBlocked, setIsBlocked] = useState(!!blockedAt);
@@ -259,14 +263,15 @@ export function UserHeaderActions({
 
   const handleBlock = async () => {
     if (userRole === "ADMIN") {
-      toast({ title: "Cannot block an admin user", variant: "error" });
+      toast({ title: t("admin.userActions.cannotBlockAdmin"), variant: "error" });
       return;
     }
 
     const action = isBlocked ? "unblock" : "block";
+    const displayName = userName || t("admin.userActions.thisUser");
     const confirmMsg = isBlocked
-      ? `Unblock ${userName || "this user"}?`
-      : `Block ${userName || "this user"}? They will lose access to the platform.`;
+      ? t("admin.userActions.confirmUnblock", { name: displayName })
+      : t("admin.userActions.confirmBlock", { name: displayName });
 
     if (!window.confirm(confirmMsg)) return;
 
@@ -280,13 +285,13 @@ export function UserHeaderActions({
 
       setIsBlocked(!isBlocked);
       toast({
-        title: isBlocked ? "User unblocked" : "User blocked",
+        title: isBlocked ? t("admin.userActions.userUnblocked") : t("admin.userActions.userBlocked"),
         variant: "success",
       });
       navigate(0);
     } catch (error) {
       toast({
-        title: error instanceof Error ? error.message : `Failed to ${action} user`,
+        title: error instanceof Error ? error.message : t("admin.userActions.failedToAction", { action }),
         variant: "error",
       });
     } finally {
@@ -302,14 +307,14 @@ export function UserHeaderActions({
           className="h-10 px-3.5 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-text-1 font-black text-[13px] inline-flex items-center gap-2 shadow-[0_14px_28px_rgba(21,25,35,0.06)] dark:shadow-[0_14px_28px_rgba(0,0,0,0.25)]"
         >
           <Mail className="w-4 h-4" />
-          Message
+          {t("admin.userActions.message")}
         </button>
         <button
           onClick={() => setShowAddCourseModal(true)}
           className="h-10 px-3.5 rounded-[16px] border border-primary/55 bg-primary text-white font-black text-[13px] inline-flex items-center gap-2 shadow-[0_16px_34px_rgba(47,111,237,0.22)]"
         >
           <Plus className="w-4 h-4" />
-          Add course
+          {t("admin.userActions.addCourse")}
         </button>
       <button
         onClick={handleBlock}
@@ -323,12 +328,12 @@ export function UserHeaderActions({
         {isBlocked ? (
           <>
             <CheckCircle className="w-4 h-4" />
-            {blocking ? "Unblocking..." : "Unblock"}
+            {blocking ? t("admin.userActions.unblocking") : t("admin.userActions.unblock")}
           </>
         ) : (
           <>
             <Ban className="w-4 h-4" />
-            {blocking ? "Blocking..." : "Block"}
+            {blocking ? t("admin.userActions.blocking") : t("admin.userActions.block")}
           </>
         )}
       </button>
@@ -367,6 +372,7 @@ export function EditPermissionsButton({
   userId,
   currentRole,
 }: EditPermissionsProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
   const [role, setRole] = useState(currentRole);
@@ -380,11 +386,11 @@ export function EditPermissionsButton({
     setSaving(true);
     try {
       await apiClient.users.update(userId, { role } as never);
-      toast({ title: "Role updated", variant: "success" });
+      toast({ title: t("admin.userActions.roleUpdated"), variant: "success" });
       setEditing(false);
       navigate(0);
     } catch {
-      toast({ title: "Failed to update role", variant: "error" });
+      toast({ title: t("admin.userActions.failedToUpdateRole"), variant: "error" });
     } finally {
       setSaving(false);
     }
@@ -398,16 +404,16 @@ export function EditPermissionsButton({
           onChange={(e) => setRole(e.target.value)}
           className="h-[30px] px-2 rounded-[12px] text-[11px] font-black border border-border/95 bg-white/95 dark:bg-card/95 text-text-1"
         >
-          <option value="LEARNER">Learner</option>
-          <option value="CREATOR">Creator</option>
-          <option value="ADMIN">Admin</option>
+          <option value="LEARNER">{t("admin.userActions.learner")}</option>
+          <option value="CREATOR">{t("admin.userActions.creator")}</option>
+          <option value="ADMIN">{t("admin.userActions.adminRole")}</option>
         </select>
         <button
           onClick={handleSave}
           disabled={saving}
           className="h-[30px] px-2.5 rounded-[12px] text-[11px] font-black border border-primary/55 bg-primary text-white disabled:opacity-50"
         >
-          {saving ? "..." : "Save"}
+          {saving ? "..." : t("common.save")}
         </button>
         <button
           onClick={() => {
@@ -416,7 +422,7 @@ export function EditPermissionsButton({
           }}
           className="h-[30px] px-2.5 rounded-[12px] text-[11px] font-black border border-border/95 bg-white/95 dark:bg-card/95 text-text-1"
         >
-          Cancel
+          {t("common.cancel")}
         </button>
       </div>
     );
@@ -427,7 +433,7 @@ export function EditPermissionsButton({
       onClick={() => setEditing(true)}
       className="h-[30px] px-2.5 rounded-[12px] text-[11px] font-black border border-border/95 bg-white/95 dark:bg-card/95 text-text-1 hover:bg-muted transition-colors"
     >
-      Edit
+      {t("common.edit")}
     </button>
   );
 }
@@ -435,18 +441,19 @@ export function EditPermissionsButton({
 // ── Review Refund Button ──
 
 export function ReviewRefundButton() {
+  const { t } = useTranslation();
   return (
     <button
       onClick={() =>
         toast({
-          title: "Refund review coming soon",
-          description: "Refund management is under development.",
+          title: t("admin.userActions.refundComingSoon"),
+          description: t("admin.userActions.refundComingSoonDesc"),
           variant: "info",
         })
       }
       className="h-[30px] px-2.5 rounded-[12px] text-[11px] font-black border border-border/95 bg-white/95 dark:bg-card/95 text-text-1 hover:bg-muted transition-colors"
     >
-      Review
+      {t("admin.userActions.review")}
     </button>
   );
 }
@@ -454,19 +461,20 @@ export function ReviewRefundButton() {
 // ── Download Certificate Button ──
 
 export function DownloadCertificateButton() {
+  const { t } = useTranslation();
   return (
     <button
       onClick={() =>
         toast({
-          title: "Certificates coming soon",
-          description: "Certificate generation is under development.",
+          title: t("admin.userActions.certificatesComingSoon"),
+          description: t("admin.userActions.certificatesComingSoonDesc"),
           variant: "info",
         })
       }
       className="mt-1 h-[26px] px-2 rounded-[12px] text-[11px] font-black bg-primary/10 border border-primary/14 text-primary-600 inline-flex items-center gap-1 hover:bg-primary/15 transition-colors"
     >
       <Download className="w-3 h-3" />
-      Download
+      {t("admin.userActions.download")}
     </button>
   );
 }

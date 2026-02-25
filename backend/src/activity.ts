@@ -47,12 +47,13 @@ export async function logActivity(payload: ActivityPayload): Promise<void> {
     console.error('[Activity] insert error:', e);
   }
 
-  // 2. Webhook (fire-and-forget)
-  fireWebhook({ id, event, userId, userName, meta, createdAt: ts }).catch(() => {});
+  // Webhook dispatch is handled by the video-event endpoint only
 }
 
-/** Send payload to the configured webhook URL, if any. */
-async function fireWebhook(body: Record<string, any>): Promise<void> {
+/**
+ * Fire a payload to the configured webhook URL (fire-and-forget).
+ */
+export async function fireWebhook(body: Record<string, any>): Promise<void> {
   try {
     const row = await queryOne<any>(
       `SELECT value FROM app_settings WHERE \`key\` = 'webhookUrl'`,

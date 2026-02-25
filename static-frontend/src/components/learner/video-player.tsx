@@ -29,6 +29,7 @@ interface VideoPlayerProps {
   onSeeking?: () => void;
   onSeeked?: () => void;
   onEnded?: () => void;
+  onVideoEvent?: (event: string, data?: Record<string, any>) => void;
   initialTime?: number;
   className?: string;
   /** CloudFront signing params for HLS chunk requests */
@@ -70,6 +71,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
   onSeeking: onSeekingProp,
   onSeeked: onSeekedProp,
   onEnded: onEndedProp,
+  onVideoEvent,
   initialTime = 0,
   className,
   signingParams,
@@ -113,6 +115,9 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
   onSeekedRef.current = onSeekedProp;
   const onEndedRef = useRef(onEndedProp);
   onEndedRef.current = onEndedProp;
+  const onVideoEventRef = useRef(onVideoEvent);
+  onVideoEventRef.current = onVideoEvent;
+  const lastTimeupdateWebhookRef = useRef(0);
 
   const PREVIEW_DURATION = 20; // seconds of video content shown in preview
   const PREVIEW_SPEED = 2;     // 2x speed → 20s content plays in ~10s real time
@@ -251,6 +256,12 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
     // Tab hidden (switch tab, minimize, app goes to background)
     const handleVisibilityChange = () => {
       if (document.hidden) pauseIfPlaying();
+      const v = videoRef.current;
+      onVideoEventRef.current?.('visibilitychange', {
+        currentTime: v?.currentTime ?? 0,
+        duration: v?.duration ?? 0,
+        visibilityState: document.visibilityState,
+      });
     };
 
     // Window blur (Alt+Tab, click on another window)
@@ -443,6 +454,13 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
       onProgressRef.current(currentProgress, video.currentTime);
     }
 
+    // Throttled webhook: fire timeupdate every 30 seconds
+    const now = Date.now();
+    if (now - lastTimeupdateWebhookRef.current >= 30000) {
+      lastTimeupdateWebhookRef.current = now;
+      onVideoEventRef.current?.('timeupdate', { currentTime: video.currentTime, duration: dur });
+    }
+
   }, [isYouTube]);
 
   const togglePlay = useCallback(async () => {
@@ -554,6 +572,11 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
     if (video) video.playbackRate = rate;
     setPlaybackRate(rate);
     setShowSpeedMenu(false);
+    onVideoEventRef.current?.('ratechange', {
+      currentTime: video?.currentTime ?? 0,
+      duration: video?.duration ?? 0,
+      playbackRate: rate,
+    });
   }, []);
 
   const toggleFullscreen = useCallback(() => {
@@ -784,9 +807,13 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
             setDuration(videoRef.current.duration);
           }
         }}
-        onPlay={() => setIsPlaying(true)}
+        onPlay={() => {
+          setIsPlaying(true);
+          onVideoEventRef.current?.('play', { currentTime: videoRef.current?.currentTime ?? 0, duration: videoRef.current?.duration ?? 0 });
+        }}
         onPause={() => {
           setIsPlaying(false);
+          onVideoEventRef.current?.('pause', { currentTime: videoRef.current?.currentTime ?? 0, duration: videoRef.current?.duration ?? 0 });
           // Save progress immediately on pause
           if (videoRef.current && onProgressRef.current && videoRef.current.currentTime >= 1) {
             const prog = (videoRef.current.currentTime / videoRef.current.duration) * 100;
@@ -797,9 +824,14 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
         onWaiting={() => setIsBuffering(true)}
         onCanPlay={() => setIsBuffering(false)}
         onSeeking={() => { setIsBuffering(true); onSeekingRef.current?.(); }}
-        onSeeked={() => { setIsBuffering(false); onSeekedRef.current?.(); }}
+        onSeeked={() => {
+          setIsBuffering(false);
+          onSeekedRef.current?.();
+          onVideoEventRef.current?.('seeked', { currentTime: videoRef.current?.currentTime ?? 0, duration: videoRef.current?.duration ?? 0 });
+        }}
         onEnded={() => {
           setIsPlaying(false);
+          onVideoEventRef.current?.('ended', { currentTime: videoRef.current?.currentTime ?? 0, duration: videoRef.current?.duration ?? 0 });
           // Mark complete only when video truly finishes
           if (onCompleteRef.current && !completedRef.current) {
             completedRef.current = true;

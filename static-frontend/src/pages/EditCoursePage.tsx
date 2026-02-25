@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { courses as coursesApi, apiClient, uploads as uploadsApi } from "@/lib/api-client";
@@ -62,6 +63,7 @@ interface EditorLesson {
 
 export default function EditCoursePage() {
   const { id } = useParams<{ id: string }>();
+  const { t } = useTranslation();
 
   const { data, isLoading, error, dataUpdatedAt } = useQuery({
     queryKey: ["course", id],
@@ -81,8 +83,8 @@ export default function EditCoursePage() {
   if (error || !data?.course) {
     return (
       <div className="flex flex-col items-center justify-center flex-1 gap-4">
-        <p className="text-text-2 text-body">Course not found.</p>
-        <Link to="/manage-courses" className="text-primary font-bold text-body-sm">Back to courses</Link>
+        <p className="text-text-2 text-body">{t("editCourse.courseNotFound")}</p>
+        <Link to="/manage-courses" className="text-primary font-bold text-body-sm">{t("editCourse.backToCourses")}</Link>
       </div>
     );
   }
@@ -126,6 +128,7 @@ export default function EditCoursePage() {
 
 function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [course, setCourse] = useState(initialCourse);
   const [expandedModules, setExpandedModules] = useState<Set<string>>(
     new Set(course.modules.map((m) => m.id))
@@ -152,8 +155,8 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
   const lastSavedText = lastSaved
     ? (() => {
         const mins = Math.round((Date.now() - lastSaved.getTime()) / 60000);
-        if (mins < 1) return "Auto-saved just now";
-        return `Auto-saved ${mins} min ago`;
+        if (mins < 1) return t("editCourse.autoSavedJustNow");
+        return t("editCourse.autoSavedMinAgo", { mins });
       })()
     : null;
 
@@ -170,11 +173,11 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
   const handleCoverUpload = useCallback(
     async (file: File) => {
       if (!file.type.startsWith("image/")) {
-        toast({ title: "Please select an image file", variant: "error" });
+        toast({ title: t("editCourse.selectImageFile"), variant: "error" });
         return;
       }
       if (file.size > 10 * 1024 * 1024) {
-        toast({ title: "Image must be under 10MB", variant: "error" });
+        toast({ title: t("editCourse.imageTooLarge"), variant: "error" });
         return;
       }
       setUploadingCover(true);
@@ -189,9 +192,9 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
         setCourse((c) => ({ ...c, ...updated }));
         setCoverUploadProgress(100);
         setLastSaved(new Date());
-        toast({ title: "Cover image uploaded", variant: "success" });
+        toast({ title: t("editCourse.coverImageUploaded"), variant: "success" });
       } catch (err: any) {
-        toast({ title: "Upload failed", description: err.message || "Try again", variant: "error" });
+        toast({ title: t("editCourse.uploadFailed"), description: err.message || t("common.tryAgain"), variant: "error" });
       } finally {
         setUploadingCover(false);
         setCoverUploadProgress(0);
@@ -229,9 +232,9 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
         const updated = (result as any).course || result;
         setCourse((c) => ({ ...c, ...updated }));
         setLastSaved(new Date());
-        toast({ title: "Saved", variant: "success" });
+        toast({ title: t("editCourse.saved"), variant: "success" });
       } catch {
-        toast({ title: "Failed to save", variant: "error" });
+        toast({ title: t("editCourse.failedToSave"), variant: "error" });
       } finally {
         setSavingField(null);
         setEditingField(null);
@@ -257,9 +260,9 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
       setShowAddModule(false);
       setExpandedModules((prev) => new Set([...Array.from(prev), mod.id]));
       setLastSaved(new Date());
-      toast({ title: "Module added", variant: "success" });
+      toast({ title: t("editCourse.moduleAdded"), variant: "success" });
     } catch {
-      toast({ title: "Failed to add module", variant: "error" });
+      toast({ title: t("editCourse.failedToAddModule"), variant: "error" });
     }
   };
 
@@ -272,9 +275,9 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
         modules: c.modules.map((m) => (m.id === moduleId ? { ...m, ...mod } : m)),
       }));
       setLastSaved(new Date());
-      toast({ title: "Module updated", variant: "success" });
+      toast({ title: t("editCourse.moduleUpdated"), variant: "success" });
     } catch {
-      toast({ title: "Failed to update module", variant: "error" });
+      toast({ title: t("editCourse.failedToUpdateModule"), variant: "error" });
     } finally {
       setEditingModule(null);
     }
@@ -284,15 +287,15 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
     const mod = course.modules.find((m) => m.id === moduleId);
     if (!mod) return;
     const msg = mod.lessons.length > 0
-      ? `Delete "${mod.title}" and its ${mod.lessons.length} lesson(s)?`
-      : `Delete "${mod.title}"?`;
+      ? t("editCourse.deleteModuleWithLessons", { title: mod.title, count: mod.lessons.length })
+      : t("editCourse.deleteModuleConfirm", { title: mod.title });
     if (!window.confirm(msg)) return;
     try {
       await apiClient.modules.delete(moduleId);
       setCourse((c) => ({ ...c, modules: c.modules.filter((m) => m.id !== moduleId) }));
-      toast({ title: "Module deleted", variant: "success" });
+      toast({ title: t("editCourse.moduleDeleted"), variant: "success" });
     } catch {
-      toast({ title: "Failed to delete module", variant: "error" });
+      toast({ title: t("editCourse.failedToDeleteModule"), variant: "error" });
     }
   };
 
@@ -309,11 +312,11 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
     setCourse((c) => ({ ...c, modules: reordered }));
     try {
       await apiClient.courses.reorderModules(course.id, reordered.map((m) => m.id));
-      toast({ title: "Order updated", variant: "success" });
+      toast({ title: t("editCourse.orderUpdated"), variant: "success" });
     } catch {
       // Restore from snapshot, not stale closure
       setCourse((c) => ({ ...c, modules: previousModules }));
-      toast({ title: "Failed to reorder", variant: "error" });
+      toast({ title: t("editCourse.failedToReorder"), variant: "error" });
     }
   };
 
@@ -323,7 +326,7 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
       const mod = course.modules.find((m) => m.id === moduleId);
       if (!mod) return;
       const result = await apiClient.courses.createLesson(course.id, {
-        title: `Lesson ${mod.lessons.length + 1}`,
+        title: t("editCourse.defaultLessonTitle", { number: mod.lessons.length + 1 }),
         position: mod.lessons.length,
         moduleId,
       });
@@ -338,9 +341,9 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
       }));
       setEditingLesson(lesson.id);
       setLastSaved(new Date());
-      toast({ title: "Lesson added", variant: "success" });
+      toast({ title: t("editCourse.lessonAdded"), variant: "success" });
     } catch {
-      toast({ title: "Failed to add lesson", variant: "error" });
+      toast({ title: t("editCourse.failedToAddLesson"), variant: "error" });
     }
   };
 
@@ -356,14 +359,14 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
         })),
       }));
       setLastSaved(new Date());
-      toast({ title: "Lesson updated", variant: "success" });
+      toast({ title: t("editCourse.lessonUpdated"), variant: "success" });
     } catch {
-      toast({ title: "Failed to update lesson", variant: "error" });
+      toast({ title: t("editCourse.failedToUpdateLesson"), variant: "error" });
     }
   };
 
   const deleteLesson = async (lessonId: string, moduleId: string) => {
-    if (!window.confirm("Delete this lesson?")) return;
+    if (!window.confirm(t("editCourse.deleteLessonConfirm"))) return;
     try {
       await apiClient.lessons.delete(lessonId);
       setCourse((c) => ({
@@ -372,9 +375,9 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
           m.id === moduleId ? { ...m, lessons: m.lessons.filter((l) => l.id !== lessonId) } : m
         ),
       }));
-      toast({ title: "Lesson deleted", variant: "success" });
+      toast({ title: t("editCourse.lessonDeleted"), variant: "success" });
     } catch {
-      toast({ title: "Failed to delete lesson", variant: "error" });
+      toast({ title: t("editCourse.failedToDeleteLesson"), variant: "error" });
     }
   };
 
@@ -396,14 +399,14 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
     }));
     try {
       await apiClient.modules.reorderLessons(moduleId, reordered.map((l) => l.id));
-      toast({ title: "Order updated", variant: "success" });
+      toast({ title: t("editCourse.orderUpdated"), variant: "success" });
     } catch {
       // Restore from snapshot, not stale closure
       setCourse((c) => ({
         ...c,
         modules: c.modules.map((m) => (m.id === moduleId ? { ...m, lessons: previousLessons } : m)),
       }));
-      toast({ title: "Failed to reorder", variant: "error" });
+      toast({ title: t("editCourse.failedToReorder"), variant: "error" });
     }
   };
 
@@ -411,14 +414,14 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
   const publishCourse = async () => {
     // Validate before publishing
     const issues: string[] = [];
-    if (!course.title) issues.push("Add a course title");
-    if (!course.coverImage) issues.push("Add a cover image");
-    if (course.modules.length === 0) issues.push("Add at least 1 module");
-    if (totalLessons < 3) issues.push(`Add at least 3 lessons (currently ${totalLessons})`);
-    if (totalLessons > 0 && lessonsWithVideo < totalLessons) issues.push(`${totalLessons - lessonsWithVideo} lesson(s) still need a video`);
+    if (!course.title) issues.push(t("editCourse.addCourseTitle"));
+    if (!course.coverImage) issues.push(t("editCourse.addCoverImage"));
+    if (course.modules.length === 0) issues.push(t("editCourse.addAtLeast1Module"));
+    if (totalLessons < 3) issues.push(t("editCourse.addAtLeast3Lessons", { count: totalLessons }));
+    if (totalLessons > 0 && lessonsWithVideo < totalLessons) issues.push(t("editCourse.lessonsNeedVideo", { count: totalLessons - lessonsWithVideo }));
 
     if (issues.length > 0) {
-      toast({ title: "Cannot publish yet", description: issues.join(". "), variant: "warning" });
+      toast({ title: t("editCourse.cannotPublishYet"), description: issues.join(". "), variant: "warning" });
       return;
     }
 
@@ -426,23 +429,23 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
     try {
       await apiClient.courses.publish(course.id);
       setCourse((c) => ({ ...c, status: "PUBLISHED" }));
-      toast({ title: "Course published!", variant: "success" });
+      toast({ title: t("editCourse.coursePublished"), variant: "success" });
     } catch {
-      toast({ title: "Failed to publish course", variant: "error" });
+      toast({ title: t("editCourse.failedToPublish"), variant: "error" });
     } finally {
       setIsLoading(false);
     }
   };
 
   const unpublishCourse = async () => {
-    if (!window.confirm("Unpublish this course? It will no longer be visible to learners.")) return;
+    if (!window.confirm(t("editCourse.unpublishConfirm"))) return;
     setIsLoading(true);
     try {
       await apiClient.courses.unpublish(course.id);
       setCourse((c) => ({ ...c, status: "DRAFT" }));
-      toast({ title: "Course unpublished", description: "It is now in draft mode.", variant: "success" });
+      toast({ title: t("editCourse.courseUnpublished"), description: t("editCourse.nowInDraftMode"), variant: "success" });
     } catch {
-      toast({ title: "Failed to unpublish", variant: "error" });
+      toast({ title: t("editCourse.failedToUnpublish"), variant: "error" });
     } finally {
       setIsLoading(false);
     }
@@ -467,27 +470,27 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
             <ArrowLeft className="w-4 h-4 text-text-1" />
           </Link>
           <div>
-            <h1 className="text-[20px] font-black text-text-1 tracking-tight">Edit course</h1>
+            <h1 className="text-[20px] font-black text-text-1 tracking-tight">{t("editCourse.pageTitle")}</h1>
             <div className="mt-1.5 flex items-center gap-2.5">
               <span className="h-[26px] px-2.5 rounded-full inline-flex items-center text-[11px] font-black tracking-[0.2px] bg-primary/10 text-primary-600 border border-primary/14">
-                {course.status === "PUBLISHED" ? "Published" : "Draft"}
+                {course.status === "PUBLISHED" ? t("courses.published") : t("courses.draft")}
               </span>
-              {savingField && <span className="text-[12px] font-extrabold text-primary">Saving...</span>}
+              {savingField && <span className="text-[12px] font-extrabold text-primary">{t("common.saving")}</span>}
               {!savingField && lastSavedText && <span className="text-[12px] font-extrabold text-text-3">{lastSavedText}</span>}
             </div>
           </div>
         </div>
         <div className="flex items-center gap-2.5">
           <button onClick={() => window.open(`/manage-courses/${course.id}/preview`, "_blank")} className="h-10 px-3.5 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-text-1 font-black text-[13px] inline-flex items-center gap-2 shadow-[0_14px_28px_rgba(21,25,35,0.06)] dark:shadow-[0_14px_28px_rgba(0,0,0,0.25)] whitespace-nowrap">
-            Preview
+            {t("editCourse.preview")}
           </button>
           {course.status === "PUBLISHED" ? (
             <button onClick={unpublishCourse} disabled={isLoading} className="h-10 px-3.5 rounded-[16px] border border-red-200 dark:border-red-800 bg-white dark:bg-card text-red-600 dark:text-red-400 font-black text-[13px] inline-flex items-center gap-2 whitespace-nowrap disabled:opacity-50 hover:bg-red-50 dark:hover:bg-red-950 transition-colors">
-              {isLoading ? "Unpublishing..." : "Unpublish"}
+              {isLoading ? t("editCourse.unpublishing") : t("editCourse.unpublish")}
             </button>
           ) : (
             <button onClick={publishCourse} disabled={isLoading} className={`h-10 px-3.5 rounded-[16px] border font-black text-[13px] inline-flex items-center gap-2 whitespace-nowrap disabled:opacity-50 ${isReadyToPublish ? "border-primary/55 bg-primary text-white shadow-[0_16px_34px_rgba(47,111,237,0.22)]" : "border-border/95 bg-white/95 dark:bg-card/95 text-text-2"}`}>
-              {isLoading ? "Publishing..." : "Publish"}
+              {isLoading ? t("editCourse.publishing") : t("editCourse.publish")}
             </button>
           )}
         </div>
@@ -497,20 +500,20 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
       <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-3 flex-1 min-h-0 mt-3">
         {/* Left Panel - Course Details & Curriculum */}
         <div className="rounded-[22px] bg-white/92 dark:bg-card/92 border border-border/95 shadow-[0_14px_28px_rgba(21,25,35,0.06)] dark:shadow-[0_14px_28px_rgba(0,0,0,0.25)] p-3.5 min-w-0 flex flex-col gap-3 overflow-auto">
-          <h2 className="text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">Course details</h2>
+          <h2 className="text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">{t("editCourse.courseDetails")}</h2>
 
           {/* Title */}
-          <EditableField label="Title" hint="Short, searchable, benefit-focused." value={course.title} field="title" editingField={editingField} setEditingField={setEditingField} onSave={(v) => updateCourseField("title", v)} />
+          <EditableField label={t("editCourse.titleLabel")} hint={t("editCourse.titleHint")} value={course.title} field="title" editingField={editingField} setEditingField={setEditingField} onSave={(v) => updateCourseField("title", v)} />
 
           {/* Subtitle */}
-          <EditableField label="Subtitle" hint="A longer tagline shown below the title." value={course.subtitle || ""} field="subtitle" editingField={editingField} setEditingField={setEditingField} onSave={(v) => updateCourseField("subtitle", v)} placeholder="Add a subtitle..." />
+          <EditableField label={t("courses.subtitleLabel")} hint={t("editCourse.subtitleHint")} value={course.subtitle || ""} field="subtitle" editingField={editingField} setEditingField={setEditingField} onSave={(v) => updateCourseField("subtitle", v)} placeholder={t("editCourse.addSubtitlePlaceholder")} />
 
           {/* Cover Image */}
           <div className="rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
             <div className="flex items-center justify-between">
-              <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">Cover Image</div>
+              <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">{t("editCourse.coverImage")}</div>
               {course.coverImage && !uploadingCover && (
-                <button onClick={() => { updateCourseField("coverImage", ""); }} className="text-[11px] font-black text-red-500 hover:underline">Remove</button>
+                <button onClick={() => { updateCourseField("coverImage", ""); }} className="text-[11px] font-black text-red-500 hover:underline">{t("editCourse.remove")}</button>
               )}
             </div>
             {/* Hidden file input */}
@@ -519,7 +522,7 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
             {uploadingCover ? (
               <div className="mt-2 flex flex-col items-center justify-center py-8 border-2 border-dashed border-primary/40 rounded-[16px] bg-primary/5">
                 <Loader2 className="w-8 h-8 text-primary animate-spin mb-3" />
-                <div className="text-[13px] font-black text-text-1">Uploading...</div>
+                <div className="text-[13px] font-black text-text-1">{t("editCourse.uploading")}</div>
                 <div className="mt-2 w-40 h-1.5 bg-border/50 rounded-full overflow-hidden">
                   <div className="h-full bg-primary rounded-full transition-all duration-300" style={{ width: `${coverUploadProgress}%` }} />
                 </div>
@@ -532,10 +535,10 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
                 onDragLeave={() => setIsDraggingCover(false)}
                 onDrop={handleCoverDrop}
               >
-                <img src={course.coverImage} alt="Cover" className="w-full h-36 rounded-xl object-cover border border-border/95" />
+                <img src={course.coverImage} alt={t("editCourse.coverImage")} className="w-full h-36 rounded-xl object-cover border border-border/95" />
                 <div className="absolute inset-0 bg-black/40 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
                   <div className="flex items-center gap-2 text-white font-black text-[13px] bg-black/30 px-3 py-1.5 rounded-lg">
-                    <Upload className="w-4 h-4" /> Upload new image
+                    <Upload className="w-4 h-4" /> {t("editCourse.uploadNewImage")}
                   </div>
                 </div>
               </div>
@@ -550,8 +553,8 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
                 <div className="w-12 h-12 rounded-[14px] bg-primary/10 grid place-items-center text-primary mb-3">
                   <ImageIcon className="w-6 h-6" />
                 </div>
-                <div className="text-[13px] font-black text-text-1">Click to upload or drag & drop</div>
-                <div className="text-[12px] font-extrabold text-text-3 mt-1">JPG, PNG, WebP &bull; Max 10MB &bull; 16:9 recommended</div>
+                <div className="text-[13px] font-black text-text-1">{t("editCourse.clickToUploadOrDrag")}</div>
+                <div className="text-[12px] font-extrabold text-text-3 mt-1">{t("editCourse.imageRequirements")}</div>
               </div>
             )}
             {/* Also allow URL input */}
@@ -559,14 +562,14 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
               <div className="mt-2">
                 {editingField === "coverImage" ? (
                   <div className="space-y-2">
-                    <Input defaultValue="" autoFocus placeholder="Or paste an image URL (https://...)"
+                    <Input defaultValue="" autoFocus placeholder={t("editCourse.pasteImageUrlPlaceholder")}
                       onBlur={(e) => { if (e.target.value.trim()) updateCourseField("coverImage", e.target.value.trim()); setEditingField(null); }}
                       onKeyDown={(e) => { if (e.key === "Enter" && e.currentTarget.value.trim()) { updateCourseField("coverImage", e.currentTarget.value.trim()); } else if (e.key === "Escape") setEditingField(null); }}
                     />
                   </div>
                 ) : (
                   <button onClick={() => setEditingField("coverImage")} className="text-[12px] font-black text-primary hover:underline">
-                    Or paste an image URL
+                    {t("editCourse.orPasteImageUrl")}
                   </button>
                 )}
               </div>
@@ -576,7 +579,7 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
           {/* Price / Level / Visibility */}
           <div className="grid grid-cols-3 gap-2.5">
             <div className="rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
-              <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">Price</div>
+              <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">{t("courses.price")}</div>
               {editingField === "price" ? (
                 <Input type="number" min="0" step="0.01" defaultValue={course.price} autoFocus className="mt-2"
                   onBlur={(e) => { const v = parseFloat(e.target.value) || 0; if (v !== course.price) updateCourseField("price", v); else setEditingField(null); }}
@@ -584,53 +587,53 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
                 />
               ) : (
                 <div className="mt-2 h-10 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 px-3.5 flex items-center text-text-1 font-black text-[13px] cursor-pointer hover:border-primary/40 transition-colors" onClick={() => setEditingField("price")}>
-                  {course.price === 0 ? "Free" : `$${course.price}`}
+                  {course.price === 0 ? t("courses.free") : `$${course.price}`}
                   <Pencil className="w-3.5 h-3.5 ml-auto text-text-3" />
                 </div>
               )}
             </div>
             <div className="rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
-              <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">Level</div>
+              <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">{t("courses.level")}</div>
               {editingField === "level" ? (
                 <select defaultValue={course.level} autoFocus className="mt-2 w-full h-10 px-3 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-[13px] font-black text-text-1 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" onChange={(e) => updateCourseField("level", e.target.value)} onBlur={() => setEditingField(null)}>
-                  <option value="BEGINNER">Beginner</option>
-                  <option value="INTERMEDIATE">Intermediate</option>
-                  <option value="ADVANCED">Advanced</option>
-                  <option value="ALL_LEVELS">All Levels</option>
+                  <option value="BEGINNER">{t("courses.beginner")}</option>
+                  <option value="INTERMEDIATE">{t("courses.intermediate")}</option>
+                  <option value="ADVANCED">{t("courses.advanced")}</option>
+                  <option value="ALL_LEVELS">{t("courses.allLevels")}</option>
                 </select>
               ) : (
                 <div className="mt-2 h-10 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 px-3.5 flex items-center text-text-1 font-black text-[13px] cursor-pointer hover:border-primary/40 transition-colors" onClick={() => setEditingField("level")}>
-                  {course.level.replace("_", " ")}
+                  {{ BEGINNER: t("courses.beginner"), INTERMEDIATE: t("courses.intermediate"), ADVANCED: t("courses.advanced"), ALL_LEVELS: t("courses.allLevels") }[course.level] || course.level}
                   <Pencil className="w-3.5 h-3.5 ml-auto text-text-3" />
                 </div>
               )}
             </div>
             <div className="rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
-              <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">Visibility</div>
+              <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">{t("editCourse.visibility")}</div>
               <select value={course.status} onChange={(e) => updateCourseField("status", e.target.value)} className="mt-2 w-full h-10 px-3 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-[13px] font-black text-text-1 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary">
-                <option value="DRAFT">Draft</option>
-                <option value="PUBLISHED">Published</option>
-                <option value="ARCHIVED">Archived</option>
+                <option value="DRAFT">{t("courses.draft")}</option>
+                <option value="PUBLISHED">{t("courses.published")}</option>
+                <option value="ARCHIVED">{t("courses.archived")}</option>
               </select>
             </div>
           </div>
 
           {/* Category / Language */}
           <div className="grid grid-cols-2 gap-2.5">
-            <EditableField label="Category" value={course.category || ""} field="category" editingField={editingField} setEditingField={setEditingField} onSave={(v) => updateCourseField("category", v)} placeholder="Not set" />
-            <EditableField label="Language" value={course.language} field="language" editingField={editingField} setEditingField={setEditingField} onSave={(v) => updateCourseField("language", v)} />
+            <EditableField label={t("courses.category")} value={course.category || ""} field="category" editingField={editingField} setEditingField={setEditingField} onSave={(v) => updateCourseField("category", v)} placeholder={t("editCourse.notSet")} />
+            <EditableField label={t("editCourse.language")} value={course.language} field="language" editingField={editingField} setEditingField={setEditingField} onSave={(v) => updateCourseField("language", v)} />
           </div>
 
           {/* Description */}
           <div className="rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
-            <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">Description</div>
+            <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">{t("courses.description")}</div>
             {editingField === "description" ? (
               <textarea defaultValue={course.description || ""} autoFocus className="mt-2 w-full h-24 px-3.5 py-2.5 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-[13px] font-black text-text-1 resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 onBlur={(e) => { if (e.target.value !== (course.description || "")) updateCourseField("description", e.target.value); else setEditingField(null); }}
               />
             ) : (
               <div className="mt-2 text-[13px] font-black text-text-1 cursor-pointer hover:text-primary transition-colors min-h-[40px] flex items-start gap-2" onClick={() => setEditingField("description")}>
-                <span className="flex-1">{course.description || "No description yet. Click to add."}</span>
+                <span className="flex-1">{course.description || t("editCourse.noDescriptionYet")}</span>
                 <Pencil className="w-3.5 h-3.5 text-text-3 flex-shrink-0 mt-0.5" />
               </div>
             )}
@@ -638,27 +641,27 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
 
           {/* What you'll learn */}
           <div className="rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
-            <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">What you&apos;ll learn</div>
-            <div className="mt-1 text-[12px] font-extrabold text-text-3">One learning outcome per line. Shown on the course page.</div>
+            <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">{t("editCourse.whatYoullLearn")}</div>
+            <div className="mt-1 text-[12px] font-extrabold text-text-3">{t("editCourse.whatYoullLearnHint")}</div>
             {editingField === "whatYouWillLearn" ? (
-              <textarea defaultValue={course.whatYouWillLearn || ""} autoFocus className="mt-2 w-full h-28 px-3.5 py-2.5 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-[13px] font-black text-text-1 resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" placeholder={"Build full-stack apps with React\nDeploy to AWS Lambda\nManage MySQL databases"}
+              <textarea defaultValue={course.whatYouWillLearn || ""} autoFocus className="mt-2 w-full h-28 px-3.5 py-2.5 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-[13px] font-black text-text-1 resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" placeholder={t("editCourse.whatYoullLearnPlaceholder")}
                 onBlur={(e) => { if (e.target.value !== (course.whatYouWillLearn || "")) updateCourseField("whatYouWillLearn", e.target.value); else setEditingField(null); }}
               />
             ) : (
               <div className="mt-2 text-[13px] font-black text-text-1 cursor-pointer hover:text-primary transition-colors min-h-[40px] flex items-start gap-2" onClick={() => setEditingField("whatYouWillLearn")}>
-                <span className="flex-1 whitespace-pre-line">{course.whatYouWillLearn || "No learning outcomes yet. Click to add."}</span>
+                <span className="flex-1 whitespace-pre-line">{course.whatYouWillLearn || t("editCourse.noLearningOutcomesYet")}</span>
                 <Pencil className="w-3.5 h-3.5 text-text-3 flex-shrink-0 mt-0.5" />
               </div>
             )}
           </div>
 
           {/* Curriculum Section */}
-          <h2 className="mt-1.5 text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">Curriculum</h2>
+          <h2 className="mt-1.5 text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">{t("courses.curriculum")}</h2>
           <div className="rounded-[22px] bg-white/95 dark:bg-card/95 border border-border/95 p-3">
             <div className="flex items-center justify-between gap-3">
-              <div className="font-black text-text-1">Modules &amp; lessons</div>
+              <div className="font-black text-text-1">{t("editCourse.modulesAndLessons")}</div>
               <button onClick={() => setShowAddModule(true)} className="h-9 px-3 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-text-1 font-black text-[13px] inline-flex items-center gap-1.5 shadow-[0_14px_28px_rgba(21,25,35,0.06)] dark:shadow-[0_14px_28px_rgba(0,0,0,0.25)]">
-                <Plus className="w-4 h-4" /> Add module
+                <Plus className="w-4 h-4" /> {t("editCourse.addModule")}
               </button>
             </div>
 
@@ -681,10 +684,10 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
                       {expandedModules.has(mod.id) ? <ChevronUp className="w-4 h-4 text-text-3 flex-shrink-0" /> : <ChevronDown className="w-4 h-4 text-text-3 flex-shrink-0" />}
                     </button>
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      <button onClick={() => moveModule(mod.id, "up")} disabled={moduleIdx === 0} className="w-7 h-7 rounded-lg hover:bg-muted grid place-items-center disabled:opacity-30" title="Move up"><ArrowUp className="w-3.5 h-3.5 text-text-3" /></button>
-                      <button onClick={() => moveModule(mod.id, "down")} disabled={moduleIdx === course.modules.length - 1} className="w-7 h-7 rounded-lg hover:bg-muted grid place-items-center disabled:opacity-30" title="Move down"><ArrowDown className="w-3.5 h-3.5 text-text-3" /></button>
-                      <button onClick={() => setEditingModule(mod.id)} className="w-7 h-7 rounded-lg hover:bg-muted grid place-items-center" title="Edit title"><Pencil className="w-3.5 h-3.5 text-text-3" /></button>
-                      <button onClick={() => deleteModule(mod.id)} className="w-7 h-7 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 grid place-items-center" title="Delete module"><Trash2 className="w-3.5 h-3.5 text-red-400" /></button>
+                      <button onClick={() => moveModule(mod.id, "up")} disabled={moduleIdx === 0} className="w-7 h-7 rounded-lg hover:bg-muted grid place-items-center disabled:opacity-30" title={t("editCourse.moveUp")}><ArrowUp className="w-3.5 h-3.5 text-text-3" /></button>
+                      <button onClick={() => moveModule(mod.id, "down")} disabled={moduleIdx === course.modules.length - 1} className="w-7 h-7 rounded-lg hover:bg-muted grid place-items-center disabled:opacity-30" title={t("editCourse.moveDown")}><ArrowDown className="w-3.5 h-3.5 text-text-3" /></button>
+                      <button onClick={() => setEditingModule(mod.id)} className="w-7 h-7 rounded-lg hover:bg-muted grid place-items-center" title={t("editCourse.editTitle")}><Pencil className="w-3.5 h-3.5 text-text-3" /></button>
+                      <button onClick={() => deleteModule(mod.id)} className="w-7 h-7 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 grid place-items-center" title={t("editCourse.deleteModule")}><Trash2 className="w-3.5 h-3.5 text-red-400" /></button>
                     </div>
                   </div>
 
@@ -709,23 +712,23 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
                                 )}
                                 <div className="mt-0.5 flex items-center gap-2 text-[12px] font-extrabold text-text-3">
                                   {(lesson.videoUrl || lesson.hlsUrl || lesson.videoStatus === 'ready') ? (
-                                    <span className="text-green-600">{lesson.videoStatus === 'encoding' ? 'Encoding…' : 'Video ready'}</span>
+                                    <span className="text-green-600">{lesson.videoStatus === 'encoding' ? t("editCourse.encoding") : t("editCourse.videoReady")}</span>
                                   ) : lesson.videoStatus === 'encoding' ? (
-                                    <span className="text-blue-500">Encoding…</span>
+                                    <span className="text-blue-500">{t("editCourse.encoding")}</span>
                                   ) : (
-                                    <span className="text-amber-600">No video</span>
+                                    <span className="text-amber-600">{t("editCourse.noVideo")}</span>
                                   )}
-                                  {lesson.durationSeconds > 0 && <span>&bull; {Math.round(lesson.durationSeconds / 60)} min</span>}
-                                  {lesson.isFreePreview && <span className="text-green-600">&bull; Free preview</span>}
+                                  {lesson.durationSeconds > 0 && <span>&bull; {Math.round(lesson.durationSeconds / 60)} {t("editCourse.min")}</span>}
+                                  {lesson.isFreePreview && <span className="text-green-600">&bull; {t("editCourse.freePreview")}</span>}
                                 </div>
                               </div>
                             </div>
                             <div className="flex items-center gap-1 flex-shrink-0">
-                              {!lesson.videoUrl && !lesson.hlsUrl && lesson.videoStatus !== 'ready' && lesson.videoStatus !== 'encoding' && !lesson.isFreePreview && <span className="h-[22px] px-2.5 rounded-full inline-flex items-center text-[11px] font-black tracking-[0.2px] bg-warning/14 text-amber-700 border border-warning/22">NEEDS VIDEO</span>}
-                              <button onClick={() => moveLesson(mod.id, lesson.id, "up")} disabled={lessonIdx === 0} className="w-6 h-6 rounded-md hover:bg-muted grid place-items-center disabled:opacity-30" title="Move up"><ArrowUp className="w-3 h-3 text-text-3" /></button>
-                              <button onClick={() => moveLesson(mod.id, lesson.id, "down")} disabled={lessonIdx === mod.lessons.length - 1} className="w-6 h-6 rounded-md hover:bg-muted grid place-items-center disabled:opacity-30" title="Move down"><ArrowDown className="w-3 h-3 text-text-3" /></button>
-                              <button onClick={() => setEditingLesson(lesson.id)} className="w-6 h-6 rounded-md hover:bg-muted grid place-items-center" title="Rename"><Pencil className="w-3 h-3 text-text-3" /></button>
-                              <button onClick={() => deleteLesson(lesson.id, mod.id)} className="w-6 h-6 rounded-md hover:bg-red-50 dark:hover:bg-red-950 grid place-items-center" title="Delete lesson"><Trash2 className="w-3 h-3 text-red-400" /></button>
+                              {!lesson.videoUrl && !lesson.hlsUrl && lesson.videoStatus !== 'ready' && lesson.videoStatus !== 'encoding' && !lesson.isFreePreview && <span className="h-[22px] px-2.5 rounded-full inline-flex items-center text-[11px] font-black tracking-[0.2px] bg-warning/14 text-amber-700 border border-warning/22">{t("editCourse.needsVideo")}</span>}
+                              <button onClick={() => moveLesson(mod.id, lesson.id, "up")} disabled={lessonIdx === 0} className="w-6 h-6 rounded-md hover:bg-muted grid place-items-center disabled:opacity-30" title={t("editCourse.moveUp")}><ArrowUp className="w-3 h-3 text-text-3" /></button>
+                              <button onClick={() => moveLesson(mod.id, lesson.id, "down")} disabled={lessonIdx === mod.lessons.length - 1} className="w-6 h-6 rounded-md hover:bg-muted grid place-items-center disabled:opacity-30" title={t("editCourse.moveDown")}><ArrowDown className="w-3 h-3 text-text-3" /></button>
+                              <button onClick={() => setEditingLesson(lesson.id)} className="w-6 h-6 rounded-md hover:bg-muted grid place-items-center" title={t("editCourse.rename")}><Pencil className="w-3 h-3 text-text-3" /></button>
+                              <button onClick={() => deleteLesson(lesson.id, mod.id)} className="w-6 h-6 rounded-md hover:bg-red-50 dark:hover:bg-red-950 grid place-items-center" title={t("editCourse.deleteLesson")}><Trash2 className="w-3 h-3 text-red-400" /></button>
                             </div>
                           </div>
                           {/* Edit lesson button - prominent link to lesson editor for video, resources etc. */}
@@ -734,12 +737,12 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
                             className="mt-2 w-full h-8 rounded-[12px] border border-primary/20 bg-primary/5 text-primary font-black text-[12px] inline-flex items-center justify-center gap-1.5 hover:bg-primary/10 transition-colors"
                           >
                             <Pencil className="w-3 h-3" />
-                            {(lesson.videoUrl || lesson.hlsUrl || lesson.videoStatus === 'ready') ? "Edit video, resources & settings" : "Add video, resources & settings"}
+                            {(lesson.videoUrl || lesson.hlsUrl || lesson.videoStatus === 'ready') ? t("editCourse.editVideoResources") : t("editCourse.addVideoResources")}
                           </Link>
                         </div>
                       ))}
                       <button onClick={() => addLesson(mod.id)} className="w-full h-9 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-text-2 font-black text-[13px] inline-flex items-center justify-center gap-1.5">
-                        <Plus className="w-4 h-4" /> Add lesson
+                        <Plus className="w-4 h-4" /> {t("editCourse.addLesson")}
                       </button>
                     </div>
                   )}
@@ -750,55 +753,55 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
             {/* Add Module Input */}
             {showAddModule && (
               <div className="flex items-center gap-2 mt-2.5">
-                <Input placeholder="New module title..." value={newModuleTitle} autoFocus onChange={(e) => setNewModuleTitle(e.target.value)}
+                <Input placeholder={t("editCourse.newModuleTitlePlaceholder")} value={newModuleTitle} autoFocus onChange={(e) => setNewModuleTitle(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") addModule(); if (e.key === "Escape") { setNewModuleTitle(""); setShowAddModule(false); } }}
                   className="flex-1"
                 />
-                <button onClick={addModule} disabled={!newModuleTitle.trim()} className="h-10 px-3 rounded-[16px] border border-primary/55 bg-primary text-white font-black text-[13px] disabled:opacity-50">Add</button>
-                <button onClick={() => { setNewModuleTitle(""); setShowAddModule(false); }} className="h-10 px-3 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-text-2 font-black text-[13px]">Cancel</button>
+                <button onClick={addModule} disabled={!newModuleTitle.trim()} className="h-10 px-3 rounded-[16px] border border-primary/55 bg-primary text-white font-black text-[13px] disabled:opacity-50">{t("editCourse.add")}</button>
+                <button onClick={() => { setNewModuleTitle(""); setShowAddModule(false); }} className="h-10 px-3 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-text-2 font-black text-[13px]">{t("common.cancel")}</button>
               </div>
             )}
 
             {course.modules.length === 0 && !showAddModule && (
-              <div className="text-center py-6 text-text-3 text-[13px] font-black">No modules yet. Click &quot;Add module&quot; to get started.</div>
+              <div className="text-center py-6 text-text-3 text-[13px] font-black">{t("editCourse.noModulesYet")}</div>
             )}
           </div>
         </div>
 
         {/* Right Panel - Checklist & Actions */}
         <div className="rounded-[22px] bg-white/92 dark:bg-card/92 border border-border/95 shadow-[0_14px_28px_rgba(21,25,35,0.06)] dark:shadow-[0_14px_28px_rgba(0,0,0,0.25)] p-3.5 min-w-0 flex flex-col gap-3">
-          <h2 className="text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">Publish checklist</h2>
+          <h2 className="text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">{t("editCourse.publishChecklist")}</h2>
           <div className="rounded-[22px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
-            <div className="font-black text-text-1">Ready to publish?</div>
-            <div className="mt-1.5 text-[12px] font-extrabold text-text-3">Complete these items to enable publishing.</div>
-            <ChecklistItem label="Title & cover image" hint={course.title && course.coverImage ? "Looks good" : !course.title ? "Add a title" : "Add a cover image"} checked={!!course.title && !!course.coverImage} />
-            <ChecklistItem label="At least 1 module" hint={course.modules.length > 0 ? `${course.modules.length} modules added` : "Add a module"} checked={course.modules.length > 0} />
-            <ChecklistItem label="At least 3 lessons" hint={totalLessons >= 3 ? `${totalLessons} lessons added` : `Add ${3 - totalLessons} more lesson${3 - totalLessons !== 1 ? "s" : ""}`} checked={totalLessons >= 3} />
-            <ChecklistItem label="Lessons have videos" hint={totalLessons === 0 ? "Add lessons first" : lessonsWithVideo === totalLessons ? `All ${totalLessons} lessons ready` : `${lessonsWithVideo}/${totalLessons} lessons have video`} checked={totalLessons > 0 && lessonsWithVideo === totalLessons} />
-            <ChecklistItem label="Pricing configured" hint={course.price > 0 ? `$${course.price}` : "Set price or mark free"} checked={course.price >= 0} />
+            <div className="font-black text-text-1">{t("editCourse.readyToPublish")}</div>
+            <div className="mt-1.5 text-[12px] font-extrabold text-text-3">{t("editCourse.completeChecklistHint")}</div>
+            <ChecklistItem label={t("editCourse.checkTitleAndCover")} hint={course.title && course.coverImage ? t("editCourse.looksGood") : !course.title ? t("editCourse.addATitle") : t("editCourse.addACoverImage")} checked={!!course.title && !!course.coverImage} />
+            <ChecklistItem label={t("editCourse.checkAtLeast1Module")} hint={course.modules.length > 0 ? t("editCourse.modulesAdded", { count: course.modules.length }) : t("editCourse.addAModule")} checked={course.modules.length > 0} />
+            <ChecklistItem label={t("editCourse.checkAtLeast3Lessons")} hint={totalLessons >= 3 ? t("editCourse.lessonsAdded", { count: totalLessons }) : t("editCourse.addMoreLessons", { count: 3 - totalLessons })} checked={totalLessons >= 3} />
+            <ChecklistItem label={t("editCourse.checkLessonsHaveVideos")} hint={totalLessons === 0 ? t("editCourse.addLessonsFirst") : lessonsWithVideo === totalLessons ? t("editCourse.allLessonsReady", { count: totalLessons }) : t("editCourse.lessonsHaveVideo", { done: lessonsWithVideo, total: totalLessons })} checked={totalLessons > 0 && lessonsWithVideo === totalLessons} />
+            <ChecklistItem label={t("editCourse.checkPricingConfigured")} hint={course.price > 0 ? `$${course.price}` : t("editCourse.setPriceOrFree")} checked={course.price >= 0} />
           </div>
 
-          <h2 className="mt-1.5 text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">How it works</h2>
+          <h2 className="mt-1.5 text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">{t("editCourse.howItWorks")}</h2>
           <div className="rounded-[22px] border border-border/95 bg-white/95 dark:bg-card/95 p-3 space-y-3">
             <div className="flex items-start gap-2.5">
               <div className="w-6 h-6 rounded-full bg-primary/10 text-primary font-black text-[11px] grid place-items-center flex-shrink-0 mt-0.5">1</div>
               <div>
-                <div className="font-black text-text-1 text-[13px]">Add modules & lessons</div>
-                <div className="text-[12px] font-extrabold text-text-3 mt-0.5">Create the course structure in the curriculum below.</div>
+                <div className="font-black text-text-1 text-[13px]">{t("editCourse.step1Title")}</div>
+                <div className="text-[12px] font-extrabold text-text-3 mt-0.5">{t("editCourse.step1Desc")}</div>
               </div>
             </div>
             <div className="flex items-start gap-2.5">
               <div className="w-6 h-6 rounded-full bg-primary/10 text-primary font-black text-[11px] grid place-items-center flex-shrink-0 mt-0.5">2</div>
               <div>
-                <div className="font-black text-text-1 text-[13px]">Edit each lesson</div>
-                <div className="text-[12px] font-extrabold text-text-3 mt-0.5">Click the blue button on each lesson to set its video URL, add downloadable resources (PDFs, links), and configure settings.</div>
+                <div className="font-black text-text-1 text-[13px]">{t("editCourse.step2Title")}</div>
+                <div className="text-[12px] font-extrabold text-text-3 mt-0.5">{t("editCourse.step2Desc")}</div>
               </div>
             </div>
             <div className="flex items-start gap-2.5">
               <div className="w-6 h-6 rounded-full bg-primary/10 text-primary font-black text-[11px] grid place-items-center flex-shrink-0 mt-0.5">3</div>
               <div>
-                <div className="font-black text-text-1 text-[13px]">Publish</div>
-                <div className="text-[12px] font-extrabold text-text-3 mt-0.5">Once all lessons have videos, publish the course to make it visible.</div>
+                <div className="font-black text-text-1 text-[13px]">{t("editCourse.step3Title")}</div>
+                <div className="text-[12px] font-extrabold text-text-3 mt-0.5">{t("editCourse.step3Desc")}</div>
               </div>
             </div>
           </div>
@@ -806,25 +809,25 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
           <div className="grid gap-2.5">
             {course.status === "PUBLISHED" ? (
               <button onClick={unpublishCourse} disabled={isLoading} className="h-10 rounded-[16px] border border-red-200 dark:border-red-800 bg-white dark:bg-card text-red-600 dark:text-red-400 font-black text-[13px] inline-flex items-center justify-center disabled:opacity-50 hover:bg-red-50 dark:hover:bg-red-950 transition-colors">
-                {isLoading ? "Unpublishing..." : "Unpublish course"}
+                {isLoading ? t("editCourse.unpublishing") : t("editCourse.unpublishCourse")}
               </button>
             ) : (
               <button onClick={publishCourse} disabled={isLoading} className={`h-10 rounded-[16px] border font-black text-[13px] inline-flex items-center justify-center disabled:opacity-50 ${isReadyToPublish ? "border-primary/55 bg-primary text-white shadow-[0_16px_34px_rgba(47,111,237,0.22)]" : "border-border/95 bg-white/95 dark:bg-card/95 text-text-2"}`}>
-                {isReadyToPublish ? "Publish now" : "Complete checklist to publish"}
+                {isReadyToPublish ? t("editCourse.publishNow") : t("editCourse.completeChecklistToPublish")}
               </button>
             )}
           </div>
 
-          <h2 className="mt-auto text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">Status</h2>
+          <h2 className="mt-auto text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">{t("editCourse.status")}</h2>
           <div className="rounded-[22px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
             <div className="flex items-center justify-between">
-              <div className="font-black text-text-1">{course.status === "PUBLISHED" ? "Published" : "Draft"}</div>
+              <div className="font-black text-text-1">{course.status === "PUBLISHED" ? t("courses.published") : t("courses.draft")}</div>
               <span className="h-[22px] px-2.5 rounded-full inline-flex items-center text-[11px] font-black tracking-[0.2px] bg-primary/10 text-primary-600 border border-primary/14">
-                {course.status === "PUBLISHED" ? "Public" : "Not public"}
+                {course.status === "PUBLISHED" ? t("editCourse.public") : t("editCourse.notPublic")}
               </span>
             </div>
             <div className="mt-2 text-[12px] font-extrabold text-text-3 leading-relaxed">
-              {course.status === "PUBLISHED" ? "Course is live and visible to learners." : "Preview is available. Publishing will make the course visible to learners."}
+              {course.status === "PUBLISHED" ? t("editCourse.courseIsLive") : t("editCourse.courseIsPreview")}
             </div>
           </div>
         </div>
@@ -845,6 +848,7 @@ function EditableField({ label, hint, value, field, editingField, setEditingFiel
   onSave: (v: string) => void;
   placeholder?: string;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
       <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">{label}</div>
@@ -855,7 +859,7 @@ function EditableField({ label, hint, value, field, editingField, setEditingFiel
         />
       ) : (
         <div className="mt-2 h-10 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 px-3.5 flex items-center text-text-1 font-black text-[13px] cursor-pointer hover:border-primary/40 transition-colors" onClick={() => setEditingField(field)}>
-          {value || placeholder || "Not set"}
+          {value || placeholder || t("editCourse.notSet")}
           <Pencil className="w-3.5 h-3.5 ml-auto text-text-3" />
         </div>
       )}

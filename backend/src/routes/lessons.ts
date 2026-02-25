@@ -3,9 +3,53 @@ import { query, queryOne, execute, genId, now } from '../db.js';
 import { authenticate, optionalAuth, AuthRequest } from '../middleware/auth.js';
 import { sendCourseCompleted } from '../email.js';
 import { createNotification } from './notifications.js';
-import { logActivity } from '../activity.js';
+import { logActivity, fireWebhook } from '../activity.js';
 
 const router = Router();
+
+// ── Video event types dispatched to webhook ──
+const VALID_VIDEO_EVENTS = ['play', 'pause', 'ended', 'timeupdate', 'seeked', 'ratechange', 'visibilitychange'] as const;
+
+// POST /lessons/video-event — Dispatch video player events to webhook
+router.post('/video-event', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const { event, lessonId, courseId, currentTime, duration, playbackRate, visibilityState } = req.body;
+
+    if (!event || !VALID_VIDEO_EVENTS.includes(event)) {
+      return res.status(400).json({ error: `Invalid event. Must be one of: ${VALID_VIDEO_EVENTS.join(', ')}` });
+    }
+    if (!lessonId) {
+      return res.status(400).json({ error: 'lessonId is required' });
+    }
+
+    const user = await queryOne<any>('SELECT name, email FROM users WHERE id = ?', [req.user!.id]);
+
+    const payload: Record<string, any> = {
+      event,
+      userId: req.user!.id,
+      userName: user?.name || user?.email || req.user!.email,
+      lessonId,
+      courseId: courseId || null,
+      currentTime: currentTime ?? 0,
+      duration: duration ?? 0,
+      timestamp: new Date().toISOString(),
+    };
+
+    if (event === 'ratechange' && playbackRate !== undefined) {
+      payload.playbackRate = playbackRate;
+    }
+    if (event === 'visibilitychange' && visibilityState !== undefined) {
+      payload.visibilityState = visibilityState;
+    }
+
+    fireWebhook(payload).catch(() => {});
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Video event error:', error);
+    res.status(500).json({ error: 'Failed to process video event' });
+  }
+});
 
 // GET /lessons/:id
 router.get('/:id', optionalAuth, async (req: AuthRequest, res: Response) => {
@@ -252,7 +296,7 @@ router.post('/:id/progress', authenticate, async (req: AuthRequest, res: Respons
         [progressId, enrollment.id, id, progressPercent, validTimestamp, ts, completedAt, watchedSecondsIncrement, viewInc > 0 ? 1 : 0, ts, ts]
       );
       // First time this lesson is viewed
-      logActivity({ event: 'lesson.started', userId: req.user!.id, meta: { lessonId: id, courseId: mod.courseId } });
+      logActivity({ event: 'lesson.started', userId: req.user!.id, userName: req.user!.email, meta: { lessonId: id, courseId: mod.courseId } });
     }
 
     const progress = await queryOne<any>(
@@ -287,7 +331,7 @@ router.post('/:id/progress', authenticate, async (req: AuthRequest, res: Respons
     // ── Course completion detection ──
     // Only check if THIS lesson was just marked complete (completedAt was set in this request)
     if (completedAt) {
-      logActivity({ event: 'lesson.completed', userId: req.user!.id, meta: { lessonId: id, courseId: mod.courseId } });
+      logActivity({ event: 'lesson.completed', userId: req.user!.id, userName: req.user!.email, meta: { lessonId: id, courseId: mod.courseId } });
       try {
         // Count total lessons in this course vs completed lessons for this enrollment
         const totalRow = await queryOne<any>(

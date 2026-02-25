@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { favourites as favouritesApi, video as videoApi, courses } from "@/lib/api-client";
+import { favourites as favouritesApi, video as videoApi, courses, lessons as lessonsApi } from "@/lib/api-client";
 import type { VideoSignedUrlResponse } from "@/lib/api-client";
 import { useVideoProgress } from "@/hooks/use-video-progress";
 import { useAuth } from "@/lib/auth-context";
@@ -470,6 +470,16 @@ export function CoursePlayer({
     setVideoEnded(true);
   }, []);
 
+  const handleVideoEvent = useCallback((event: string, data?: Record<string, any>) => {
+    if (!currentLessonId) return;
+    lessonsApi.sendVideoEvent({
+      event: event as any,
+      lessonId: currentLessonId,
+      courseId: course.id,
+      ...data,
+    }).catch(() => {});
+  }, [currentLessonId, course.id]);
+
   const nextLesson = currentLessonIndex < allLessons.length - 1
     ? allLessons[currentLessonIndex + 1]
     : null;
@@ -640,6 +650,7 @@ export function CoursePlayer({
             onSeeking={handleSeeking}
             onSeeked={handleSeeked}
             onEnded={handleVideoEnded}
+            onVideoEvent={handleVideoEvent}
           />
           {/* Next Lesson Overlay — shown when video reaches the end */}
           {videoEnded && (

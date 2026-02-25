@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { users as usersApi } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
@@ -30,22 +31,23 @@ function fmtDate(d: string | null | undefined) {
 }
 
 /** Event display config */
-const EVENT_CONFIG: Record<string, { icon: React.ElementType; label: string; color: string }> = {
-  "user.registered":      { icon: UserPlus,     label: "Registered",           color: "text-primary" },
-  "user.login":           { icon: LogIn,        label: "Logged in",            color: "text-text-3" },
-  "user.blocked":         { icon: Ban,          label: "Blocked",              color: "text-danger" },
-  "user.unblocked":       { icon: Unlock,       label: "Unblocked",            color: "text-success" },
-  "user.created_by_admin":{ icon: UserPlus,     label: "Created by admin",     color: "text-warning" },
-  "enrollment.created":   { icon: BookOpen,     label: "Enrolled in course",   color: "text-primary" },
-  "lesson.started":       { icon: Play,         label: "Started lesson",       color: "text-text-3" },
-  "lesson.completed":     { icon: CheckCircle,  label: "Completed lesson",     color: "text-success" },
-  "course.completed":     { icon: GraduationCap,label: "Completed course",     color: "text-success" },
-  "review.created":       { icon: Star,         label: "Left a review",        color: "text-warning" },
+const EVENT_CONFIG: Record<string, { icon: React.ElementType; labelKey: string; color: string }> = {
+  "user.registered":      { icon: UserPlus,     labelKey: "userDetail.eventRegistered",       color: "text-primary" },
+  "user.login":           { icon: LogIn,        labelKey: "userDetail.eventLoggedIn",         color: "text-text-3" },
+  "user.blocked":         { icon: Ban,          labelKey: "userDetail.eventBlocked",          color: "text-danger" },
+  "user.unblocked":       { icon: Unlock,       labelKey: "userDetail.eventUnblocked",        color: "text-success" },
+  "user.created_by_admin":{ icon: UserPlus,     labelKey: "userDetail.eventCreatedByAdmin",   color: "text-warning" },
+  "enrollment.created":   { icon: BookOpen,     labelKey: "userDetail.eventEnrolledInCourse", color: "text-primary" },
+  "lesson.started":       { icon: Play,         labelKey: "userDetail.eventStartedLesson",    color: "text-text-3" },
+  "lesson.completed":     { icon: CheckCircle,  labelKey: "userDetail.eventCompletedLesson",  color: "text-success" },
+  "course.completed":     { icon: GraduationCap,labelKey: "userDetail.eventCompletedCourse",  color: "text-success" },
+  "review.created":       { icon: Star,         labelKey: "userDetail.eventLeftReview",       color: "text-warning" },
 };
 
 export default function UserDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { token } = useAuth();
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [expandedEnrollment, setExpandedEnrollment] = useState<string | null>(null);
 
@@ -80,9 +82,9 @@ export default function UserDetailPage() {
   if (!user) {
     return (
       <div className="flex flex-col items-center justify-center flex-1 gap-4">
-        <p className="text-text-2 text-body">User not found.</p>
+        <p className="text-text-2 text-body">{t("userDetail.userNotFound")}</p>
         <Link to="/users" className="text-primary font-bold text-body-sm">
-          Back to users
+          {t("userDetail.backToUsers")}
         </Link>
       </div>
     );
@@ -141,9 +143,9 @@ export default function UserDetailPage() {
             <ArrowLeft className="w-4 h-4 text-text-1" />
           </Link>
           <div>
-            <h1 className="text-[20px] font-black tracking-tight text-text-1">User details</h1>
+            <h1 className="text-[20px] font-black tracking-tight text-text-1">{t("userDetail.title")}</h1>
             <p className="text-[12px] font-extrabold text-text-3 mt-1">
-              {user.email} &bull; Joined {joinDate}
+              {user.email} &bull; {t("userDetail.joined", { date: joinDate })}
             </p>
           </div>
         </div>
@@ -169,18 +171,18 @@ export default function UserDetailPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <h2 className="text-body font-bold text-text-1 truncate">
-                  {user.name || "No name"}
+                  {user.name || t("userDetail.noName")}
                 </h2>
                 <div className="text-[12px] font-extrabold text-text-3 mt-1">{user.email}</div>
                 <Pill variant={(user as any).blockedAt ? "error" : "success"} size="sm" className="mt-2">
-                  {(user as any).blockedAt ? "BLOCKED" : "ACTIVE"}
+                  {(user as any).blockedAt ? t("userDetail.blocked") : t("userDetail.active")}
                 </Pill>
               </div>
             </div>
             <div className="grid grid-cols-3 gap-2.5 mt-4">
               <div className="rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 p-3 text-center">
                 <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">
-                  Lifetime spend
+                  {t("userDetail.lifetimeSpend")}
                 </div>
                 <div className="mt-1.5 text-[18px] font-black text-text-1">
                   {formatCurrency(kpis.lifetimeSpend)}
@@ -188,7 +190,7 @@ export default function UserDetailPage() {
               </div>
               <div className="rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 p-3 text-center">
                 <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">
-                  Avg progress
+                  {t("userDetail.avgProgress")}
                 </div>
                 <div className="mt-1.5 text-[18px] font-black text-text-1">
                   {kpis.avgProgress}%
@@ -196,10 +198,10 @@ export default function UserDetailPage() {
               </div>
               <div className="rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 p-3 text-center">
                 <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">
-                  Last purchase
+                  {t("userDetail.lastPurchase")}
                 </div>
                 <div className="mt-1.5 text-[18px] font-black text-text-1">
-                  {kpis.lastPurchaseAt ? formatRelativeTime(kpis.lastPurchaseAt) : "Never"}
+                  {kpis.lastPurchaseAt ? formatRelativeTime(kpis.lastPurchaseAt) : t("userDetail.never")}
                 </div>
               </div>
             </div>
@@ -208,10 +210,10 @@ export default function UserDetailPage() {
           {/* Enrolled Courses — expandable with lesson-level stats */}
           <Card className="p-4 flex-1">
             <h3 className="text-[14px] font-black text-text-1 flex items-center gap-2 mb-4">
-              <BookOpen className="w-5 h-5 text-primary" /> Enrolled Courses ({enrollments.length})
+              <BookOpen className="w-5 h-5 text-primary" /> {t("userDetail.enrolledCourses", { count: enrollments.length })}
             </h3>
             {enrollments.length === 0 ? (
-              <p className="text-body-sm text-text-2 text-center py-8">No courses enrolled.</p>
+              <p className="text-body-sm text-text-2 text-center py-8">{t("userDetail.noCoursesEnrolled")}</p>
             ) : (
               <div className="space-y-2.5">
                 {enrollments.map((enrollment: any) => {
@@ -236,7 +238,7 @@ export default function UserDetailPage() {
                             {enrollment.courseTitle}
                           </span>
                           <div className="text-caption text-text-3 mt-0.5">
-                            {enrollment.completedLessons}/{enrollment.totalLessons} lessons
+                            {t("userDetail.lessonsCount", { completed: enrollment.completedLessons, total: enrollment.totalLessons })}
                           </div>
                           <Progress value={enrollment.progressPercent} className="h-1.5 mt-1.5" />
                         </div>
@@ -250,7 +252,7 @@ export default function UserDetailPage() {
                       {isExpanded && enrollment.lessonDetails.length > 0 && (
                         <div className="border-t border-border/80 bg-muted/30 px-3 py-2">
                           <div className="text-[11px] font-black text-text-3 uppercase tracking-[0.3px] mb-2 flex items-center gap-1.5">
-                            <Play className="w-3 h-3" /> Lesson-by-lesson stats
+                            <Play className="w-3 h-3" /> {t("userDetail.lessonByLessonStats")}
                           </div>
                           <div className="space-y-1">
                             {enrollment.lessonDetails.map((ld: any, idx: number) => {
@@ -276,7 +278,7 @@ export default function UserDetailPage() {
                                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 mt-2 text-[11px]">
                                     <div className="flex items-center gap-1 text-text-3">
                                       <Eye className="w-3 h-3" />
-                                      <span className="font-bold">{ld.viewCount}</span> views
+                                      <span className="font-bold">{ld.viewCount}</span> {t("userDetail.views")}
                                     </div>
                                     <div className="flex items-center gap-1 text-text-3">
                                       <Clock className="w-3 h-3" />
@@ -286,13 +288,13 @@ export default function UserDetailPage() {
                                       )}
                                     </div>
                                     <div className="text-text-3 truncate" title={ld.firstViewedAt ? fmtDate(ld.firstViewedAt) : ""}>
-                                      First: <span className="font-bold">{fmtDate(ld.firstViewedAt)}</span>
+                                      {t("userDetail.first")} <span className="font-bold">{fmtDate(ld.firstViewedAt)}</span>
                                     </div>
                                     <div className="text-text-3 truncate" title={ld.completedAt ? fmtDate(ld.completedAt) : ""}>
                                       {isComplete ? (
-                                        <>Done: <span className="font-bold text-success">{fmtDate(ld.completedAt)}</span></>
+                                        <>{t("userDetail.done")} <span className="font-bold text-success">{fmtDate(ld.completedAt)}</span></>
                                       ) : (
-                                        <>Last: <span className="font-bold">{fmtDate(ld.lastWatchedAt)}</span></>
+                                        <>{t("userDetail.last")} <span className="font-bold">{fmtDate(ld.lastWatchedAt)}</span></>
                                       )}
                                     </div>
                                   </div>
@@ -313,7 +315,7 @@ export default function UserDetailPage() {
         {/* Right Column - Activity & Actions */}
         <div className="rounded-[22px] bg-white/92 dark:bg-card/92 border border-border/95 shadow-[0_14px_28px_rgba(21,25,35,0.06)] dark:shadow-[0_14px_28px_rgba(0,0,0,0.25)] p-3.5 min-w-0 flex flex-col gap-3 overflow-auto">
           <h2 className="text-[12px] font-black text-text-3 uppercase tracking-[0.3px]">
-            Activity & actions
+            {t("userDetail.activityAndActions")}
           </h2>
 
           {/* Permissions */}
@@ -322,9 +324,9 @@ export default function UserDetailPage() {
               <div className="flex items-center gap-2">
                 <Shield className="w-4 h-4 text-text-3" />
                 <div>
-                  <div className="text-[13px] font-black text-text-1">Permissions</div>
+                  <div className="text-[13px] font-black text-text-1">{t("userDetail.permissions")}</div>
                   <div className="text-[12px] font-extrabold text-text-3 mt-0.5">
-                    {user.role} role
+                    {t("userDetail.roleLabel", { role: user.role })}
                   </div>
                 </div>
               </div>
@@ -338,12 +340,12 @@ export default function UserDetailPage() {
               <div className="flex items-center gap-2">
                 <Mail className="w-4 h-4 text-text-3" />
                 <div>
-                  <div className="text-[13px] font-black text-text-1">Email status</div>
-                  <div className="text-[12px] font-extrabold text-text-3 mt-0.5">Registered user</div>
+                  <div className="text-[13px] font-black text-text-1">{t("userDetail.emailStatus")}</div>
+                  <div className="text-[12px] font-extrabold text-text-3 mt-0.5">{t("userDetail.registeredUser")}</div>
                 </div>
               </div>
               <Pill variant="success" size="sm">
-                Active
+                {t("userDetail.active")}
               </Pill>
             </div>
           </div>
@@ -354,9 +356,9 @@ export default function UserDetailPage() {
               <div className="flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-text-3" />
                 <div>
-                  <div className="text-[13px] font-black text-text-1">Refund eligibility</div>
+                  <div className="text-[13px] font-black text-text-1">{t("userDetail.refundEligibility")}</div>
                   <div className="text-[12px] font-extrabold text-text-3 mt-0.5">
-                    14 days policy
+                    {t("userDetail.fourteenDaysPolicy")}
                   </div>
                 </div>
               </div>
@@ -368,7 +370,7 @@ export default function UserDetailPage() {
           <div className="rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 p-3">
             <div className="flex items-center gap-2 mb-3">
               <History className="w-4 h-4 text-text-3" />
-              <div className="text-[13px] font-black text-text-1">Activity History</div>
+              <div className="text-[13px] font-black text-text-1">{t("userDetail.activityHistory")}</div>
               {activityData?.total != null && (
                 <span className="text-[11px] font-bold text-text-3 bg-muted rounded-full px-2 py-0.5 ml-auto">
                   {activityData.total}
@@ -378,7 +380,7 @@ export default function UserDetailPage() {
             {activityData?.activities && activityData.activities.length > 0 ? (
               <div className="space-y-1 max-h-[400px] overflow-y-auto pr-1">
                 {activityData.activities.map((act: any) => {
-                  const cfg = EVENT_CONFIG[act.event] || { icon: Circle, label: act.event, color: "text-text-3" };
+                  const cfg = EVENT_CONFIG[act.event] || { icon: Circle, labelKey: act.event, color: "text-text-3" };
                   const Icon = cfg.icon;
                   const meta = act.meta || {};
                   const detail = meta.courseTitle || meta.email || "";
@@ -389,7 +391,7 @@ export default function UserDetailPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="text-[12px] font-bold text-text-1 leading-tight">
-                          {cfg.label}
+                          {t(cfg.labelKey)}
                         </div>
                         {detail && (
                           <div className="text-[11px] text-text-3 truncate mt-0.5" title={detail}>
@@ -405,7 +407,7 @@ export default function UserDetailPage() {
                 })}
               </div>
             ) : (
-              <p className="text-[12px] text-text-3 py-4 text-center">No activity recorded yet.</p>
+              <p className="text-[12px] text-text-3 py-4 text-center">{t("userDetail.noActivityRecorded")}</p>
             )}
           </div>
         </div>
