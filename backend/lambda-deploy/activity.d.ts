@@ -1,4 +1,4 @@
-export type ActivityEvent = 'user.registered' | 'user.login' | 'user.blocked' | 'user.unblocked' | 'enrollment.created' | 'lesson.started' | 'lesson.completed' | 'course.completed' | 'review.created' | 'user.created_by_admin';
+export type ActivityEvent = 'user.registered' | 'user.login' | 'user.blocked' | 'user.unblocked' | 'enrollment.created' | 'lesson.started' | 'lesson.completed' | 'module.completed' | 'course.completed' | 'review.created' | 'user.created_by_admin';
 export interface ActivityPayload {
     event: ActivityEvent;
     userId: string;

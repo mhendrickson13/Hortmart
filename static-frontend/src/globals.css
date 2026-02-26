@@ -182,3 +182,12 @@
   .swipe-indicator-left { @apply swipe-indicator left-1; }
   .swipe-indicator-right { @apply swipe-indicator right-1; }
 }
+
+@layer utilities {
+  .font-black {
+    font-weight: 600 !important;
+  }
+  .font-extrabold {
+    font-weight: 400 !important;
+  }
+}

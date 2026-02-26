@@ -647,8 +647,8 @@ router.post('/', authenticate, requireAdmin, async (req: AuthRequest, res: Respo
       [id]
     );
 
-    // Send account-created email with temp password (fire-and-forget)
-    sendAccountCreated(email, name || null, password).catch(() => {});
+    // Send account-created email with temp password (await so Lambda doesn't freeze)
+    try { await sendAccountCreated(email, name || null, password); } catch (e) { console.error('[Users] account-created email failed:', e); }
 
     logActivity({ event: 'user.created_by_admin', userId: id, userName: name || email, meta: { email, role: role || 'LEARNER', createdBy: req.user!.id } });
 

@@ -25,6 +25,7 @@ const notifications_js_1 = __importDefault(require("./routes/notifications.js"))
 const favourites_js_1 = __importDefault(require("./routes/favourites.js"));
 const video_js_1 = __importDefault(require("./routes/video.js"));
 const settings_js_1 = __importDefault(require("./routes/settings.js"));
+const external_js_1 = __importDefault(require("./routes/external.js"));
 exports.app = (0, express_1.default)();
 // CORS - allow S3, CloudFront, and local development origins
 const allowedOrigins = [
@@ -391,6 +392,7 @@ exports.app.use('/e/notifications', notifications_js_1.default);
 exports.app.use('/e/favourites', favourites_js_1.default);
 exports.app.use('/e/video', video_js_1.default);
 exports.app.use('/e/settings', settings_js_1.default);
+exports.app.use('/e/external', external_js_1.default);
 // Error handling
 exports.app.use((err, req, res, next) => {
     console.error(err.stack);

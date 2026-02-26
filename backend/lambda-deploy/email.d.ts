@@ -14,6 +14,10 @@ export declare function sendEnrollmentConfirmation(to: string, name: string | nu
 export declare function sendPasswordReset(to: string, name: string | null, resetToken: string): Promise<void>;
 /** Course completion congratulations */
 export declare function sendCourseCompleted(to: string, name: string | null, courseTitle: string): Promise<void>;
+/** Module completion notification */
+export declare function sendModuleCompleted(to: string, name: string | null, moduleTitle: string, courseTitle: string, courseId: string): Promise<void>;
+/** Certificate / Constancia email — formal PDF-like HTML certificate */
+export declare function sendCourseCertificate(to: string, name: string | null, courseTitle: string, completedDate: string): Promise<void>;
 /** Notify course creator when a new student enrolls */
 export declare function sendNewStudentNotification(to: string, creatorName: string | null, studentName: string | null, courseTitle: string, courseId: string): Promise<void>;
 /** Admin-created account email with temporary password */
@@ -25,6 +29,8 @@ declare const _default: {
     sendEnrollmentConfirmation: typeof sendEnrollmentConfirmation;
     sendPasswordReset: typeof sendPasswordReset;
     sendCourseCompleted: typeof sendCourseCompleted;
+    sendModuleCompleted: typeof sendModuleCompleted;
+    sendCourseCertificate: typeof sendCourseCertificate;
     sendNewStudentNotification: typeof sendNewStudentNotification;
     sendAccountCreated: typeof sendAccountCreated;
     sendCustomMessage: typeof sendCustomMessage;

@@ -48,8 +48,8 @@ router.post('/register', async (req, res) => {
 
     const token = jwt.sign({ userId: id }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 
-    // Send welcome email (fire-and-forget)
-    sendWelcome(email, name || undefined).catch(() => {});
+    // Send welcome email (await so Lambda doesn't freeze before send completes)
+    try { await sendWelcome(email, name || undefined); } catch (e) { console.error('[Auth] welcome email failed:', e); }
 
     logActivity({ event: 'user.registered', userId: id, userName: name || email, meta: { email } });
 

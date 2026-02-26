@@ -13,6 +13,7 @@ export type ActivityEvent =
   | 'enrollment.created'
   | 'lesson.started'
   | 'lesson.completed'
+  | 'module.completed'
   | 'course.completed'
   | 'review.created'
   | 'user.created_by_admin';

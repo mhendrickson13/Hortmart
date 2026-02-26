@@ -1,9 +1,13 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 /**
  * Admin-only settings routes (webhook URL, etc.)
  */
 const express_1 = require("express");
+const crypto_1 = __importDefault(require("crypto"));
 const db_js_1 = require("../db.js");
 const auth_js_1 = require("../middleware/auth.js");
 const router = (0, express_1.Router)();
@@ -94,6 +98,42 @@ router.post('/test-webhook', auth_js_1.authenticate, requireAdmin, async (req, r
             success: false,
             error: error.message || 'Failed to reach webhook URL',
         });
+    }
+});
+// POST /settings/generate-api-token - generate or regenerate API token for current user
+router.post('/generate-api-token', auth_js_1.authenticate, requireAdmin, async (req, res) => {
+    try {
+        const token = crypto_1.default.randomBytes(32).toString('hex');
+        const ts = (0, db_js_1.now)();
+        await (0, db_js_1.execute)('UPDATE users SET apiToken = ?, updatedAt = ? WHERE id = ?', [token, ts, req.user.id]);
+        res.json({ apiToken: token });
+    }
+    catch (error) {
+        console.error('Generate API token error:', error);
+        res.status(500).json({ error: 'Failed to generate API token' });
+    }
+});
+// GET /settings/api-token - get current API token for current user
+router.get('/api-token', auth_js_1.authenticate, requireAdmin, async (req, res) => {
+    try {
+        const user = await (0, db_js_1.queryOne)('SELECT apiToken FROM users WHERE id = ?', [req.user.id]);
+        res.json({ apiToken: user?.apiToken || null });
+    }
+    catch (error) {
+        console.error('Get API token error:', error);
+        res.status(500).json({ error: 'Failed to get API token' });
+    }
+});
+// DELETE /settings/api-token - revoke API token
+router.delete('/api-token', auth_js_1.authenticate, requireAdmin, async (req, res) => {
+    try {
+        const ts = (0, db_js_1.now)();
+        await (0, db_js_1.execute)('UPDATE users SET apiToken = NULL, updatedAt = ? WHERE id = ?', [ts, req.user.id]);
+        res.json({ success: true });
+    }
+    catch (error) {
+        console.error('Revoke API token error:', error);
+        res.status(500).json({ error: 'Failed to revoke API token' });
     }
 });
 exports.default = router;

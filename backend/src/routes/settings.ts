@@ -2,6 +2,7 @@
  * Admin-only settings routes (webhook URL, etc.)
  */
 import { Router, Response } from 'express';
+import crypto from 'crypto';
 import { query, queryOne, execute, genId, now } from '../db.js';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
 
@@ -104,6 +105,48 @@ router.post('/test-webhook', authenticate, requireAdmin, async (req: AuthRequest
       success: false,
       error: error.message || 'Failed to reach webhook URL',
     });
+  }
+});
+
+// POST /settings/generate-api-token - generate or regenerate API token for current user
+router.post('/generate-api-token', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const token = crypto.randomBytes(32).toString('hex');
+    const ts = now();
+    await execute(
+      'UPDATE users SET apiToken = ?, updatedAt = ? WHERE id = ?',
+      [token, ts, req.user!.id],
+    );
+    res.json({ apiToken: token });
+  } catch (error) {
+    console.error('Generate API token error:', error);
+    res.status(500).json({ error: 'Failed to generate API token' });
+  }
+});
+
+// GET /settings/api-token - get current API token for current user
+router.get('/api-token', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const user = await queryOne<any>('SELECT apiToken FROM users WHERE id = ?', [req.user!.id]);
+    res.json({ apiToken: user?.apiToken || null });
+  } catch (error) {
+    console.error('Get API token error:', error);
+    res.status(500).json({ error: 'Failed to get API token' });
+  }
+});
+
+// DELETE /settings/api-token - revoke API token
+router.delete('/api-token', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const ts = now();
+    await execute(
+      'UPDATE users SET apiToken = NULL, updatedAt = ? WHERE id = ?',
+      [ts, req.user!.id],
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Revoke API token error:', error);
+    res.status(500).json({ error: 'Failed to revoke API token' });
   }
 });
 

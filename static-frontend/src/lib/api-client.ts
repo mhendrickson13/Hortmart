@@ -141,6 +141,12 @@ export const settings = {
     request<{ settings: Record<string, string> }>('/settings', { method: 'PATCH', body: data, token }),
   testWebhook: (token?: string) =>
     request<{ success: boolean; status?: number; statusText?: string; error?: string }>('/settings/test-webhook', { method: 'POST', token }),
+  getApiToken: (token?: string) =>
+    request<{ apiToken: string | null }>('/settings/api-token', { token }),
+  generateApiToken: (token?: string) =>
+    request<{ apiToken: string }>('/settings/generate-api-token', { method: 'POST', token }),
+  revokeApiToken: (token?: string) =>
+    request<{ success: boolean }>('/settings/api-token', { method: 'DELETE', token }),
 };
 
 // ==================== Courses ====================

@@ -554,8 +554,13 @@ router.post('/', auth_js_1.authenticate, auth_js_1.requireAdmin, async (req, res
             throw e;
         }
         const user = await (0, db_js_1.queryOne)('SELECT id, email, name, image, role, createdAt FROM users WHERE id = ?', [id]);
-        // Send account-created email with temp password (fire-and-forget)
-        (0, email_js_1.sendAccountCreated)(email, name || null, password).catch(() => { });
+        // Send account-created email with temp password (await so Lambda doesn't freeze)
+        try {
+            await (0, email_js_1.sendAccountCreated)(email, name || null, password);
+        }
+        catch (e) {
+            console.error('[Users] account-created email failed:', e);
+        }
         (0, activity_js_1.logActivity)({ event: 'user.created_by_admin', userId: id, userName: name || email, meta: { email, role: role || 'LEARNER', createdBy: req.user.id } });
         res.status(201).json({ user });
     }

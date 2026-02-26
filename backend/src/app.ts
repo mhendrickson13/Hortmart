@@ -20,6 +20,7 @@ import notificationsRoutes from './routes/notifications.js';
 import favouritesRoutes from './routes/favourites.js';
 import videoRoutes from './routes/video.js';
 import settingsRoutes from './routes/settings.js';
+import externalRoutes from './routes/external.js';
 
 export const app = express();
 
@@ -406,6 +407,7 @@ app.use('/e/notifications', notificationsRoutes);
 app.use('/e/favourites', favouritesRoutes);
 app.use('/e/video', videoRoutes);
 app.use('/e/settings', settingsRoutes);
+app.use('/e/external', externalRoutes);
 
 // Error handling
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {

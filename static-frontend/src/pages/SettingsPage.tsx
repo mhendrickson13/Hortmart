@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toaster";
 import { useAppPreferences, type Theme } from "@/lib/theme-context";
+import i18n, { LANGUAGE_OPTIONS, getLanguagePreference, setLanguagePreference } from "@/lib/i18n";
 import {
   Loader2,
   Camera,
@@ -28,6 +29,11 @@ import {
   Webhook,
   Send,
   AlertTriangle,
+  Copy,
+  RefreshCw,
+  Trash2,
+  Code2,
+  Globe,
 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -150,6 +156,16 @@ export default function SettingsPage() {
   const [savingWebhook, setSavingWebhook] = useState(false);
   const [testingWebhook, setTestingWebhook] = useState(false);
   const [webhookTestResult, setWebhookTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  /* ---- API Token ---- */
+  const { data: apiTokenData, refetch: refetchApiToken } = useQuery({
+    queryKey: ["api-token"],
+    queryFn: () => settingsApi.getApiToken(),
+    enabled: !!user && isAdminCheck,
+  });
+  const [generatingToken, setGeneratingToken] = useState(false);
+  const [revokingToken, setRevokingToken] = useState(false);
+  const [tokenCopied, setTokenCopied] = useState(false);
 
   /* ---- Effects ---- */
   useEffect(() => {
@@ -309,6 +325,40 @@ export default function SettingsPage() {
       setWebhookTestResult({ success: false, message: err.message || t("settings.webhookTestFailed") });
     } finally {
       setTestingWebhook(false);
+    }
+  };
+
+  const handleGenerateApiToken = async () => {
+    setGeneratingToken(true);
+    try {
+      await settingsApi.generateApiToken();
+      await refetchApiToken();
+      toast({ title: t("settings.apiTokenGenerated"), variant: "success" });
+    } catch {
+      toast({ title: t("settings.apiTokenGenerateFailed"), variant: "error" });
+    } finally {
+      setGeneratingToken(false);
+    }
+  };
+
+  const handleRevokeApiToken = async () => {
+    setRevokingToken(true);
+    try {
+      await settingsApi.revokeApiToken();
+      await refetchApiToken();
+      toast({ title: t("settings.apiTokenRevoked"), variant: "success" });
+    } catch {
+      toast({ title: t("settings.apiTokenRevokeFailed"), variant: "error" });
+    } finally {
+      setRevokingToken(false);
+    }
+  };
+
+  const handleCopyToken = () => {
+    if (apiTokenData?.apiToken) {
+      navigator.clipboard.writeText(apiTokenData.apiToken);
+      setTokenCopied(true);
+      setTimeout(() => setTokenCopied(false), 2000);
     }
   };
 
@@ -848,8 +898,10 @@ export default function SettingsPage() {
   "event": "play",
   "userId": "usr_xxx",
   "userName": "John Doe",
+  "userEmail": "john@example.com",
   "lessonId": "les_xxx",
   "courseId": "crs_xxx",
+  "courseName": "My Course Title",
   "currentTime": 42.5,
   "duration": 360,
   "timestamp": "2026-02-25T12:00:00.000Z"
@@ -865,6 +917,11 @@ export default function SettingsPage() {
                 <div className="flex flex-wrap gap-1.5">
                   {["play", "pause", "ended", "timeupdate", "seeked", "ratechange", "visibilitychange"].map((evt) => (
                     <span key={evt} className="inline-flex items-center h-6 px-2.5 rounded-lg text-[11px] font-semibold bg-primary/10 text-primary border border-primary/15">
+                      {evt}
+                    </span>
+                  ))}
+                  {["lesson.completed", "module.completed", "course.completed"].map((evt) => (
+                    <span key={evt} className="inline-flex items-center h-6 px-2.5 rounded-lg text-[11px] font-semibold bg-success/10 text-success border border-success/15">
                       {evt}
                     </span>
                   ))}
@@ -907,6 +964,109 @@ export default function SettingsPage() {
                   {testingWebhook ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                   {testingWebhook ? t("settings.testing") : t("settings.sendTest")}
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ CXflow API (Admin only) ═══ */}
+        {isAdmin && (
+          <div
+            className="rounded-2xl border border-border bg-card p-6"
+            style={{ boxShadow: "var(--shadow-card)" }}
+          >
+            <SectionHeader
+              icon={Code2}
+              title={t("settings.cxflowApi")}
+              description={t("settings.cxflowApiDescription")}
+            />
+
+            <div className="space-y-4">
+              {/* API Token */}
+              <div>
+                <label className="block text-body-sm font-medium text-text-1 mb-1.5">
+                  {t("settings.apiToken")}
+                </label>
+                <p className="text-caption text-text-3 mb-2">
+                  {t("settings.apiTokenDescription")}
+                </p>
+
+                {apiTokenData?.apiToken ? (
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-11 px-4 rounded-xl border border-border bg-muted/60 font-mono text-body-sm text-text-2 flex items-center overflow-hidden">
+                      <span className="truncate select-all">{apiTokenData.apiToken}</span>
+                    </div>
+                    <button
+                      onClick={handleCopyToken}
+                      className="h-11 w-11 flex-shrink-0 rounded-xl border-2 border-border text-text-2 hover:bg-muted hover:border-primary/30 active:scale-[0.98] transition-all duration-200 inline-flex items-center justify-center"
+                      title={t("settings.copyToken")}
+                    >
+                      {tokenCopied ? <Check className="w-4 h-4 text-success" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="h-11 px-4 rounded-xl border border-dashed border-border bg-muted/30 text-body-sm text-text-3 flex items-center">
+                    {t("settings.noApiToken")}
+                  </div>
+                )}
+              </div>
+
+              {/* API endpoint info */}
+              <div className="rounded-xl bg-muted/60 border border-border/50 p-3">
+                <div className="text-[11px] font-bold text-text-3 uppercase tracking-wider mb-2">
+                  {t("settings.endpointExample")}
+                </div>
+                <pre className="text-[11px] text-text-2 font-mono leading-relaxed overflow-x-auto whitespace-pre">
+{`POST /e/external/create-learner
+Authorization: Bearer <your-api-token>
+Content-Type: application/json
+
+{
+  "accountid": "${user?.id || 'your_account_id'}",
+  "usrmail": "learner@example.com",
+  "usrname": "John Doe",
+  "suscribedcourses": ["courseId1", "courseId2"]
+}`}
+                </pre>
+              </div>
+
+              {/* Response example */}
+              <div className="rounded-xl bg-muted/40 border border-border/50 p-3">
+                <div className="text-[11px] font-bold text-text-3 uppercase tracking-wider mb-2">
+                  {t("settings.responseExample")}
+                </div>
+                <pre className="text-[11px] text-text-2 font-mono leading-relaxed overflow-x-auto whitespace-pre">
+{`{
+  "user": { "id": "...", "email": "...", "name": "..." },
+  "enrollments": [
+    { "courseId": "...", "courseTitle": "...", "status": "enrolled" }
+  ],
+  "generatedPassword": "abc123xyz",
+  "isNew": true
+}`}
+                </pre>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  onClick={handleGenerateApiToken}
+                  disabled={generatingToken}
+                  className="h-11 px-6 rounded-xl text-body-sm font-semibold bg-primary text-white hover:bg-primary-600 shadow-primary hover:shadow-primary-hover active:scale-[0.98] transition-all duration-200 disabled:opacity-50 inline-flex items-center gap-2"
+                >
+                  {generatingToken ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                  {apiTokenData?.apiToken ? t("settings.regenerateToken") : t("settings.generateToken")}
+                </button>
+                {apiTokenData?.apiToken && (
+                  <button
+                    onClick={handleRevokeApiToken}
+                    disabled={revokingToken}
+                    className="h-11 px-6 rounded-xl text-body-sm font-semibold border-2 border-danger/30 text-danger hover:bg-danger/10 active:scale-[0.98] transition-all duration-200 disabled:opacity-50 inline-flex items-center gap-2"
+                  >
+                    {revokingToken ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                    {t("settings.revokeToken")}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -955,6 +1115,106 @@ export default function SettingsPage() {
                     </div>
                     <div className="text-caption text-text-3 mt-0.5 hidden sm:block">
                       {opt.desc}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ═══ LANGUAGE ═══ */}
+        <div
+          className="rounded-2xl border border-border bg-card p-6"
+          style={{ boxShadow: "var(--shadow-card)" }}
+        >
+          <SectionHeader
+            icon={Globe}
+            title={t("settings.language")}
+            description={t("settings.languageDescription")}
+          />
+
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            {/* Auto-detect option (detects from user location) */}
+            {(() => {
+              const pref = getLanguagePreference();
+              const isAuto = pref === "auto";
+              // Show the currently resolved language (may be from geolocation)
+              const currentLangCode = i18n.language;
+              const currentLangName = LANGUAGE_OPTIONS.find(l => l.code === currentLangCode)?.nativeName || "English";
+              return (
+                <button
+                  key="auto"
+                  onClick={() => {
+                    setLanguagePreference("auto");
+                    toast({
+                      title: t("settings.languageUpdated"),
+                      description: t("settings.languageAutoDetected"),
+                      variant: "success",
+                    });
+                  }}
+                  className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 group ${
+                    isAuto
+                      ? "border-primary bg-primary/5 shadow-[0_0_0_1px_rgba(47,111,237,0.1),0_4px_16px_rgba(47,111,237,0.12)]"
+                      : "border-border hover:border-primary/30 hover:bg-muted/50"
+                  }`}
+                >
+                  {isAuto && (
+                    <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-primary text-white flex items-center justify-center">
+                      <Check className="w-3 h-3" />
+                    </div>
+                  )}
+                  <div className="w-10 h-10 rounded-xl border-2 bg-gradient-to-br from-blue-100 to-green-100 dark:from-blue-900 dark:to-green-900 border-gray-300 dark:border-gray-600 transition-transform duration-200 group-hover:scale-105 flex items-center justify-center">
+                    <Globe className="w-5 h-5 text-text-2" />
+                  </div>
+                  <div className="text-center">
+                    <div className={`text-body-sm font-semibold ${isAuto ? "text-primary" : "text-text-1"}`}>
+                      {t("settings.autoDetect")}
+                    </div>
+                    <div className="text-caption text-text-3 mt-0.5">
+                      {isAuto ? currentLangName : t("settings.autoDetectDesc")}
+                    </div>
+                  </div>
+                </button>
+              );
+            })()}
+
+            {/* Individual language options */}
+            {LANGUAGE_OPTIONS.map((lang) => {
+              const pref = getLanguagePreference();
+              const active = pref === lang.code;
+              return (
+                <button
+                  key={lang.code}
+                  onClick={() => {
+                    setLanguagePreference(lang.code);
+                    toast({
+                      title: t("settings.languageUpdated"),
+                      description: `${t("settings.languageChangedTo")} ${lang.nativeName}`,
+                      variant: "success",
+                    });
+                  }}
+                  className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 group ${
+                    active
+                      ? "border-primary bg-primary/5 shadow-[0_0_0_1px_rgba(47,111,237,0.1),0_4px_16px_rgba(47,111,237,0.12)]"
+                      : "border-border hover:border-primary/30 hover:bg-muted/50"
+                  }`}
+                >
+                  {active && (
+                    <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-primary text-white flex items-center justify-center">
+                      <Check className="w-3 h-3" />
+                    </div>
+                  )}
+                  <div className="text-center">
+                    <div
+                      className={`text-body-sm font-semibold ${
+                        active ? "text-primary" : "text-text-1"
+                      }`}
+                    >
+                      {lang.nativeName}
+                    </div>
+                    <div className="text-caption text-text-3 mt-0.5">
+                      {lang.name}
                     </div>
                   </div>
                 </button>

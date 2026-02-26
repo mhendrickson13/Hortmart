@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { courses as coursesApi, apiClient, uploads as uploadsApi } from "@/lib/api-client";
+import { courses as coursesApi, apiClient, uploads as uploadsApi, video as videoApi } from "@/lib/api-client";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/toaster";
@@ -151,6 +151,46 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
     const timer = setInterval(() => setTick((t) => t + 1), 60000);
     return () => clearInterval(timer);
   }, []);
+
+  // ── Poll encoding status for lessons that are still encoding ──
+  useEffect(() => {
+    const encodingLessons = course.modules
+      .flatMap((m) => m.lessons)
+      .filter((l) => l.videoStatus === 'encoding');
+
+    if (encodingLessons.length === 0) return;
+
+    let cancelled = false;
+
+    const poll = async () => {
+      for (const lesson of encodingLessons) {
+        if (cancelled) return;
+        try {
+          const status = await videoApi.getStatus(lesson.id);
+          if (cancelled) return;
+          if (status.videoStatus !== 'encoding') {
+            // Update lesson in local state
+            setCourse((prev) => ({
+              ...prev,
+              modules: prev.modules.map((m) => ({
+                ...m,
+                lessons: m.lessons.map((l) =>
+                  l.id === lesson.id
+                    ? { ...l, videoStatus: status.videoStatus, hlsUrl: status.hlsUrl ?? l.hlsUrl }
+                    : l
+                ),
+              })),
+            }));
+          }
+        } catch { /* ignore polling errors */ }
+      }
+    };
+
+    // Immediate first poll, then every 10s
+    poll();
+    const timer = setInterval(poll, 10000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [course.modules]);
 
   const lastSavedText = lastSaved
     ? (() => {

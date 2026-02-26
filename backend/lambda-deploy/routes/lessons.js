@@ -20,12 +20,15 @@ router.post('/video-event', auth_js_1.authenticate, async (req, res) => {
             return res.status(400).json({ error: 'lessonId is required' });
         }
         const user = await (0, db_js_1.queryOne)('SELECT name, email FROM users WHERE id = ?', [req.user.id]);
+        const course = courseId ? await (0, db_js_1.queryOne)('SELECT title FROM courses WHERE id = ?', [courseId]) : null;
         const payload = {
             event,
             userId: req.user.id,
             userName: user?.name || user?.email || req.user.email,
+            userEmail: user?.email || req.user.email,
             lessonId,
             courseId: courseId || null,
+            courseName: course?.title || null,
             currentTime: currentTime ?? 0,
             duration: duration ?? 0,
             timestamp: new Date().toISOString(),
@@ -303,7 +306,69 @@ router.post('/:id/progress', auth_js_1.authenticate, async (req, res) => {
         // ── Course completion detection ──
         // Only check if THIS lesson was just marked complete (completedAt was set in this request)
         if (completedAt) {
-            (0, activity_js_1.logActivity)({ event: 'lesson.completed', userId: req.user.id, userName: req.user.email, meta: { lessonId: id, courseId: mod.courseId } });
+            const user = await (0, db_js_1.queryOne)('SELECT email, name, notifyEmailCompletion FROM users WHERE id = ?', [req.user.id]);
+            const course = await (0, db_js_1.queryOne)('SELECT title FROM courses WHERE id = ?', [mod.courseId]);
+            // Webhook: lesson.completed
+            (0, activity_js_1.logActivity)({ event: 'lesson.completed', userId: req.user.id, userName: user?.name || req.user.email, meta: { lessonId: id, courseId: mod.courseId, courseTitle: course?.title } });
+            (0, activity_js_1.fireWebhook)({
+                event: 'lesson.completed',
+                userId: req.user.id,
+                userName: user?.name || req.user.email,
+                userEmail: user?.email || req.user.email,
+                lessonId: id,
+                courseId: mod.courseId,
+                courseName: course?.title || null,
+                timestamp: new Date().toISOString(),
+            }).catch(() => { });
+            // ── Module completion detection ──
+            try {
+                const moduleInfo = await (0, db_js_1.queryOne)('SELECT id, title FROM modules WHERE id = ?', [lesson.moduleId]);
+                if (moduleInfo) {
+                    const totalModuleLessonsRow = await (0, db_js_1.queryOne)('SELECT COUNT(*) as cnt FROM lessons WHERE moduleId = ?', [moduleInfo.id]);
+                    const completedModuleLessonsRow = await (0, db_js_1.queryOne)(`SELECT COUNT(*) as cnt FROM lesson_progress lp
+             JOIN lessons l ON lp.lessonId = l.id
+             WHERE l.moduleId = ? AND lp.enrollmentId = ? AND lp.completedAt IS NOT NULL`, [moduleInfo.id, enrollment.id]);
+                    const totalModuleLessons = Number(totalModuleLessonsRow?.cnt ?? 0);
+                    const completedModuleLessons = Number(completedModuleLessonsRow?.cnt ?? 0);
+                    if (totalModuleLessons > 0 && completedModuleLessons >= totalModuleLessons) {
+                        (0, activity_js_1.logActivity)({ event: 'module.completed', userId: req.user.id, userName: user?.name || req.user.email, meta: { moduleId: moduleInfo.id, moduleTitle: moduleInfo.title, courseId: mod.courseId, courseTitle: course?.title } });
+                        // Webhook: module.completed
+                        (0, activity_js_1.fireWebhook)({
+                            event: 'module.completed',
+                            userId: req.user.id,
+                            userName: user?.name || req.user.email,
+                            userEmail: user?.email || req.user.email,
+                            moduleId: moduleInfo.id,
+                            moduleTitle: moduleInfo.title,
+                            courseId: mod.courseId,
+                            courseName: course?.title || null,
+                            timestamp: new Date().toISOString(),
+                        }).catch(() => { });
+                        // Module completion email
+                        if (user && course && user.notifyEmailCompletion) {
+                            try {
+                                await (0, email_js_1.sendModuleCompleted)(user.email, user.name, moduleInfo.title, course.title, mod.courseId);
+                            }
+                            catch (e) {
+                                console.error('[Module] email error:', e);
+                            }
+                        }
+                        // Notify learner
+                        (0, notifications_js_1.createNotification)({
+                            userId: req.user.id,
+                            type: 'achievement',
+                            title: '¡Módulo Completado! 📚',
+                            description: `Has completado el módulo "${moduleInfo.title}" del curso "${course?.title}".`,
+                            link: `/player/${mod.courseId}`,
+                        });
+                        console.log(`[Module] User ${req.user.id} completed module ${moduleInfo.id} "${moduleInfo.title}"`);
+                    }
+                }
+            }
+            catch (e) {
+                console.warn('[Module] completion check error:', e);
+            }
+            // ── Course completion detection ──
             try {
                 // Count total lessons in this course vs completed lessons for this enrollment
                 const totalRow = await (0, db_js_1.queryOne)(`SELECT COUNT(*) as cnt FROM lessons l JOIN modules m ON l.moduleId = m.id WHERE m.courseId = ?`, [mod.courseId]);
@@ -312,27 +377,45 @@ router.post('/:id/progress', auth_js_1.authenticate, async (req, res) => {
                 const completedLessons = Number(completedRow?.cnt ?? 0);
                 if (totalLessons > 0 && completedLessons >= totalLessons) {
                     // Update enrollment completedAt
-                    await (0, db_js_1.execute)('UPDATE enrollments SET completedAt = COALESCE(completedAt, ?) WHERE id = ?', [ts, enrollment.id]).catch(() => { });
-                    // Fetch user + course info for notifications
-                    const user = await (0, db_js_1.queryOne)('SELECT email, name, notifyEmailCompletion FROM users WHERE id = ?', [req.user.id]);
-                    const course = await (0, db_js_1.queryOne)('SELECT title FROM courses WHERE id = ?', [mod.courseId]);
+                    const courseCompletedAt = (0, db_js_1.now)();
+                    await (0, db_js_1.execute)('UPDATE enrollments SET completedAt = COALESCE(completedAt, ?) WHERE id = ?', [courseCompletedAt, enrollment.id]).catch(() => { });
                     if (user && course) {
-                        // Send course completed email (fire-and-forget, respecting user preference)
+                        // Send course completed email
                         if (user.notifyEmailCompletion) {
-                            (0, email_js_1.sendCourseCompleted)(user.email, user.name, course.title).catch((err) => {
-                                console.error('[Completion] email error:', err);
-                            });
+                            try {
+                                await (0, email_js_1.sendCourseCompleted)(user.email, user.name, course.title);
+                            }
+                            catch (e) {
+                                console.error('[Completion] email error:', e);
+                            }
+                        }
+                        // Send certificate email (always — this is the constancia)
+                        try {
+                            await (0, email_js_1.sendCourseCertificate)(user.email, user.name, course.title, courseCompletedAt);
+                        }
+                        catch (e) {
+                            console.error('[Certificate] email error:', e);
                         }
                         // Create in-app notification
                         (0, notifications_js_1.createNotification)({
                             userId: req.user.id,
                             type: 'achievement',
-                            title: 'Course Completed! 🎉',
-                            description: `Congratulations! You completed "${course.title}".`,
+                            title: '¡Curso Completado! 🎉',
+                            description: `¡Felicidades! Has completado "${course.title}".`,
                             link: `/courses/${mod.courseId}`,
                         });
                     }
                     (0, activity_js_1.logActivity)({ event: 'course.completed', userId: req.user.id, userName: user?.name || req.user.email, meta: { courseId: mod.courseId, courseTitle: course?.title } });
+                    // Webhook: course.completed
+                    (0, activity_js_1.fireWebhook)({
+                        event: 'course.completed',
+                        userId: req.user.id,
+                        userName: user?.name || req.user.email,
+                        userEmail: user?.email || req.user.email,
+                        courseId: mod.courseId,
+                        courseName: course?.title || null,
+                        timestamp: new Date().toISOString(),
+                    }).catch(() => { });
                     console.log(`[Completion] User ${req.user.id} completed course ${mod.courseId} (${completedLessons}/${totalLessons} lessons)`);
                 }
             }

@@ -39,8 +39,13 @@ router.post('/register', async (req, res) => {
         await (0, db_js_1.execute)('INSERT INTO users (id, email, password, name, role, updatedAt) VALUES (?, ?, ?, ?, ?, ?)', [id, email, hashedPassword, name || null, role, ts]);
         const user = { id, email, name: name || null, role, createdAt: new Date() };
         const token = jsonwebtoken_1.default.sign({ userId: id }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-        // Send welcome email (fire-and-forget)
-        (0, email_js_1.sendWelcome)(email, name || undefined).catch(() => { });
+        // Send welcome email (await so Lambda doesn't freeze before send completes)
+        try {
+            await (0, email_js_1.sendWelcome)(email, name || undefined);
+        }
+        catch (e) {
+            console.error('[Auth] welcome email failed:', e);
+        }
         (0, activity_js_1.logActivity)({ event: 'user.registered', userId: id, userName: name || email, meta: { email } });
         res.status(201).json({ user, token });
     }
