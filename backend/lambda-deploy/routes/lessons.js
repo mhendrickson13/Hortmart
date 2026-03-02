@@ -8,7 +8,7 @@ const notifications_js_1 = require("./notifications.js");
 const activity_js_1 = require("../activity.js");
 const router = (0, express_1.Router)();
 // ── Video event types dispatched to webhook ──
-const VALID_VIDEO_EVENTS = ['play', 'pause', 'ended', 'timeupdate', 'seeked', 'ratechange', 'visibilitychange'];
+const VALID_VIDEO_EVENTS = ['play', 'pause', 'ended', 'seeked', 'ratechange', 'visibilitychange'];
 // POST /lessons/video-event — Dispatch video player events to webhook
 router.post('/video-event', auth_js_1.authenticate, async (req, res) => {
     try {
@@ -21,12 +21,14 @@ router.post('/video-event', auth_js_1.authenticate, async (req, res) => {
         }
         const user = await (0, db_js_1.queryOne)('SELECT name, email FROM users WHERE id = ?', [req.user.id]);
         const course = courseId ? await (0, db_js_1.queryOne)('SELECT title FROM courses WHERE id = ?', [courseId]) : null;
+        const lesson = lessonId ? await (0, db_js_1.queryOne)('SELECT title FROM lessons WHERE id = ?', [lessonId]) : null;
         const payload = {
             event,
             userId: req.user.id,
             userName: user?.name || user?.email || req.user.email,
             userEmail: user?.email || req.user.email,
             lessonId,
+            lessonName: lesson?.title || null,
             courseId: courseId || null,
             courseName: course?.title || null,
             currentTime: currentTime ?? 0,
@@ -40,6 +42,10 @@ router.post('/video-event', auth_js_1.authenticate, async (req, res) => {
             payload.visibilityState = visibilityState;
         }
         (0, activity_js_1.fireWebhook)(payload).catch(() => { });
+        // Log seeked events to activity history
+        if (event === 'seeked') {
+            (0, activity_js_1.logActivity)({ event: 'seeked', userId: req.user.id, userName: user?.name || user?.email || req.user.email, meta: { lessonId, lessonTitle: lesson?.title, courseId: courseId || null, courseTitle: course?.title || null, currentTime: currentTime ?? 0 } });
+        }
         res.json({ ok: true });
     }
     catch (error) {
@@ -239,7 +245,7 @@ router.post('/:id/progress', auth_js_1.authenticate, async (req, res) => {
         const watchedSecondsIncrement = Math.max(0, Math.floor(Number(rawWatched) || 0));
         // viewCount increment (1 when a new play-from-start occurs)
         const viewInc = Number(viewCountIncrement) === 1 ? 1 : 0;
-        const lesson = await (0, db_js_1.queryOne)('SELECT moduleId, durationSeconds FROM lessons WHERE id = ?', [id]);
+        const lesson = await (0, db_js_1.queryOne)('SELECT moduleId, durationSeconds, title FROM lessons WHERE id = ?', [id]);
         if (!lesson)
             return res.status(404).json({ error: 'Lesson not found' });
         const mod = await (0, db_js_1.queryOne)('SELECT courseId FROM modules WHERE id = ?', [lesson.moduleId]);
@@ -282,7 +288,7 @@ router.post('/:id/progress', auth_js_1.authenticate, async (req, res) => {
             await (0, db_js_1.execute)(`INSERT INTO lesson_progress (id, enrollmentId, lessonId, progressPercent, lastWatchedTimestamp, lastWatchedAt, completedAt, watchedSeconds, viewCount, firstViewedAt, updatedAt)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [progressId, enrollment.id, id, progressPercent, validTimestamp, ts, completedAt, watchedSecondsIncrement, viewInc > 0 ? 1 : 0, ts, ts]);
             // First time this lesson is viewed
-            (0, activity_js_1.logActivity)({ event: 'lesson.started', userId: req.user.id, userName: req.user.email, meta: { lessonId: id, courseId: mod.courseId } });
+            (0, activity_js_1.logActivity)({ event: 'lesson.started', userId: req.user.id, userName: req.user.email, meta: { lessonId: id, lessonTitle: lesson.title, courseId: mod.courseId } });
         }
         const progress = await (0, db_js_1.queryOne)('SELECT * FROM lesson_progress WHERE enrollmentId = ? AND lessonId = ?', [enrollment.id, id]);
         // ── Accumulate daily watch activity ──
@@ -309,13 +315,14 @@ router.post('/:id/progress', auth_js_1.authenticate, async (req, res) => {
             const user = await (0, db_js_1.queryOne)('SELECT email, name, notifyEmailCompletion FROM users WHERE id = ?', [req.user.id]);
             const course = await (0, db_js_1.queryOne)('SELECT title FROM courses WHERE id = ?', [mod.courseId]);
             // Webhook: lesson.completed
-            (0, activity_js_1.logActivity)({ event: 'lesson.completed', userId: req.user.id, userName: user?.name || req.user.email, meta: { lessonId: id, courseId: mod.courseId, courseTitle: course?.title } });
+            (0, activity_js_1.logActivity)({ event: 'lesson.completed', userId: req.user.id, userName: user?.name || req.user.email, meta: { lessonId: id, lessonTitle: lesson.title, courseId: mod.courseId, courseTitle: course?.title } });
             (0, activity_js_1.fireWebhook)({
                 event: 'lesson.completed',
                 userId: req.user.id,
                 userName: user?.name || req.user.email,
                 userEmail: user?.email || req.user.email,
                 lessonId: id,
+                lessonName: lesson.title || null,
                 courseId: mod.courseId,
                 courseName: course?.title || null,
                 timestamp: new Date().toISOString(),

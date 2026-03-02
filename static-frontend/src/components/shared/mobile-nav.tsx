@@ -37,20 +37,20 @@ interface MobileNavProps {
 }
 
 const learnerNavItems = [
-  { href: "/courses", icon: Home, label: "Explore Courses", description: "Discover new courses" },
-  { href: "/my-courses", icon: Bookmark, label: "My Learning", description: "Continue learning" },
+  { href: "/courses", icon: Home, labelKey: "nav.courses", descriptionKey: "mobileNav.discoverCourses" },
+  { href: "/my-courses", icon: Bookmark, labelKey: "mobileNav.myLearning", descriptionKey: "mobileNav.continueLearning" },
 ];
 
 const adminNavItems = [
-  { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard", description: "Overview & stats" },
-  { href: "/manage-courses", icon: GraduationCap, label: "Manage Courses", description: "Create & edit courses" },
-  { href: "/analytics", icon: BarChart3, label: "Analytics", description: "Track performance" },
-  { href: "/users", icon: Users, label: "Users", description: "Manage users" },
+  { href: "/dashboard", icon: LayoutDashboard, labelKey: "nav.dashboard", descriptionKey: "mobileNav.overviewAndStats" },
+  { href: "/manage-courses", icon: GraduationCap, labelKey: "nav.manageCourses", descriptionKey: "mobileNav.createAndEditCourses" },
+  { href: "/analytics", icon: BarChart3, labelKey: "nav.analytics", descriptionKey: "mobileNav.trackPerformance" },
+  { href: "/users", icon: Users, labelKey: "nav.users", descriptionKey: "mobileNav.manageUsers" },
 ];
 
 const accountItems = [
-  { href: "/profile", icon: User, label: "Profile" },
-  { href: "/settings", icon: Settings, label: "Settings" },
+  { href: "/profile", icon: User, labelKey: "nav.profile" },
+  { href: "/settings", icon: Settings, labelKey: "nav.settings" },
 ];
 
 export function MobileNav({ user, variant = "learner", isOpen: externalIsOpen, onClose }: MobileNavProps) {
@@ -169,7 +169,7 @@ export function MobileNav({ user, variant = "learner", isOpen: externalIsOpen, o
           <Logo 
             href={variant === "admin" ? "/dashboard" : "/courses"} 
             size="sm"
-            subtitle={variant === "admin" ? "Creator" : undefined}
+            subtitle={variant === "admin" ? t("roles.creator") : undefined}
           />
           <button 
             type="button"
@@ -188,13 +188,13 @@ export function MobileNav({ user, variant = "learner", isOpen: externalIsOpen, o
             className="mx-4 mt-4 p-4 rounded-2xl bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/10 flex items-center gap-3 hover:from-primary/10 hover:to-primary/15 active:scale-[0.98] transition-all"
           >
             <Avatar className="w-12 h-12 ring-2 ring-white dark:ring-card shadow-lg">
-              <AvatarImage src={user.image || undefined} alt={user.name || "User"} />
+              <AvatarImage src={user.image || undefined} alt={user.name || t("settings.user")} />
               <AvatarFallback className="bg-primary text-white font-bold">
                 {getInitials(user.name || "U")}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="font-bold text-text-1 truncate">{user.name || "User"}</p>
+              <p className="font-bold text-text-1 truncate">{user.name || t("settings.user")}</p>
               <p className="text-caption text-text-3">
                 {user.role === "ADMIN" ? t("roles.admin") : user.role === "CREATOR" ? t("roles.creator") : t("roles.learner")}
               </p>
@@ -208,7 +208,7 @@ export function MobileNav({ user, variant = "learner", isOpen: externalIsOpen, o
           {/* Main Navigation */}
           <div className="mb-6">
             <p className="text-[11px] font-semibold text-text-3 uppercase tracking-wider mb-2 px-1">
-              {variant === "admin" ? "Creator Tools" : t("nav.home")}
+              {variant === "admin" ? t("mobileNav.creatorTools") : t("mobileNav.mainMenu")}
             </p>
             <nav className="space-y-1">
               {navItems.map((item) => {
@@ -232,12 +232,12 @@ export function MobileNav({ user, variant = "learner", isOpen: externalIsOpen, o
                       <item.icon className="w-5 h-5" />
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold">{item.label}</p>
+                      <p className="font-semibold">{t(item.labelKey)}</p>
                       <p className={cn(
                         "text-[11px]",
                         isActive ? "text-white/70" : "text-text-3"
                       )}>
-                        {item.description}
+                        {t(item.descriptionKey)}
                       </p>
                     </div>
                     {isActive && (
@@ -252,7 +252,7 @@ export function MobileNav({ user, variant = "learner", isOpen: externalIsOpen, o
           {/* Account Section */}
           <div className="mb-6">
             <p className="text-[11px] font-semibold text-text-3 uppercase tracking-wider mb-2 px-1">
-              Account
+              {t("settings.account")}
             </p>
             <nav className="space-y-1">
               {accountItems.map((item) => {
@@ -270,7 +270,7 @@ export function MobileNav({ user, variant = "learner", isOpen: externalIsOpen, o
                     )}
                   >
                     <item.icon className="w-5 h-5 text-text-2 flex-shrink-0" />
-                    <span className="font-medium text-body-sm flex-1">{item.label}</span>
+                    <span className="font-medium text-body-sm flex-1">{t(item.labelKey)}</span>
                     <ChevronRight className="w-4 h-4 text-text-3 flex-shrink-0" />
                   </Link>
                 );
@@ -281,7 +281,7 @@ export function MobileNav({ user, variant = "learner", isOpen: externalIsOpen, o
           {/* Support Section */}
           <div className="mb-4">
             <p className="text-[11px] font-semibold text-text-3 uppercase tracking-wider mb-2 px-1">
-              Support
+              {t("mobileNav.support")}
             </p>
             <nav className="space-y-1">
               <button
@@ -293,7 +293,7 @@ export function MobileNav({ user, variant = "learner", isOpen: externalIsOpen, o
                 className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-text-2 hover:bg-muted transition-all active:scale-[0.98]"
               >
                 <HelpCircle className="w-5 h-5 flex-shrink-0" />
-                <span className="font-medium text-body-sm text-left">Help & Support</span>
+                <span className="font-medium text-body-sm text-left">{t("mobileNav.helpSupport")}</span>
               </button>
               <a
                 href="https://cxflow.io/privacy"
@@ -303,7 +303,7 @@ export function MobileNav({ user, variant = "learner", isOpen: externalIsOpen, o
                 className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-text-2 hover:bg-muted transition-all active:scale-[0.98]"
               >
                 <Shield className="w-5 h-5 flex-shrink-0" />
-                <span className="font-medium text-body-sm text-left">Privacy Policy</span>
+                <span className="font-medium text-body-sm text-left">{t("mobileNav.privacyPolicy")}</span>
               </a>
               <a
                 href="https://cxflow.io/terms"
@@ -315,7 +315,7 @@ export function MobileNav({ user, variant = "learner", isOpen: externalIsOpen, o
                 <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                <span className="font-medium text-body-sm text-left">Terms of Service</span>
+                <span className="font-medium text-body-sm text-left">{t("mobileNav.termsOfService")}</span>
               </a>
             </nav>
           </div>
@@ -330,7 +330,7 @@ export function MobileNav({ user, variant = "learner", isOpen: externalIsOpen, o
               className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-danger/10 text-danger font-semibold hover:bg-danger/15 active:scale-[0.98] transition-all"
             >
               <LogOut className="w-5 h-5" />
-              Sign Out
+              {t("nav.signOut")}
             </button>
           ) : (
             <Link

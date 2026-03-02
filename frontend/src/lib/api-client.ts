@@ -18,7 +18,13 @@ if (!API_BASE_URL && typeof window !== "undefined") {
 }
 
 interface RequestOptions extends Omit<RequestInit, 'body'> {
-  token?: string;
+  /**
+   * Auth token override.
+   * - `undefined`: auto-detect from NextAuth session (default)
+   * - `string`: use this token
+   * - `null`: force NO token (useful for "view as anonymous")
+   */
+  token?: string | null;
   body?: unknown;
 }
 
@@ -37,7 +43,8 @@ export class ApiError extends Error {
 /**
  * Get the auth token - from explicit param, or auto-detect from NextAuth session
  */
-async function resolveToken(explicitToken?: string): Promise<string | undefined> {
+async function resolveToken(explicitToken?: string | null): Promise<string | undefined> {
+  if (explicitToken === null) return undefined;
   if (explicitToken) return explicitToken;
   
   // On the client side, get the token from the NextAuth session automatically

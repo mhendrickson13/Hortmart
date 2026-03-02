@@ -30,6 +30,7 @@ import ProfilePage from "@/pages/ProfilePage";
 import SettingsPage from "@/pages/SettingsPage";
 import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
+import InvitePage from "@/pages/InvitePage";
 
 export default function App() {
   return (
@@ -44,6 +45,9 @@ export default function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
+
+          {/* Invite acceptance (public landing, requires auth to accept) */}
+          <Route path="/invite" element={<InvitePage />} />
 
           {/* Admin routes */}
           <Route path="/dashboard" element={<AdminLayout><DashboardPage /></AdminLayout>} />

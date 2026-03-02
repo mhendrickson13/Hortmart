@@ -310,6 +310,8 @@ export default function SettingsPage() {
     }
   };
 
+
+
   const handleTestWebhook = async () => {
     setTestingWebhook(true);
     setWebhookTestResult(null);
@@ -915,12 +917,12 @@ export default function SettingsPage() {
                   {t("settings.eventsSent")}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {["play", "pause", "ended", "timeupdate", "seeked", "ratechange", "visibilitychange"].map((evt) => (
+                  {["play", "pause", "ended", "seeked", "ratechange", "visibilitychange"].map((evt) => (
                     <span key={evt} className="inline-flex items-center h-6 px-2.5 rounded-lg text-[11px] font-semibold bg-primary/10 text-primary border border-primary/15">
                       {evt}
                     </span>
                   ))}
-                  {["lesson.completed", "module.completed", "course.completed"].map((evt) => (
+                  {["lesson.completed", "module.completed", "course.completed", "course.subscription"].map((evt) => (
                     <span key={evt} className="inline-flex items-center h-6 px-2.5 rounded-lg text-[11px] font-semibold bg-success/10 text-success border border-success/15">
                       {evt}
                     </span>
@@ -1022,10 +1024,10 @@ Authorization: Bearer <your-api-token>
 Content-Type: application/json
 
 {
-  "accountid": "${user?.id || 'your_account_id'}",
-  "usrmail": "learner@example.com",
-  "usrname": "John Doe",
-  "suscribedcourses": ["courseId1", "courseId2"]
+  "accountid": "...",
+  "usrmail": "...",
+  "usrname": "...",
+  "suscribedcourses": ["...", "..."]
 }`}
                 </pre>
               </div>
@@ -1147,6 +1149,8 @@ Content-Type: application/json
                   key="auto"
                   onClick={() => {
                     setLanguagePreference("auto");
+                    // Also save platform email language for admin
+                    if (isAdminCheck) settingsApi.update({ platformLanguage: i18n.language }).catch(() => {});
                     toast({
                       title: t("settings.languageUpdated"),
                       description: t("settings.languageAutoDetected"),
@@ -1188,6 +1192,8 @@ Content-Type: application/json
                   key={lang.code}
                   onClick={() => {
                     setLanguagePreference(lang.code);
+                    // Also save platform email language for admin
+                    if (isAdminCheck) settingsApi.update({ platformLanguage: lang.code }).catch(() => {});
                     toast({
                       title: t("settings.languageUpdated"),
                       description: `${t("settings.languageChangedTo")} ${lang.nativeName}`,

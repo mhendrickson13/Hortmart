@@ -128,7 +128,7 @@ function AddCourseModal({
   onEnrolled: () => void;
 }) {
   const { t } = useTranslation();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [search, setSearch] = useState("");
   const [coursesList, setCoursesList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -143,12 +143,16 @@ function AddCourseModal({
   useEffect(() => {
     (async () => {
       try {
-        const res = await coursesApi.list({ limit: 100, status: "PUBLISHED" }, token || undefined);
+        const isCreator = user?.role === "CREATOR";
+        const res = await coursesApi.list(
+          { limit: 100, status: "PUBLISHED", ...(isCreator ? { mine: "true" } : {}) },
+          token || undefined
+        );
         setCoursesList(res.courses || []);
       } catch { setCoursesList([]); }
       setLoading(false);
     })();
-  }, [token]);
+  }, [token, user?.role]);
 
   const filtered = coursesList.filter(
     (c) =>

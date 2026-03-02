@@ -5,6 +5,7 @@ import { notifications as notificationsApi } from "@/lib/api-client";
 import type { Notification } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { cn, formatRelativeTime } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 import { 
   Bell, 
   BellOff,
@@ -44,6 +45,7 @@ const notificationColors: Record<string, string> = {
 export function DesktopNotificationsPopover({ isOpen, onClose }: DesktopNotificationsPopoverProps) {
   const popoverRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
 
   const { data } = useQuery({
@@ -116,7 +118,7 @@ export function DesktopNotificationsPopover({ isOpen, onClose }: DesktopNotifica
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2">
-          <h3 className="text-body-sm font-bold text-text-1">Notifications</h3>
+          <h3 className="text-body-sm font-bold text-text-1">{t("notifications.title")}</h3>
           {unreadCount > 0 && (
             <span className="min-w-[20px] h-5 px-1.5 bg-danger rounded-full flex items-center justify-center">
               <span className="text-[10px] font-bold text-white">{unreadCount}</span>
@@ -130,7 +132,7 @@ export function DesktopNotificationsPopover({ isOpen, onClose }: DesktopNotifica
             className="text-caption font-medium text-primary hover:underline flex items-center gap-1"
           >
             <Check className="w-3 h-3" />
-            Mark all read
+            {t("notifications.markAllRead")}
           </button>
         )}
       </div>
@@ -142,8 +144,8 @@ export function DesktopNotificationsPopover({ isOpen, onClose }: DesktopNotifica
             <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center mb-3">
               <BellOff className="w-5 h-5 text-text-3" />
             </div>
-            <h4 className="text-body-sm font-semibold text-text-1 mb-1">All caught up!</h4>
-            <p className="text-caption text-text-3">You have no new notifications</p>
+            <h4 className="text-body-sm font-semibold text-text-1 mb-1">{t("notifications.allCaughtUp")}</h4>
+            <p className="text-caption text-text-3">{t("notifications.noNewNotifications")}</p>
           </div>
         ) : (
           <div>
@@ -185,7 +187,7 @@ export function DesktopNotificationsPopover({ isOpen, onClose }: DesktopNotifica
                               markReadMutation.mutate(notification.id);
                             }}
                             className="w-6 h-6 rounded flex items-center justify-center text-text-3 hover:bg-primary/10 hover:text-primary opacity-0 group-hover:opacity-100 transition-all"
-                            title="Mark as read"
+                            title={t("notifications.markAsRead")}
                           >
                             <Check className="w-3 h-3" />
                           </button>
@@ -198,7 +200,7 @@ export function DesktopNotificationsPopover({ isOpen, onClose }: DesktopNotifica
                             deleteMutation.mutate(notification.id);
                           }}
                           className="w-6 h-6 rounded flex items-center justify-center text-text-3 hover:bg-danger/10 hover:text-danger opacity-0 group-hover:opacity-100 transition-all"
-                          title="Delete"
+                          title={t("notifications.delete")}
                         >
                           <Trash2 className="w-3 h-3" />
                         </button>
@@ -247,7 +249,7 @@ export function DesktopNotificationsPopover({ isOpen, onClose }: DesktopNotifica
           className="flex items-center justify-center gap-2 text-caption font-medium text-text-2 hover:text-primary transition-colors"
         >
           <Settings className="w-3.5 h-3.5" />
-          Notification Settings
+          {t("notifications.settings")}
         </Link>
       </div>
     </div>

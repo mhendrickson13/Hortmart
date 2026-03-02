@@ -16,7 +16,8 @@ export type ActivityEvent =
   | 'module.completed'
   | 'course.completed'
   | 'review.created'
-  | 'user.created_by_admin';
+  | 'user.created_by_admin'
+  | 'seeked';
 
 export interface ActivityPayload {
   event: ActivityEvent;

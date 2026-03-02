@@ -13,12 +13,39 @@
     "signIn": "Sign In",
     "register": "Register"
   },
+  "mobileNav": {
+    "mainMenu": "Menu",
+    "creatorTools": "Creator Tools",
+    "discoverCourses": "Discover new courses",
+    "myLearning": "My Learning",
+    "continueLearning": "Continue learning",
+    "overviewAndStats": "Overview & stats",
+    "createAndEditCourses": "Create & edit courses",
+    "trackPerformance": "Track performance",
+    "manageUsers": "Manage users",
+    "support": "Support",
+    "helpSupport": "Help & Support",
+    "privacyPolicy": "Privacy Policy",
+    "termsOfService": "Terms of Service"
+  },
+  "mobileHeader": {
+    "explore": "Explore",
+    "nowPlaying": "Now Playing",
+    "courseDetails": "Course Details",
+    "creator": "Creator",
+    "appName": "VideoLecture",
+    "goodMorning": "Good morning",
+    "goodAfternoon": "Good afternoon",
+    "goodEvening": "Good evening",
+    "welcome": "Welcome"
+  },
   "common": {
     "save": "Save",
     "cancel": "Cancel",
     "delete": "Delete",
     "edit": "Edit",
     "create": "Create",
+    "email": "Email",
     "search": "Search",
     "filter": "Filter",
     "loading": "Loading...",
@@ -44,7 +71,68 @@
     "required": "Required",
     "optional": "Optional",
     "tryAgain": "Try again",
-    "error": "Error"
+    "error": "Error",
+    "linkCopied": "Link copied!"
+  },
+  "auth": {
+    "emailPlaceholder": "you@example.com",
+    "password": "Password",
+    "confirmPassword": "Confirm password",
+    "fullName": "Full name",
+    "fullNamePlaceholder": "John Doe",
+    "nameMinChars": "At least 2 characters",
+    "passwordsMatch": "Passwords match",
+    "genericError": "Something went wrong. Please try again.",
+    "emailStrength": {
+      "valid": "Valid",
+      "almostThere": "Almost there",
+      "keepGoing": "Keep going",
+      "invalid": "Invalid"
+    },
+    "passwordStrength": {
+      "weak": "Weak",
+      "fair": "Fair",
+      "good": "Good",
+      "strong": "Strong"
+    },
+    "emailRequirements": {
+      "format": "Contains @",
+      "domain": "Domain name",
+      "tld": "Valid extension"
+    },
+    "passwordRequirements": {
+      "length": "At least 8 characters",
+      "uppercase": "One uppercase letter",
+      "lowercase": "One lowercase letter",
+      "number": "One number"
+    },
+    "roles": {
+      "learner": "Learner",
+      "learnerDesc": "Browse & take courses",
+      "creator": "Creator",
+      "creatorDesc": "Create & sell courses"
+    },
+    "login": {
+      "title": "Welcome back",
+      "subtitle": "Sign in to continue learning",
+      "passwordPlaceholder": "Enter your password",
+      "forgotPassword": "Forgot password?",
+      "signingIn": "Signing in...",
+      "signIn": "Sign in",
+      "signUp": "Sign up",
+      "noAccount": "Don't have an account?",
+      "invalidCredentials": "Invalid email or password. Please try again."
+    },
+    "register": {
+      "title": "Create an account",
+      "subtitle": "Choose your role and start your journey",
+      "passwordPlaceholder": "Create a strong password",
+      "confirmPasswordPlaceholder": "Confirm your password",
+      "creatingAccount": "Creating account...",
+      "createAccount": "Create account",
+      "registrationFailed": "Registration failed. Please try again.",
+      "haveAccount": "Already have an account?"
+    }
   },
   "settings": {
     "title": "Settings",
@@ -148,6 +236,10 @@
     "eventsSent": "Events sent",
     "webhookSaved": "Webhook saved",
     "webhookSaveFailed": "Failed to save webhook",
+    "languageSaved": "Email language saved",
+    "languageSaveFailed": "Failed to save language",
+    "emailLanguage": "Email Language",
+    "emailLanguageDescription": "Language used for all platform emails (welcome, enrollment, certificates, etc.)",
     "webhookTestSuccess": "Success ({{status}} {{statusText}})",
     "webhookTestFailedStatus": "Failed ({{status}})",
     "webhookTestFailed": "Request failed",
@@ -168,6 +260,11 @@
     "apiTokenRevokeFailed": "Failed to revoke API token",
     "endpointExample": "Endpoint usage",
     "responseExample": "Response example",
+    "fieldDescriptions": "Field descriptions",
+    "fieldAccountId": "Your account ID (auto-filled above)",
+    "fieldUsrmail": "Learner email address (required)",
+    "fieldUsrname": "Learner full name (optional)",
+    "fieldSuscribedcourses": "List of course IDs to enroll the learner in (optional)",
     "appearanceDescription": "Personalize how the app looks",
     "cleanAndBright": "Clean & bright",
     "easyOnTheEyes": "Easy on the eyes",
@@ -185,6 +282,14 @@
     "user": "User"
   },
   "notifications": {
+    "title": "Notifications",
+    "unreadCount": "{{count}} unread",
+    "markAllRead": "Mark all as read",
+    "allCaughtUp": "All caught up!",
+    "noNewNotifications": "You have no new notifications",
+    "settings": "Notification Settings",
+    "markAsRead": "Mark as read",
+    "delete": "Delete",
     "newEnrollments": "New Enrollments",
     "newEnrollmentsDesc": "Get notified when someone enrolls in your course",
     "courseReviews": "Course Reviews",
@@ -204,6 +309,53 @@
     "achievements": "Achievements",
     "achievementsDesc": "Get notified when you earn badges or complete courses"
   },
+  "emptyState": {
+    "courses": {
+      "title": "No courses yet",
+      "description": "We're working on adding new courses. Check back soon!"
+    },
+    "myCourses": {
+      "title": "No enrolled courses",
+      "description": "Start your learning journey by exploring our course catalog.",
+      "actionLabel": "Browse Courses"
+    },
+    "search": {
+      "title": "No results found",
+      "description": "Try adjusting your search or filters to find what you're looking for."
+    },
+    "users": {
+      "title": "No users found",
+      "description": "There are no users matching your criteria."
+    },
+    "notes": {
+      "title": "No notes yet",
+      "description": "Add notes while watching to keep track of important concepts.",
+      "actionLabel": "Start Taking Notes"
+    },
+    "questions": {
+      "title": "No questions yet",
+      "description": "Be the first to ask a question about this lesson!",
+      "actionLabel": "Ask a Question"
+    },
+    "reviews": {
+      "title": "No reviews yet",
+      "description": "Be the first to review this course and help others decide.",
+      "actionLabel": "Write a Review"
+    },
+    "favorites": {
+      "title": "No favorites",
+      "description": "Courses you favorite will appear here for easy access.",
+      "actionLabel": "Explore Courses"
+    },
+    "notifications": {
+      "title": "All caught up!",
+      "description": "You have no new notifications at this time."
+    },
+    "default": {
+      "title": "Nothing here yet",
+      "description": "Content will appear here once available."
+    }
+  },
   "courses": {
     "title": "Courses",
     "subtitle": "Explore our course catalog",
@@ -218,8 +370,15 @@
     "draft": "Draft",
     "archived": "Archived",
     "enrollNow": "Enroll Now",
+    "enrollForFree": "Enroll for Free",
+    "subscribeToCourse": "Subscribe to this course",
+    "enrolling": "Enrolling...",
     "continueLearning": "Continue Learning",
     "enrolled": "Enrolled",
+    "enrolledSuccessfully": "Enrolled successfully!",
+    "enrollmentNotAvailable": "Enrollment not available",
+    "enrollmentLearnerOnly": "Only learner accounts can enroll in courses.",
+    "enrollmentFailed": "Enrollment failed",
     "lessons": "lessons",
     "lesson": "lesson",
     "modules": "modules",
@@ -237,12 +396,24 @@
     "advanced": "Advanced",
     "allLevels": "All Levels",
     "duration": "Duration",
+    "language": "Language",
     "instructor": "Instructor",
     "aboutCourse": "About this course",
     "courseContent": "Course content",
     "preview": "Preview",
+    "whatYouWillLearn": "What you'll learn",
+    "favourite": "Favorite",
+    "favouriteAdded": "Added to favorites",
+    "favouriteRemoved": "Removed from favorites",
+    "bookmark": "Bookmark",
+    "bookmarked": "Bookmarked",
+    "bookmarkRemoved": "Bookmark removed",
+    "share": "Share",
+    "updateFailed": "Failed to update",
     "curriculum": "Curriculum",
     "progress": "Progress",
+    "lessonsProgress": "{{completed}}/{{total}} {{lessonLabel}}",
+    "percentComplete": "{{percent}}% complete",
     "completed": "Completed",
     "inProgress": "In Progress",
     "notStarted": "Not Started",
@@ -445,6 +616,8 @@
     "eventStartedLesson": "Started lesson",
     "eventCompletedLesson": "Completed lesson",
     "eventCompletedCourse": "Completed course",
+    "eventCompletedModule": "Module completed",
+    "eventSeeked": "Seeked in video",
     "eventLeftReview": "Left a review"
   },
   "errors": {
@@ -540,6 +713,7 @@
     "courseIsLive": "Course is live and visible to learners.",
     "courseIsPreview": "Preview is available. Publishing will make the course visible to learners.",
     "preview": "Preview",
+    "publicView": "Public view",
     "unpublishing": "Unpublishing...",
     "unpublish": "Unpublish",
     "publishing": "Publishing...",
@@ -688,12 +862,26 @@
       "learnersCount": "{{num}} learners",
       "updated": "Updated {{time}}",
       "course": "Course",
+      "courseId": "Course ID",
+      "copyCourseId": "Copy course ID",
+      "copiedCourseId": "Course ID copied",
+      "copyPublicLink": "Copy public link",
+      "copiedPublicLink": "Public link copied",
+      "copyFailed": "Failed to copy",
       "status": "Status",
       "price": "Price",
       "students": "Students",
       "actions": "Actions",
       "continue": "Continue",
-      "restore": "Restore"
+      "restore": "Restore",
+      "invite": "Invite",
+      "inviteDesc": "Send an invite to enroll in \"{{title}}\".",
+      "inviteHelp": "We’ll email a secure link. The invitee must sign in (or register) with the same email to accept.",
+      "inviteSend": "Send invite",
+      "inviteSending": "Sending…",
+      "inviteSent": "Invitation sent",
+      "inviteFailed": "Failed to send invitation",
+      "inviteInvalidEmail": "Please enter a valid email"
     },
     "usersList": {
       "manageLearnersAndAccess": "Manage learners and access",

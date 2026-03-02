@@ -454,12 +454,6 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
       onProgressRef.current(currentProgress, video.currentTime);
     }
 
-    // Throttled webhook: fire timeupdate every 30 seconds
-    const now = Date.now();
-    if (now - lastTimeupdateWebhookRef.current >= 30000) {
-      lastTimeupdateWebhookRef.current = now;
-      onVideoEventRef.current?.('timeupdate', { currentTime: video.currentTime, duration: dur });
-    }
 
   }, [isYouTube]);
 
@@ -800,6 +794,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function
       <video
         ref={videoRef}
         poster={poster}
+        playsInline
         className="w-full h-full object-contain"
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={() => {

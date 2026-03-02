@@ -6,6 +6,7 @@ import { notifications as notificationsApi } from "@/lib/api-client";
 import type { Notification } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { cn, formatRelativeTime } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 import { 
   X, 
   Bell, 
@@ -47,6 +48,7 @@ export function MobileNotificationsSheet({ isOpen, onClose }: MobileNotification
   const [mounted, setMounted] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const { user } = useAuth();
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
 
   const { data } = useQuery({
@@ -138,9 +140,9 @@ export function MobileNotificationsSheet({ isOpen, onClose }: MobileNotification
               <Bell className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <h2 className="text-[15px] font-bold text-text-1">Notifications</h2>
+              <h2 className="text-[15px] font-bold text-text-1">{t("notifications.title")}</h2>
               {unreadCount > 0 && (
-                <p className="text-[11px] font-semibold text-danger">{unreadCount} unread</p>
+                <p className="text-[11px] font-semibold text-danger">{t("notifications.unreadCount", { count: unreadCount })}</p>
               )}
             </div>
           </div>
@@ -162,7 +164,7 @@ export function MobileNotificationsSheet({ isOpen, onClose }: MobileNotification
               className="flex items-center gap-1.5 text-[12px] font-semibold text-primary hover:text-primary-600 transition-colors"
             >
               <CheckCircle className="w-3.5 h-3.5" />
-              Mark all as read
+              {t("notifications.markAllRead")}
             </button>
           </div>
         )}
@@ -174,8 +176,8 @@ export function MobileNotificationsSheet({ isOpen, onClose }: MobileNotification
               <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
                 <BellOff className="w-7 h-7 text-text-3" />
               </div>
-              <h3 className="text-body font-semibold text-text-1 mb-1">All caught up!</h3>
-              <p className="text-body-sm text-text-3">You have no new notifications</p>
+              <h3 className="text-body font-semibold text-text-1 mb-1">{t("notifications.allCaughtUp")}</h3>
+              <p className="text-body-sm text-text-3">{t("notifications.noNewNotifications")}</p>
             </div>
           ) : (
             <div className="divide-y divide-border/50">
@@ -267,7 +269,7 @@ export function MobileNotificationsSheet({ isOpen, onClose }: MobileNotification
             className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-muted text-text-1 font-medium hover:bg-muted/80 active:scale-[0.98] transition-all"
           >
             <Settings className="w-4 h-4" />
-            Notification Settings
+            {t("notifications.settings")}
           </Link>
         </div>
       </div>

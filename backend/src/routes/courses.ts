@@ -2,11 +2,15 @@ import { Router, Response } from 'express';
 import { query, queryOne, execute, genId, now, inPlaceholders } from '../db.js';
 import { authenticate, optionalAuth, requireCreatorOrAdmin, AuthRequest } from '../middleware/auth.js';
 import { createNotification } from './notifications.js';
-import { sendEnrollmentConfirmation, sendNewStudentNotification } from '../email.js';
+import { sendEnrollmentConfirmation, sendNewStudentNotification, sendCourseInvite } from '../email.js';
+import { logActivity, fireWebhook } from '../activity.js';
 import { cached, invalidateCache } from '../cache.js';
-import { logActivity } from '../activity.js';
+import { upsertCourseOgPage, deleteCourseOgPage } from '../og.js';
+import jwt from 'jsonwebtoken';
 
 const router = Router();
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 // ── Helper: build course list with stats ──
 async function enrichCourses(courseRows: any[]) {
@@ -408,6 +412,14 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res: Response) => {
     const updated = await queryOne<any>('SELECT * FROM courses WHERE id = ?', [id]);
     const creator = await queryOne<any>('SELECT id, name, image FROM users WHERE id = ?', [updated?.creatorId]);
 
+    // Regenerate OG page if published and metadata changed
+    if (updated?.status === 'PUBLISHED') {
+      const ogFields = ['title', 'subtitle', 'description', 'coverImage'];
+      if (ogFields.some(f => req.body[f] !== undefined)) {
+        upsertCourseOgPage(updated).catch(() => {});
+      }
+    }
+
     res.json({ course: { ...updated, creator } });
   } catch (error) {
     console.error('Update course error:', error);
@@ -457,6 +469,12 @@ router.delete('/:id', authenticate, async (req: AuthRequest, res: Response) => {
 router.post('/:id/enroll', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
+
+    // Only learners can self-enroll. Admins/creators manage courses and should not enroll like learners.
+    if (req.user?.role !== 'LEARNER') {
+      return res.status(403).json({ error: 'Only learner accounts can enroll in courses' });
+    }
+
     const course = await queryOne<any>('SELECT id, status FROM courses WHERE id = ?', [id]);
     if (!course || course.status !== 'PUBLISHED') return res.status(404).json({ error: 'Course not found' });
 
@@ -512,6 +530,18 @@ router.post('/:id/enroll', authenticate, async (req: AuthRequest, res: Response)
 
     logActivity({ event: 'enrollment.created', userId: req.user!.id, userName: learner?.name || req.user!.email, meta: { courseId: id, courseTitle: courseInfo?.title } });
 
+    // Webhook: course.subscription
+    fireWebhook({
+      event: 'course.subscription',
+      userId: req.user!.id,
+      userName: learner?.name || req.user!.email,
+      userEmail: learner?.email || req.user!.email,
+      courseId: id,
+      courseName: courseInfo?.title || '',
+      enrollmentId,
+      timestamp: new Date().toISOString(),
+    }).catch(() => {});
+
     res.status(201).json({ enrollment });
   } catch (error) {
     console.error('Enroll error:', error);
@@ -523,6 +553,12 @@ router.post('/:id/enroll', authenticate, async (req: AuthRequest, res: Response)
 router.get('/:id/enroll', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
+
+    // For non-learners, behave as "not enrolled" (they can't self-enroll anyway).
+    if (req.user?.role !== 'LEARNER') {
+      return res.json({ enrolled: false, enrollment: null });
+    }
+
     const enrollment = await queryOne<any>(
       'SELECT * FROM enrollments WHERE userId = ? AND courseId = ?',
       [req.user!.id, id]
@@ -538,6 +574,11 @@ router.get('/:id/enroll', authenticate, async (req: AuthRequest, res: Response) 
 router.delete('/:id/enroll', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
+
+    if (req.user?.role !== 'LEARNER') {
+      return res.status(403).json({ error: 'Only learner accounts can unenroll from courses' });
+    }
+
     const enrollment = await queryOne<any>(
       'SELECT id FROM enrollments WHERE userId = ? AND courseId = ?',
       [req.user!.id, id]
@@ -551,6 +592,58 @@ router.delete('/:id/enroll', authenticate, async (req: AuthRequest, res: Respons
   } catch (error) {
     console.error('Unenroll error:', error);
     res.status(500).json({ error: 'Failed to unenroll' });
+  }
+});
+
+// POST /courses/:id/invite
+// Creator/Admin sends an invite email to join a published course.
+router.post('/:id/invite', authenticate, requireCreatorOrAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    if (!email) return res.status(400).json({ error: 'email is required' });
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) return res.status(400).json({ error: 'Invalid email format' });
+
+    const course = await queryOne<any>('SELECT id, title, status, creatorId FROM courses WHERE id = ?', [id]);
+    if (!course) return res.status(404).json({ error: 'Course not found' });
+
+    // Course must be published to allow enrollment by invite.
+    if (course.status !== 'PUBLISHED') {
+      return res.status(409).json({ error: 'Course must be published to send invites' });
+    }
+
+    // Creator can only invite to their own course.
+    if (req.user!.role === 'CREATOR' && course.creatorId !== req.user!.id) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const inviteToken = jwt.sign(
+      {
+        type: 'course_invite',
+        courseId: id,
+        email,
+        invitedById: req.user!.id,
+      },
+      JWT_SECRET,
+      { expiresIn: (process.env.INVITE_EXPIRES_IN || '14d') as any }
+    );
+
+    const inviter = await queryOne<any>('SELECT name, email FROM users WHERE id = ?', [req.user!.id]);
+    await sendCourseInvite(email, inviter?.name || inviter?.email || null, course.title, inviteToken);
+
+    logActivity({
+      event: 'enrollment.created',
+      userId: req.user!.id,
+      userName: inviter?.name || req.user!.email,
+      meta: { action: 'invite.sent', courseId: id, courseTitle: course.title, invitedEmail: email },
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Invite error:', error);
+    res.status(500).json({ error: 'Failed to send invite' });
   }
 });
 
@@ -976,6 +1069,10 @@ router.post('/:id/publish', authenticate, async (req: AuthRequest, res: Response
       ['PUBLISHED', ts, ts, id]
     );
     const updated = await queryOne<any>('SELECT * FROM courses WHERE id = ?', [id]);
+
+    // Generate OG page for social sharing
+    if (updated) upsertCourseOgPage(updated).catch(() => {});
+
     res.json({ course: updated });
   } catch (error) {
     console.error('Publish course error:', error);
@@ -995,6 +1092,10 @@ router.delete('/:id/publish', authenticate, async (req: AuthRequest, res: Respon
 
     await execute('UPDATE courses SET status = ?, updatedAt = ? WHERE id = ?', ['DRAFT', now(), id]);
     const updated = await queryOne<any>('SELECT * FROM courses WHERE id = ?', [id]);
+
+    // Remove OG page when unpublished
+    deleteCourseOgPage(id).catch(() => {});
+
     res.json({ course: updated });
   } catch (error) {
     console.error('Unpublish course error:', error);

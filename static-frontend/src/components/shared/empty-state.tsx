@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useTranslation } from "react-i18next";
 import {
   BookOpen,
   GraduationCap,
@@ -38,72 +39,6 @@ interface EmptyStateProps {
   className?: string;
 }
 
-const emptyStateConfig: Record<EmptyStateType, {
-  icon: LucideIcon;
-  title: string;
-  description: string;
-  actionLabel?: string;
-  actionHref?: string;
-}> = {
-  courses: {
-    icon: GraduationCap,
-    title: "No courses yet",
-    description: "We're working on adding new courses. Check back soon!",
-  },
-  "my-courses": {
-    icon: BookOpen,
-    title: "No enrolled courses",
-    description: "Start your learning journey by exploring our course catalog.",
-    actionLabel: "Browse Courses",
-    actionHref: "/courses",
-  },
-  search: {
-    icon: Search,
-    title: "No results found",
-    description: "Try adjusting your search or filters to find what you're looking for.",
-  },
-  users: {
-    icon: Users,
-    title: "No users found",
-    description: "There are no users matching your criteria.",
-  },
-  notes: {
-    icon: FileText,
-    title: "No notes yet",
-    description: "Add notes while watching to keep track of important concepts.",
-    actionLabel: "Start Taking Notes",
-  },
-  questions: {
-    icon: MessageSquare,
-    title: "No questions yet",
-    description: "Be the first to ask a question about this lesson!",
-    actionLabel: "Ask a Question",
-  },
-  reviews: {
-    icon: Star,
-    title: "No reviews yet",
-    description: "Be the first to review this course and help others decide.",
-    actionLabel: "Write a Review",
-  },
-  favorites: {
-    icon: Heart,
-    title: "No favorites",
-    description: "Courses you favorite will appear here for easy access.",
-    actionLabel: "Explore Courses",
-    actionHref: "/courses",
-  },
-  notifications: {
-    icon: Bell,
-    title: "All caught up!",
-    description: "You have no new notifications at this time.",
-  },
-  default: {
-    icon: Settings,
-    title: "Nothing here yet",
-    description: "Content will appear here once available.",
-  },
-};
-
 export function EmptyState({
   type = "default",
   title,
@@ -114,6 +49,74 @@ export function EmptyState({
   icon: CustomIcon,
   className,
 }: EmptyStateProps) {
+  const { t } = useTranslation();
+
+  const emptyStateConfig: Record<EmptyStateType, {
+    icon: LucideIcon;
+    title: string;
+    description: string;
+    actionLabel?: string;
+    actionHref?: string;
+  }> = {
+    courses: {
+      icon: GraduationCap,
+      title: t("emptyState.courses.title"),
+      description: t("emptyState.courses.description"),
+    },
+    "my-courses": {
+      icon: BookOpen,
+      title: t("emptyState.myCourses.title"),
+      description: t("emptyState.myCourses.description"),
+      actionLabel: t("emptyState.myCourses.actionLabel"),
+      actionHref: "/courses",
+    },
+    search: {
+      icon: Search,
+      title: t("emptyState.search.title"),
+      description: t("emptyState.search.description"),
+    },
+    users: {
+      icon: Users,
+      title: t("emptyState.users.title"),
+      description: t("emptyState.users.description"),
+    },
+    notes: {
+      icon: FileText,
+      title: t("emptyState.notes.title"),
+      description: t("emptyState.notes.description"),
+      actionLabel: t("emptyState.notes.actionLabel"),
+    },
+    questions: {
+      icon: MessageSquare,
+      title: t("emptyState.questions.title"),
+      description: t("emptyState.questions.description"),
+      actionLabel: t("emptyState.questions.actionLabel"),
+    },
+    reviews: {
+      icon: Star,
+      title: t("emptyState.reviews.title"),
+      description: t("emptyState.reviews.description"),
+      actionLabel: t("emptyState.reviews.actionLabel"),
+    },
+    favorites: {
+      icon: Heart,
+      title: t("emptyState.favorites.title"),
+      description: t("emptyState.favorites.description"),
+      actionLabel: t("emptyState.favorites.actionLabel"),
+      actionHref: "/courses",
+    },
+    notifications: {
+      icon: Bell,
+      title: t("emptyState.notifications.title"),
+      description: t("emptyState.notifications.description"),
+    },
+    default: {
+      icon: Settings,
+      title: t("emptyState.default.title"),
+      description: t("emptyState.default.description"),
+    },
+  };
+
   const config = emptyStateConfig[type];
   const Icon = CustomIcon || config.icon;
   const displayTitle = title || config.title;

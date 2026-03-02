@@ -10,7 +10,13 @@ import { getStoredToken } from "./auth-context";
 const API_BASE_URL = import.meta.env.VITE_API_URL || "";
 
 interface RequestOptions extends Omit<RequestInit, 'body'> {
-  token?: string;
+  /**
+   * Auth token override.
+   * - `undefined`: use token from local storage (default behavior)
+   * - `string`: use this token
+   * - `null`: force NO token (useful for "view as anonymous")
+   */
+  token?: string | null;
   body?: unknown;
 }
 
@@ -25,7 +31,8 @@ export class ApiError extends Error {
   }
 }
 
-function resolveToken(explicitToken?: string): string | undefined {
+function resolveToken(explicitToken?: string | null): string | undefined {
+  if (explicitToken === null) return undefined;
   if (explicitToken) return explicitToken;
   return getStoredToken() || undefined;
 }
@@ -161,7 +168,7 @@ export const courses = {
     return request<{ courses: CourseWithStats[]; pagination: Pagination }>(`/courses/search?${query}`);
   },
   getCategories: () => request<{ categories: string[] }>('/courses/categories'),
-  get: (id: string, token?: string) =>
+  get: (id: string, token?: string | null) =>
     request<{ course: CourseWithDetails }>(`/courses/${id}`, { token }),
   create: (data: CreateCourseData, token?: string) =>
     request<{ course: Course }>('/courses', { method: 'POST', body: data, token }),
@@ -169,11 +176,11 @@ export const courses = {
     request<{ course: Course }>(`/courses/${id}`, { method: 'PATCH', body: data, token }),
   delete: (id: string, token?: string) =>
     request<{ message: string }>(`/courses/${id}`, { method: 'DELETE', token }),
-  enroll: (id: string, token?: string) =>
+  enroll: (id: string, token?: string | null) =>
     request<{ enrollment: Enrollment }>(`/courses/${id}/enroll`, { method: 'POST', token }),
-  checkEnrollment: (id: string, token?: string) =>
+  checkEnrollment: (id: string, token?: string | null) =>
     request<{ enrolled: boolean; enrollment: Enrollment | null }>(`/courses/${id}/enroll`, { token }),
-  unenroll: (id: string, token?: string) =>
+  unenroll: (id: string, token?: string | null) =>
     request<{ message: string }>(`/courses/${id}/enroll`, { method: 'DELETE', token }),
   getProgress: (id: string, token?: string) =>
     request<{ progress: CourseProgress }>(`/courses/${id}/progress`, { token }),
@@ -199,6 +206,26 @@ export const courses = {
     request<{ analytics: CourseAnalytics }>(`/courses/${id}/analytics`, { token }),
   getWatchActivity: (id: string, token?: string) =>
     request<{ activity: Array<{ activityDate: string; watchedSeconds: number }> }>(`/courses/${id}/watch-activity`, { token }),
+
+  /** Send a course invite email (ADMIN or owning CREATOR only; course must be PUBLISHED). */
+  invite: (id: string, email: string, token?: string) =>
+    request<{ success: boolean; inviteToken: string; expiresIn: string }>(`/courses/${id}/invite`, { method: 'POST', body: { email }, token }),
+};
+
+// ==================== Invites ====================
+
+export interface InviteAcceptResponse {
+  success: boolean;
+  courseId: string;
+  courseTitle: string;
+  enrolled: boolean;
+  alreadyEnrolled?: boolean;
+}
+
+export const invites = {
+  /** Accept a course invite token and enroll the currently logged-in user. */
+  accept: (inviteToken: string, token?: string) =>
+    request<InviteAcceptResponse>('/invites/accept', { method: 'POST', body: { token: inviteToken }, token }),
 };
 
 // ==================== Modules ====================
@@ -240,7 +267,7 @@ export const lessons = {
   createResource: (id: string, data: CreateResourceData, token?: string) =>
     request<{ resource: Resource }>(`/lessons/${id}/resources`, { method: 'POST', body: data, token }),
   sendVideoEvent: (data: {
-    event: 'play' | 'pause' | 'ended' | 'timeupdate' | 'seeked' | 'ratechange' | 'visibilitychange';
+    event: 'play' | 'pause' | 'ended' | 'seeked' | 'ratechange' | 'visibilitychange';
     lessonId: string;
     courseId?: string;
     currentTime?: number;
@@ -533,5 +560,5 @@ export interface CreateCourseData { title: string; subtitle?: string; descriptio
 export interface CreateLessonData { title: string; description?: string; videoUrl?: string; durationSeconds?: number; position?: number; isLocked?: boolean; isFreePreview?: boolean; moduleId: string; }
 export interface CreateResourceData { title: string; type: string; url: string; fileSize?: number; }
 
-export const apiClient = { auth, users, courses, modules, lessons, questions, answers, notes, resources, reviews, analytics, uploads, notifications, video };
+export const apiClient = { auth, users, courses, invites, modules, lessons, questions, answers, notes, resources, reviews, analytics, uploads, notifications, video };
 export default apiClient;

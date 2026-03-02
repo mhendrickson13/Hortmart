@@ -8,7 +8,7 @@ import { logActivity, fireWebhook } from '../activity.js';
 const router = Router();
 
 // ── Video event types dispatched to webhook ──
-const VALID_VIDEO_EVENTS = ['play', 'pause', 'ended', 'timeupdate', 'seeked', 'ratechange', 'visibilitychange'] as const;
+const VALID_VIDEO_EVENTS = ['play', 'pause', 'ended', 'seeked', 'ratechange', 'visibilitychange'] as const;
 
 // POST /lessons/video-event — Dispatch video player events to webhook
 router.post('/video-event', authenticate, async (req: AuthRequest, res: Response) => {
@@ -24,6 +24,7 @@ router.post('/video-event', authenticate, async (req: AuthRequest, res: Response
 
     const user = await queryOne<any>('SELECT name, email FROM users WHERE id = ?', [req.user!.id]);
     const course = courseId ? await queryOne<any>('SELECT title FROM courses WHERE id = ?', [courseId]) : null;
+    const lesson = lessonId ? await queryOne<any>('SELECT title FROM lessons WHERE id = ?', [lessonId]) : null;
 
     const payload: Record<string, any> = {
       event,
@@ -31,6 +32,7 @@ router.post('/video-event', authenticate, async (req: AuthRequest, res: Response
       userName: user?.name || user?.email || req.user!.email,
       userEmail: user?.email || req.user!.email,
       lessonId,
+      lessonName: lesson?.title || null,
       courseId: courseId || null,
       courseName: course?.title || null,
       currentTime: currentTime ?? 0,
@@ -46,6 +48,11 @@ router.post('/video-event', authenticate, async (req: AuthRequest, res: Response
     }
 
     fireWebhook(payload).catch(() => {});
+
+    // Log seeked events to activity history
+    if (event === 'seeked') {
+      logActivity({ event: 'seeked', userId: req.user!.id, userName: user?.name || user?.email || req.user!.email, meta: { lessonId, lessonTitle: lesson?.title, courseId: courseId || null, courseTitle: course?.title || null, currentTime: currentTime ?? 0 } });
+    }
 
     res.json({ ok: true });
   } catch (error) {
@@ -242,7 +249,7 @@ router.post('/:id/progress', authenticate, async (req: AuthRequest, res: Respons
     // viewCount increment (1 when a new play-from-start occurs)
     const viewInc = Number(viewCountIncrement) === 1 ? 1 : 0;
 
-    const lesson = await queryOne<any>('SELECT moduleId, durationSeconds FROM lessons WHERE id = ?', [id]);
+    const lesson = await queryOne<any>('SELECT moduleId, durationSeconds, title FROM lessons WHERE id = ?', [id]);
     if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
 
     const mod = await queryOne<any>('SELECT courseId FROM modules WHERE id = ?', [lesson.moduleId]);
@@ -299,7 +306,7 @@ router.post('/:id/progress', authenticate, async (req: AuthRequest, res: Respons
         [progressId, enrollment.id, id, progressPercent, validTimestamp, ts, completedAt, watchedSecondsIncrement, viewInc > 0 ? 1 : 0, ts, ts]
       );
       // First time this lesson is viewed
-      logActivity({ event: 'lesson.started', userId: req.user!.id, userName: req.user!.email, meta: { lessonId: id, courseId: mod.courseId } });
+      logActivity({ event: 'lesson.started', userId: req.user!.id, userName: req.user!.email, meta: { lessonId: id, lessonTitle: lesson.title, courseId: mod.courseId } });
     }
 
     const progress = await queryOne<any>(
@@ -338,13 +345,14 @@ router.post('/:id/progress', authenticate, async (req: AuthRequest, res: Respons
       const course = await queryOne<any>('SELECT title FROM courses WHERE id = ?', [mod.courseId]);
 
       // Webhook: lesson.completed
-      logActivity({ event: 'lesson.completed', userId: req.user!.id, userName: user?.name || req.user!.email, meta: { lessonId: id, courseId: mod.courseId, courseTitle: course?.title } });
+      logActivity({ event: 'lesson.completed', userId: req.user!.id, userName: user?.name || req.user!.email, meta: { lessonId: id, lessonTitle: lesson.title, courseId: mod.courseId, courseTitle: course?.title } });
       fireWebhook({
         event: 'lesson.completed',
         userId: req.user!.id,
         userName: user?.name || req.user!.email,
         userEmail: user?.email || req.user!.email,
         lessonId: id,
+        lessonName: lesson.title || null,
         courseId: mod.courseId,
         courseName: course?.title || null,
         timestamp: new Date().toISOString(),

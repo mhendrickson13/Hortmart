@@ -6,11 +6,13 @@ import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { LogoIcon } from "@/components/shared/logo";
 import { useAuth } from "@/lib/auth-context";
+import { useTranslation } from "react-i18next";
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { login } = useAuth();
+  const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -19,7 +21,8 @@ export default function LoginPage() {
   const isFormValid = email.trim().length > 0 && password.length > 0;
 
   // Where to redirect after login
-  const from = (location.state as any)?.from?.pathname;
+  const from = (location.state as any)?.from as { pathname?: string; search?: string } | undefined;
+  const returnTo = from?.pathname ? `${from.pathname}${from.search || ""}` : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,18 +37,18 @@ export default function LoginPage() {
         // After successful login, user is set in context; read from localStorage
         const storedUser = localStorage.getItem("cxflow_user");
         const userRole = storedUser ? JSON.parse(storedUser).role : null;
-        if (from) {
-          navigate(from, { replace: true });
+        if (returnTo) {
+          navigate(returnTo, { replace: true });
         } else if (userRole === "ADMIN" || userRole === "CREATOR") {
           navigate("/dashboard", { replace: true });
         } else {
           navigate("/courses", { replace: true });
         }
       } else {
-        setError(result.error || "Invalid email or password. Please try again.");
+        setError(result.error || t("auth.login.invalidCredentials"));
       }
     } catch {
-      setError("Something went wrong. Please try again.");
+      setError(t("auth.genericError"));
     } finally {
       setIsLoading(false);
     }
@@ -59,20 +62,20 @@ export default function LoginPage() {
             <LogoIcon size="lg" />
           </div>
 
-          <h1 className="text-h2 font-bold text-center text-text-1 mb-2">Welcome back</h1>
-          <p className="text-body-sm text-text-2 text-center mb-8">Sign in to continue learning</p>
+          <h1 className="text-h2 font-bold text-center text-text-1 mb-2">{t("auth.login.title")}</h1>
+          <p className="text-body-sm text-text-2 text-center mb-8">{t("auth.login.subtitle")}</p>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
+              <Label htmlFor="email">{t("common.email")}</Label>
+              <Input id="email" type="email" placeholder={t("auth.emailPlaceholder")} value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="password">Password</Label>
-              <PasswordInput id="password" placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" />
+              <Label htmlFor="password">{t("auth.password")}</Label>
+              <PasswordInput id="password" placeholder={t("auth.login.passwordPlaceholder")} value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" />
               <div className="text-right">
-                <Link to="/forgot-password" className="text-xs text-primary font-semibold hover:underline">Forgot password?</Link>
+                <Link to="/forgot-password" className="text-xs text-primary font-semibold hover:underline">{t("auth.login.forgotPassword")}</Link>
               </div>
             </div>
 
@@ -81,13 +84,13 @@ export default function LoginPage() {
             )}
 
             <Button type="submit" className="w-full" size="lg" disabled={isLoading || !isFormValid}>
-              {isLoading ? "Signing in..." : "Sign in"}
+              {isLoading ? t("auth.login.signingIn") : t("auth.login.signIn")}
             </Button>
           </form>
 
           <p className="mt-6 text-body-sm text-text-2 text-center">
-            Don&apos;t have an account?{" "}
-            <Link to="/register" className="text-primary font-semibold hover:underline">Sign up</Link>
+            {t("auth.login.noAccount")} {" "}
+            <Link to="/register" state={location.state} className="text-primary font-semibold hover:underline">{t("auth.login.signUp")}</Link>
           </p>
         </div>
       </div>

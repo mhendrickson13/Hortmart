@@ -13,12 +13,39 @@
     "signIn": "Iniciar Sesión",
     "register": "Registrarse"
   },
+  "mobileNav": {
+    "mainMenu": "Menú",
+    "creatorTools": "Herramientas de creador",
+    "discoverCourses": "Descubre nuevos cursos",
+    "myLearning": "Mi aprendizaje",
+    "continueLearning": "Continúa aprendiendo",
+    "overviewAndStats": "Resumen y estadísticas",
+    "createAndEditCourses": "Crear y editar cursos",
+    "trackPerformance": "Seguimiento del rendimiento",
+    "manageUsers": "Gestionar usuarios",
+    "support": "Soporte",
+    "helpSupport": "Ayuda y soporte",
+    "privacyPolicy": "Política de privacidad",
+    "termsOfService": "Términos del servicio"
+  },
+  "mobileHeader": {
+    "explore": "Explorar",
+    "nowPlaying": "Reproduciendo",
+    "courseDetails": "Detalles del curso",
+    "creator": "Creador",
+    "appName": "VideoLecture",
+    "goodMorning": "Buenos días",
+    "goodAfternoon": "Buenas tardes",
+    "goodEvening": "Buenas noches",
+    "welcome": "Bienvenido"
+  },
   "common": {
     "save": "Guardar",
     "cancel": "Cancelar",
     "delete": "Eliminar",
     "edit": "Editar",
     "create": "Crear",
+    "email": "Correo",
     "search": "Buscar",
     "filter": "Filtrar",
     "loading": "Cargando...",
@@ -44,7 +71,68 @@
     "required": "Requerido",
     "optional": "Opcional",
     "tryAgain": "Intentar de nuevo",
-    "error": "Error"
+    "error": "Error",
+    "linkCopied": "¡Enlace copiado!"
+  },
+  "auth": {
+    "emailPlaceholder": "tu@ejemplo.com",
+    "password": "Contraseña",
+    "confirmPassword": "Confirmar contraseña",
+    "fullName": "Nombre completo",
+    "fullNamePlaceholder": "Juan Pérez",
+    "nameMinChars": "Al menos 2 caracteres",
+    "passwordsMatch": "Las contraseñas coinciden",
+    "genericError": "Algo salió mal. Inténtalo de nuevo.",
+    "emailStrength": {
+      "valid": "Válido",
+      "almostThere": "Casi listo",
+      "keepGoing": "Sigue así",
+      "invalid": "Inválido"
+    },
+    "passwordStrength": {
+      "weak": "Débil",
+      "fair": "Regular",
+      "good": "Buena",
+      "strong": "Fuerte"
+    },
+    "emailRequirements": {
+      "format": "Contiene @",
+      "domain": "Nombre de dominio",
+      "tld": "Extensión válida"
+    },
+    "passwordRequirements": {
+      "length": "Al menos 8 caracteres",
+      "uppercase": "Una letra mayúscula",
+      "lowercase": "Una letra minúscula",
+      "number": "Un número"
+    },
+    "roles": {
+      "learner": "Estudiante",
+      "learnerDesc": "Explora y toma cursos",
+      "creator": "Creador",
+      "creatorDesc": "Crea y vende cursos"
+    },
+    "login": {
+      "title": "Bienvenido de nuevo",
+      "subtitle": "Inicia sesión para continuar aprendiendo",
+      "passwordPlaceholder": "Ingresa tu contraseña",
+      "forgotPassword": "¿Olvidaste tu contraseña?",
+      "signingIn": "Iniciando sesión...",
+      "signIn": "Iniciar sesión",
+      "signUp": "Regístrate",
+      "noAccount": "¿No tienes una cuenta?",
+      "invalidCredentials": "Correo o contraseña inválidos. Inténtalo de nuevo."
+    },
+    "register": {
+      "title": "Crear una cuenta",
+      "subtitle": "Elige tu rol y comienza tu viaje",
+      "passwordPlaceholder": "Crea una contraseña segura",
+      "confirmPasswordPlaceholder": "Confirma tu contraseña",
+      "creatingAccount": "Creando cuenta...",
+      "createAccount": "Crear cuenta",
+      "registrationFailed": "El registro falló. Inténtalo de nuevo.",
+      "haveAccount": "¿Ya tienes una cuenta?"
+    }
   },
   "settings": {
     "title": "Configuración",
@@ -148,6 +236,10 @@
     "eventsSent": "Eventos enviados",
     "webhookSaved": "Webhook guardado",
     "webhookSaveFailed": "Error al guardar webhook",
+    "languageSaved": "Idioma de correos guardado",
+    "languageSaveFailed": "Error al guardar idioma",
+    "emailLanguage": "Idioma de Correos",
+    "emailLanguageDescription": "Idioma usado en todos los correos de la plataforma (bienvenida, inscripción, certificados, etc.)",
     "webhookTestSuccess": "Éxito ({{status}} {{statusText}})",
     "webhookTestFailedStatus": "Falló ({{status}})",
     "webhookTestFailed": "La solicitud falló",
@@ -168,6 +260,11 @@
     "apiTokenRevokeFailed": "Error al revocar el token de API",
     "endpointExample": "Uso del endpoint",
     "responseExample": "Ejemplo de respuesta",
+    "fieldDescriptions": "Descripción de campos",
+    "fieldAccountId": "Tu ID de cuenta (se autocompleta arriba)",
+    "fieldUsrmail": "Correo electrónico del alumno (obligatorio)",
+    "fieldUsrname": "Nombre completo del alumno (opcional)",
+    "fieldSuscribedcourses": "Lista de IDs de cursos para inscribir al alumno (opcional)",
     "appearanceDescription": "Personaliza el aspecto de la app",
     "cleanAndBright": "Limpio y brillante",
     "easyOnTheEyes": "Fácil para la vista",
@@ -185,6 +282,14 @@
     "user": "Usuario"
   },
   "notifications": {
+    "title": "Notificaciones",
+    "unreadCount": "{{count}} sin leer",
+    "markAllRead": "Marcar todo como leído",
+    "allCaughtUp": "¡Estás al día!",
+    "noNewNotifications": "No tienes notificaciones nuevas",
+    "settings": "Configuración de notificaciones",
+    "markAsRead": "Marcar como leído",
+    "delete": "Eliminar",
     "newEnrollments": "Nuevas Inscripciones",
     "newEnrollmentsDesc": "Recibe notificaciones cuando alguien se inscriba en tu curso",
     "courseReviews": "Reseñas de Cursos",
@@ -204,6 +309,53 @@
     "achievements": "Logros",
     "achievementsDesc": "Recibe notificaciones cuando obtengas insignias o completes cursos"
   },
+  "emptyState": {
+    "courses": {
+      "title": "Aún no hay cursos",
+      "description": "Estamos trabajando en agregar nuevos cursos. ¡Vuelve pronto!"
+    },
+    "myCourses": {
+      "title": "No estás inscrito en ningún curso",
+      "description": "Comienza tu aprendizaje explorando nuestro catálogo de cursos.",
+      "actionLabel": "Ver cursos"
+    },
+    "search": {
+      "title": "No se encontraron resultados",
+      "description": "Intenta ajustar tu búsqueda o filtros para encontrar lo que buscas."
+    },
+    "users": {
+      "title": "No se encontraron usuarios",
+      "description": "No hay usuarios que coincidan con tus criterios."
+    },
+    "notes": {
+      "title": "Aún no hay notas",
+      "description": "Agrega notas mientras miras para recordar conceptos importantes.",
+      "actionLabel": "Comenzar a tomar notas"
+    },
+    "questions": {
+      "title": "Aún no hay preguntas",
+      "description": "¡Sé el primero en hacer una pregunta sobre esta lección!",
+      "actionLabel": "Hacer una pregunta"
+    },
+    "reviews": {
+      "title": "Aún no hay reseñas",
+      "description": "Sé el primero en reseñar este curso y ayuda a otros a decidir.",
+      "actionLabel": "Escribir una reseña"
+    },
+    "favorites": {
+      "title": "Sin favoritos",
+      "description": "Los cursos que marques como favoritos aparecerán aquí para un acceso fácil.",
+      "actionLabel": "Explorar cursos"
+    },
+    "notifications": {
+      "title": "¡Estás al día!",
+      "description": "No tienes notificaciones nuevas en este momento."
+    },
+    "default": {
+      "title": "Aún no hay nada aquí",
+      "description": "El contenido aparecerá aquí cuando esté disponible."
+    }
+  },
   "courses": {
     "title": "Cursos",
     "subtitle": "Explora nuestro catálogo de cursos",
@@ -218,8 +370,15 @@
     "draft": "Borrador",
     "archived": "Archivado",
     "enrollNow": "Inscribirse Ahora",
+    "enrollForFree": "Inscribirse gratis",
+    "subscribeToCourse": "Suscribirse a este curso",
+    "enrolling": "Inscribiendo...",
     "continueLearning": "Continuar Aprendiendo",
     "enrolled": "Inscrito",
+    "enrolledSuccessfully": "¡Inscripción exitosa!",
+    "enrollmentNotAvailable": "Inscripción no disponible",
+    "enrollmentLearnerOnly": "Solo las cuentas de estudiante pueden inscribirse en cursos.",
+    "enrollmentFailed": "Error al inscribirse",
     "lessons": "lecciones",
     "lesson": "lección",
     "modules": "módulos",
@@ -237,12 +396,24 @@
     "advanced": "Avanzado",
     "allLevels": "Todos los Niveles",
     "duration": "Duración",
+    "language": "Idioma",
     "instructor": "Instructor",
     "aboutCourse": "Acerca de este curso",
     "courseContent": "Contenido del curso",
     "preview": "Vista previa",
+    "whatYouWillLearn": "Lo que aprenderás",
+    "favourite": "Favorito",
+    "favouriteAdded": "Añadido a favoritos",
+    "favouriteRemoved": "Eliminado de favoritos",
+    "bookmark": "Marcador",
+    "bookmarked": "Marcado",
+    "bookmarkRemoved": "Marcador eliminado",
+    "share": "Compartir",
+    "updateFailed": "No se pudo actualizar",
     "curriculum": "Plan de estudios",
     "progress": "Progreso",
+    "lessonsProgress": "{{completed}}/{{total}} {{lessonLabel}}",
+    "percentComplete": "{{percent}}% completado",
     "completed": "Completado",
     "inProgress": "En Progreso",
     "notStarted": "No Iniciado",
@@ -445,6 +616,8 @@
     "eventStartedLesson": "Inició lección",
     "eventCompletedLesson": "Completó lección",
     "eventCompletedCourse": "Completó curso",
+    "eventCompletedModule": "Módulo completado",
+    "eventSeeked": "Buscó en video",
     "eventLeftReview": "Dejó una reseña"
   },
   "errors": {
@@ -540,6 +713,7 @@
     "courseIsLive": "El curso está activo y visible para los estudiantes.",
     "courseIsPreview": "La vista previa está disponible. Publicar hará que el curso sea visible para los estudiantes.",
     "preview": "Vista previa",
+    "publicView": "Vista pública",
     "unpublishing": "Despublicando...",
     "unpublish": "Despublicar",
     "publishing": "Publicando...",
@@ -688,12 +862,26 @@
       "learnersCount": "{{num}} estudiantes",
       "updated": "Actualizado {{time}}",
       "course": "Curso",
+      "courseId": "ID del curso",
+      "copyCourseId": "Copiar ID del curso",
+      "copiedCourseId": "ID del curso copiado",
+      "copyPublicLink": "Copiar enlace público",
+      "copiedPublicLink": "Enlace público copiado",
+      "copyFailed": "No se pudo copiar",
       "status": "Estado",
       "price": "Precio",
       "students": "Estudiantes",
       "actions": "Acciones",
       "continue": "Continuar",
-      "restore": "Restaurar"
+      "restore": "Restaurar",
+      "invite": "Invitar",
+      "inviteDesc": "Enviar una invitación para inscribirse en \"{{title}}\".",
+      "inviteHelp": "Enviaremos un enlace seguro por correo. La persona invitada debe iniciar sesión (o registrarse) con el mismo correo para aceptar.",
+      "inviteSend": "Enviar invitación",
+      "inviteSending": "Enviando…",
+      "inviteSent": "Invitación enviada",
+      "inviteFailed": "No se pudo enviar la invitación",
+      "inviteInvalidEmail": "Ingresa un correo válido"
     },
     "usersList": {
       "manageLearnersAndAccess": "Administra estudiantes y accesos",

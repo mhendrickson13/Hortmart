@@ -9,7 +9,8 @@ export default function HomePage() {
   useEffect(() => {
     if (isLoading) return;
     if (!user) {
-      navigate("/login", { replace: true });
+      // Public landing: allow anonymous users to browse published courses.
+      navigate("/courses", { replace: true });
     } else if (user.role === "ADMIN" || user.role === "CREATOR") {
       navigate("/dashboard", { replace: true });
     } else {

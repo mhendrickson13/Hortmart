@@ -5,6 +5,7 @@ import { Logo } from "@/components/shared/logo";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
 import { Bell, Search, Menu } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface MobileHeaderProps {
   user?: {
@@ -32,29 +33,30 @@ export function MobileHeader({
   notificationCount = 0,
 }: MobileHeaderProps) {
   const { pathname } = useLocation();
+  const { t } = useTranslation();
   
   // Get page title based on pathname
   const getPageTitle = () => {
     if (title) return title;
     
-    if (pathname === "/courses") return "Explore";
-    if (pathname.startsWith("/my-courses")) return "My Courses";
-    if (pathname.startsWith("/profile")) return "Profile";
-    if (pathname.startsWith("/settings")) return "Settings";
-    if (pathname.startsWith("/dashboard")) return "Dashboard";
-    if (pathname.startsWith("/manage-courses")) return "Courses";
-    if (pathname.startsWith("/analytics")) return "Analytics";
-    if (pathname.startsWith("/users")) return "Users";
-    if (pathname.startsWith("/player")) return "Now Playing";
-    if (pathname.startsWith("/course/")) return "Course Details";
-    return variant === "admin" ? "Creator" : "VideoLecture";
+    if (pathname === "/courses") return t("mobileHeader.explore");
+    if (pathname.startsWith("/my-courses")) return t("nav.myCourses");
+    if (pathname.startsWith("/profile")) return t("nav.profile");
+    if (pathname.startsWith("/settings")) return t("nav.settings");
+    if (pathname.startsWith("/dashboard")) return t("nav.dashboard");
+    if (pathname.startsWith("/manage-courses")) return t("nav.courses");
+    if (pathname.startsWith("/analytics")) return t("nav.analytics");
+    if (pathname.startsWith("/users")) return t("nav.users");
+    if (pathname.startsWith("/player")) return t("mobileHeader.nowPlaying");
+    if (pathname.startsWith("/course/")) return t("mobileHeader.courseDetails");
+    return variant === "admin" ? t("mobileHeader.creator") : t("mobileHeader.appName");
   };
 
   const greeting = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return "Good morning";
-    if (hour < 17) return "Good afternoon";
-    return "Good evening";
+    if (hour < 12) return t("mobileHeader.goodMorning");
+    if (hour < 17) return t("mobileHeader.goodAfternoon");
+    return t("mobileHeader.goodEvening");
   };
 
   // Show avatar greeting on these learner pages (Home, My Courses, Profile, Settings, Course Details)
@@ -80,16 +82,16 @@ export function MobileHeader({
             <div className="flex items-center gap-3 min-w-0">
               <Link to="/profile" className="flex-shrink-0">
                 <Avatar className="w-9 h-9 ring-2 ring-primary/20 ring-offset-1 ring-offset-white dark:ring-offset-card">
-                  <AvatarImage src={user?.image || undefined} alt={user?.name || "User"} />
+                  <AvatarImage src={user?.image || undefined} alt={user?.name || t("settings.user")} />
                   <AvatarFallback className="bg-primary/10 text-primary font-semibold text-sm">
-                    {getInitials(user?.name || "U")}
+                    {getInitials(user?.name || t("settings.user"))}
                   </AvatarFallback>
                 </Avatar>
               </Link>
               <div className="min-w-0">
                 <p className="text-[10px] text-text-3 font-medium leading-tight">{greeting()},</p>
                 <h1 className="text-sm font-bold text-text-1 truncate leading-tight">
-                  {user?.name || "Welcome"}
+                  {user?.name || t("mobileHeader.welcome")}
                 </h1>
               </div>
             </div>

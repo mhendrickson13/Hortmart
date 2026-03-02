@@ -42,7 +42,7 @@ router.patch('/', authenticate, requireAdmin, async (req: AuthRequest, res: Resp
     const ts = now();
     for (const [key, value] of entries) {
       // Validate known keys
-      if (!['webhookUrl'].includes(key)) continue;
+      if (!['webhookUrl', 'platformLanguage'].includes(key)) continue;
 
       const existing = await queryOne<any>('SELECT id FROM app_settings WHERE `key` = ?', [key]);
       if (existing) {
@@ -147,6 +147,25 @@ router.delete('/api-token', authenticate, requireAdmin, async (req: AuthRequest,
   } catch (error) {
     console.error('Revoke API token error:', error);
     res.status(500).json({ error: 'Failed to revoke API token' });
+  }
+});
+
+// POST /settings/regenerate-og — Regenerate OG pages for all published courses
+router.post('/regenerate-og', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { upsertCourseOgPage } = await import('../og.js');
+    const courses = await query<any[]>(
+      'SELECT id, title, subtitle, description, coverImage FROM courses WHERE status = ?',
+      ['PUBLISHED']
+    );
+    let ok = 0;
+    for (const c of courses) {
+      try { await upsertCourseOgPage(c); ok++; } catch { /* skip */ }
+    }
+    res.json({ total: courses.length, generated: ok });
+  } catch (error) {
+    console.error('Regenerate OG error:', error);
+    res.status(500).json({ error: 'Failed to regenerate OG pages' });
   }
 });
 

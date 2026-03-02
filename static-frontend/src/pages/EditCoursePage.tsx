@@ -521,9 +521,28 @@ function CourseEditor({ course: initialCourse }: { course: EditorCourse }) {
           </div>
         </div>
         <div className="flex items-center gap-2.5">
-          <button onClick={() => window.open(`/manage-courses/${course.id}/preview`, "_blank")} className="h-10 px-3.5 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-text-1 font-black text-[13px] inline-flex items-center gap-2 shadow-[0_14px_28px_rgba(21,25,35,0.06)] dark:shadow-[0_14px_28px_rgba(0,0,0,0.25)] whitespace-nowrap">
+          <button
+            onClick={() => {
+              // Always open the true admin/creator preview (not the public learner page).
+              window.open(`/manage-courses/${course.id}/preview`, "_blank");
+            }}
+            className="h-10 px-3.5 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-text-1 font-black text-[13px] inline-flex items-center gap-2 shadow-[0_14px_28px_rgba(21,25,35,0.06)] dark:shadow-[0_14px_28px_rgba(0,0,0,0.25)] whitespace-nowrap"
+          >
             {t("editCourse.preview")}
           </button>
+
+          {course.status === "PUBLISHED" && (
+            <button
+              onClick={() => {
+                // Force anonymous view even if you're logged in.
+                window.open(`/course/${course.id}?public=1`, "_blank");
+              }}
+              className="h-10 px-3.5 rounded-[16px] border border-border/95 bg-white/95 dark:bg-card/95 text-text-1 font-black text-[13px] inline-flex items-center gap-2 shadow-[0_14px_28px_rgba(21,25,35,0.06)] dark:shadow-[0_14px_28px_rgba(0,0,0,0.25)] whitespace-nowrap"
+            >
+              {t("editCourse.publicView")}
+            </button>
+          )}
+
           {course.status === "PUBLISHED" ? (
             <button onClick={unpublishCourse} disabled={isLoading} className="h-10 px-3.5 rounded-[16px] border border-red-200 dark:border-red-800 bg-white dark:bg-card text-red-600 dark:text-red-400 font-black text-[13px] inline-flex items-center gap-2 whitespace-nowrap disabled:opacity-50 hover:bg-red-50 dark:hover:bg-red-950 transition-colors">
               {isLoading ? t("editCourse.unpublishing") : t("editCourse.unpublish")}

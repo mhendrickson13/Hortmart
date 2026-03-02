@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 import {
   Clock,
   Play,
@@ -48,6 +49,7 @@ export function MobileCourseCard({
   progress,
   className,
 }: MobileCourseCardProps) {
+  const { t } = useTranslation();
   const isEnrolled = variant === "enrolled" || !!progress;
   const isCompact = variant === "compact";
 
@@ -81,7 +83,7 @@ export function MobileCourseCard({
             <h3 className="text-body-sm font-semibold text-text-1 truncate mb-1">
               {course.title}
             </h3>
-            <p className="text-[11px] text-text-3 mb-2">{course.creator?.name || "Instructor"}</p>
+            <p className="text-[11px] text-text-3 mb-2">{course.creator?.name || t("courses.instructor")}</p>
             
             {progress ? (
               <div className="flex items-center gap-2">
@@ -103,7 +105,7 @@ export function MobileCourseCard({
                     {course.avgRating.toFixed(1)}
                   </span>
                 )}
-                <span>{course.level?.replace("_", " ") || "All Levels"}</span>
+                <span>{course.level?.replace("_", " ") || t("courses.allLevels")}</span>
               </div>
             )}
           </div>
@@ -134,13 +136,13 @@ export function MobileCourseCard({
           <div className="absolute top-2 left-2 flex gap-1.5">
             {course.price === 0 && (
               <Pill size="sm" className="bg-success/90 text-white border-0">
-                Free
+                {t("courses.free")}
               </Pill>
             )}
             {isEnrolled && progress?.percent === 100 && (
               <Pill size="sm" className="bg-success/90 text-white border-0">
                 <CheckCircle className="w-3 h-3 mr-0.5" />
-                Completed
+                {t("courses.completed")}
               </Pill>
             )}
           </div>
@@ -179,7 +181,7 @@ export function MobileCourseCard({
               <h3 className="text-body-sm font-semibold text-text-1 line-clamp-2 leading-snug">
                 {course.title}
               </h3>
-              <p className="text-[11px] text-text-3 mt-0.5">{course.creator?.name || "Instructor"}</p>
+              <p className="text-[11px] text-text-3 mt-0.5">{course.creator?.name || t("courses.instructor")}</p>
             </div>
           </div>
           
@@ -203,7 +205,7 @@ export function MobileCourseCard({
             {course.totalLessons !== undefined && (
               <span className="flex items-center gap-0.5">
                 <BookOpen className="w-3.5 h-3.5" />
-                {course.totalLessons} lessons
+                {course.totalLessons} {t(course.totalLessons === 1 ? "courses.lesson" : "courses.lessons")}
               </span>
             )}
             {course.totalDuration !== undefined && (
@@ -219,9 +221,13 @@ export function MobileCourseCard({
             <div className="mt-3 pt-3 border-t border-border/50">
               <div className="flex items-center justify-between mb-1.5 text-[11px]">
                 <span className="text-text-3">
-                  {progress.completedLessons}/{progress.totalLessons} lessons
+                  {t("courses.lessonsProgress", {
+                    completed: progress.completedLessons,
+                    total: progress.totalLessons,
+                    lessonLabel: t(progress.totalLessons === 1 ? "courses.lesson" : "courses.lessons"),
+                  })}
                 </span>
-                <span className="font-semibold text-primary">{progress.percent}% complete</span>
+                <span className="font-semibold text-primary">{t("courses.percentComplete", { percent: progress.percent })}</span>
               </div>
               <div className="w-full h-2 bg-surface-3 rounded-full overflow-hidden">
                 <div 
@@ -235,9 +241,9 @@ export function MobileCourseCard({
           {/* Price for non-enrolled */}
           {!isEnrolled && (
             <div className="mt-3 pt-3 border-t border-border/50 flex items-center justify-between">
-              <Pill size="sm">{course.level?.replace("_", " ") || "All Levels"}</Pill>
+              <Pill size="sm">{course.level?.replace("_", " ") || t("courses.allLevels")}</Pill>
               <span className="text-body-sm font-bold text-text-1">
-                {course.price === 0 ? "Free" : formatPrice(course.price)}
+                {course.price === 0 ? t("courses.free") : formatPrice(course.price)}
               </span>
             </div>
           )}

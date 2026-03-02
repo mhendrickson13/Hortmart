@@ -13,7 +13,7 @@ import {
   EditPermissionsButton,
   ReviewRefundButton,
 } from "@/components/admin/user-detail-actions";
-import { ArrowLeft, Mail, BookOpen, Shield, AlertTriangle, ChevronDown, ChevronUp, Eye, Clock, CheckCircle, Circle, Play, LogIn, UserPlus, Ban, Unlock, Star, GraduationCap, History } from "lucide-react";
+import { ArrowLeft, Mail, BookOpen, Shield, AlertTriangle, ChevronDown, ChevronUp, Eye, Clock, CheckCircle, Circle, Play, LogIn, UserPlus, Ban, Unlock, Star, GraduationCap, History, Layers, Rewind } from "lucide-react";
 import { formatCurrency, formatRelativeTime } from "@/lib/utils";
 
 /** Format seconds as "Xm Ys" */
@@ -40,7 +40,9 @@ const EVENT_CONFIG: Record<string, { icon: React.ElementType; labelKey: string; 
   "enrollment.created":   { icon: BookOpen,     labelKey: "userDetail.eventEnrolledInCourse", color: "text-primary" },
   "lesson.started":       { icon: Play,         labelKey: "userDetail.eventStartedLesson",    color: "text-text-3" },
   "lesson.completed":     { icon: CheckCircle,  labelKey: "userDetail.eventCompletedLesson",  color: "text-success" },
+  "module.completed":     { icon: Layers,       labelKey: "userDetail.eventCompletedModule",  color: "text-success" },
   "course.completed":     { icon: GraduationCap,labelKey: "userDetail.eventCompletedCourse",  color: "text-success" },
+  "seeked":               { icon: Rewind,       labelKey: "userDetail.eventSeeked",           color: "text-text-3" },
   "review.created":       { icon: Star,         labelKey: "userDetail.eventLeftReview",       color: "text-warning" },
 };
 
@@ -383,7 +385,12 @@ export default function UserDetailPage() {
                   const cfg = EVENT_CONFIG[act.event] || { icon: Circle, labelKey: act.event, color: "text-text-3" };
                   const Icon = cfg.icon;
                   const meta = act.meta || {};
-                  const detail = meta.courseTitle || meta.email || "";
+                  // Build detail lines: lesson/module title + course title
+                  const itemTitle = meta.lessonTitle || meta.moduleTitle || "";
+                  const courseTitle = meta.courseTitle || "";
+                  const detail = itemTitle
+                    ? (courseTitle ? `${itemTitle} — ${courseTitle}` : itemTitle)
+                    : (courseTitle || meta.email || "");
                   return (
                     <div key={act.id} className="flex items-start gap-2.5 py-1.5 px-2 rounded-lg hover:bg-muted/40 transition-colors">
                       <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${cfg.color} bg-current/10`}>

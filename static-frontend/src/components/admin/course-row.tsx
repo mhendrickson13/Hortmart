@@ -1,8 +1,15 @@
 import { Link } from "react-router-dom";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { cn, formatPrice, formatRelativeTime } from "@/lib/utils";
 import { Pill } from "@/components/ui/pill";
-import { Edit, RotateCcw, Trash2 } from "lucide-react";
+import { Edit, RotateCcw, Trash2, Copy, MailPlus, Link2 } from "lucide-react";
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "@/components/ui/toaster";
+import { apiClient, ApiError } from "@/lib/api-client";
 
 interface CourseRowProps {
   course: {
@@ -28,6 +35,10 @@ export function CourseRow({ course, variant = "default", onRestore, onDelete }: 
   const isPublished = course.status === "PUBLISHED";
   const isDraft = course.status === "DRAFT";
   const isArchived = course.status === "ARCHIVED";
+
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [isInviting, setIsInviting] = useState(false);
 
   const statusVariant = isPublished ? "published" : isDraft ? "draft" : "default";
   const enrollmentCount = course._count?.enrollments || 0;
@@ -70,7 +81,75 @@ export function CourseRow({ course, variant = "default", onRestore, onDelete }: 
 
   // Default table-style variant - matches client_designs/admin_courses_list_desktop.html .tr
   return (
-    <div className="grid grid-cols-[1fr_auto_auto_auto_auto] sm:grid-cols-[1.6fr_0.6fr_0.6fr_0.6fr_0.6fr] gap-2.5 items-center p-3 rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 mt-2.5 first:mt-0">
+    <>
+      <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("admin.courseRow.invite")}</DialogTitle>
+            <DialogDescription>
+              {t("admin.courseRow.inviteDesc", { title: course.title })}
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogBody className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor={`invite-email-${course.id}`}>{t("common.email")}</Label>
+              <Input
+                id={`invite-email-${course.id}`}
+                type="email"
+                placeholder="learner@example.com"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                autoComplete="email"
+              />
+            </div>
+            <p className="text-[12px] text-text-3">{t("admin.courseRow.inviteHelp")}</p>
+          </DialogBody>
+
+          <DialogFooter>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                className="flex-1"
+                onClick={() => setInviteOpen(false)}
+                disabled={isInviting}
+              >
+                {t("common.cancel")}
+              </Button>
+              <Button
+                type="button"
+                className="flex-1"
+                disabled={isInviting || inviteEmail.trim().length === 0}
+                onClick={async () => {
+                  const email = inviteEmail.trim();
+                  const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+                  if (!isValid) {
+                    toast({ title: t("admin.courseRow.inviteInvalidEmail"), variant: "error" });
+                    return;
+                  }
+                  setIsInviting(true);
+                  try {
+                    await apiClient.courses.invite(course.id, email);
+                    toast({ title: t("admin.courseRow.inviteSent"), variant: "success" });
+                    setInviteOpen(false);
+                    setInviteEmail("");
+                  } catch (err) {
+                    const message = err instanceof ApiError ? err.message : t("admin.courseRow.inviteFailed");
+                    toast({ title: message, variant: "error" });
+                  } finally {
+                    setIsInviting(false);
+                  }
+                }}
+              >
+                {isInviting ? t("admin.courseRow.inviteSending") : t("admin.courseRow.inviteSend")}
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <div className="grid grid-cols-[1fr_auto] sm:grid-cols-[1.4fr_0.8fr_0.6fr_0.6fr_0.6fr_0.8fr] gap-2.5 items-center p-3 rounded-[18px] border border-border/95 bg-white/95 dark:bg-card/95 mt-2.5 first:mt-0">
       {/* Course Info */}
       <div className="flex items-center gap-3 min-w-0">
         {course.coverImage ? (
@@ -89,6 +168,45 @@ export function CourseRow({ course, variant = "default", onRestore, onDelete }: 
             }
           </div>
         </div>
+      </div>
+
+      {/* Course ID */}
+      <div className="hidden sm:flex items-center gap-2 min-w-0">
+        <span className="font-mono text-[12px] font-bold text-text-2 truncate">{course.id}</span>
+        <button
+          type="button"
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(course.id);
+              toast({ title: t("admin.courseRow.copiedCourseId"), variant: "success" });
+            } catch {
+              toast({ title: t("admin.courseRow.copyFailed"), variant: "error" });
+            }
+          }}
+          className="h-8 w-8 rounded-xl flex items-center justify-center bg-muted text-text-2 hover:text-text-1 hover:bg-muted/80 transition-colors"
+          aria-label={t("admin.courseRow.copyCourseId")}
+          title={t("admin.courseRow.copyCourseId")}
+        >
+          <Copy className="w-4 h-4" />
+        </button>
+
+        <button
+          type="button"
+          onClick={async () => {
+            const publicUrl = `${window.location.origin}/course/${course.id}`;
+            try {
+              await navigator.clipboard.writeText(publicUrl);
+              toast({ title: t("admin.courseRow.copiedPublicLink"), variant: "success" });
+            } catch {
+              toast({ title: t("admin.courseRow.copyFailed"), variant: "error" });
+            }
+          }}
+          className="h-8 w-8 rounded-xl flex items-center justify-center bg-muted text-text-2 hover:text-text-1 hover:bg-muted/80 transition-colors"
+          aria-label={t("admin.courseRow.copyPublicLink")}
+          title={t("admin.courseRow.copyPublicLink")}
+        >
+          <Link2 className="w-4 h-4" />
+        </button>
       </div>
 
       {/* Status */}
@@ -122,6 +240,17 @@ export function CourseRow({ course, variant = "default", onRestore, onDelete }: 
       <div className="flex items-center gap-2 justify-end">
         {isPublished && (
           <>
+            <button
+              type="button"
+              onClick={() => {
+                setInviteEmail("");
+                setInviteOpen(true);
+              }}
+              className="hidden sm:inline-flex h-[34px] px-3 rounded-[14px] items-center gap-1.5 text-[12px] font-black bg-white/95 dark:bg-card/95 border border-border/95 text-text-1 hover:bg-muted transition-colors"
+            >
+              <MailPlus className="w-3.5 h-3.5" />
+              {t("admin.courseRow.invite")}
+            </button>
             <Link 
               to={`/manage-courses/${course.id}/edit`}
               className="hidden sm:inline-flex h-[34px] px-3 rounded-[14px] items-center text-[12px] font-black bg-primary/10 border border-primary/14 text-primary-600 hover:bg-primary/15 transition-colors"
@@ -151,7 +280,7 @@ export function CourseRow({ course, variant = "default", onRestore, onDelete }: 
               {t("admin.courseRow.continue")}
             </Link>
             <Link 
-              to={`/course/${course.id}`}
+              to={`/manage-courses/${course.id}/preview`}
               target="_blank"
               className="hidden sm:inline-flex h-[34px] px-3 rounded-[14px] items-center text-[12px] font-black bg-white/95 dark:bg-card/95 border border-border/95 text-text-1 hover:bg-muted transition-colors"
             >
@@ -190,7 +319,8 @@ export function CourseRow({ course, variant = "default", onRestore, onDelete }: 
           </>
         )}
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -198,8 +328,9 @@ export function CourseRow({ course, variant = "default", onRestore, onDelete }: 
 export function CourseRowHeader() {
   const { t } = useTranslation();
   return (
-    <div className="hidden sm:grid grid-cols-[1.6fr_0.6fr_0.6fr_0.6fr_0.6fr] gap-2.5 items-center px-3 py-2.5 text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">
+    <div className="hidden sm:grid grid-cols-[1.4fr_0.8fr_0.6fr_0.6fr_0.6fr_0.8fr] gap-2.5 items-center px-3 py-2.5 text-[11px] font-black text-text-3 uppercase tracking-[0.3px]">
       <div>{t("admin.courseRow.course")}</div>
+      <div>{t("admin.courseRow.courseId")}</div>
       <div>{t("admin.courseRow.status")}</div>
       <div>{t("admin.courseRow.price")}</div>
       <div>{t("admin.courseRow.students")}</div>

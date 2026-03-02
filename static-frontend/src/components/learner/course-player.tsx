@@ -696,6 +696,43 @@ export function CoursePlayer({
 
         {/* Mobile Lesson Info & Controls */}
         <div className="lg:hidden space-y-3">
+          {/* Mobile Next Lesson Card — shown when video ends */}
+          {videoEnded && (
+            <div className="mobile-card border-2 border-primary/30 bg-primary/5 animate-in fade-in slide-in-from-top-2 duration-300">
+              {nextLessonAvailable ? (
+                <div className="flex items-center gap-3">
+                  <span className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <CheckCircle className="w-5 h-5 text-success" />
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-caption font-semibold text-success mb-0.5">Lesson Complete!</p>
+                    <p className="text-body-sm font-bold text-text-1 truncate">{nextLesson!.title}</p>
+                  </div>
+                  <button
+                    onClick={() => handleLessonSelect(nextLesson!.id)}
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary text-white font-bold text-body-sm hover:bg-primary/90 transition-colors shadow-sm flex-shrink-0"
+                  >
+                    <Play className="w-4 h-4" fill="currentColor" />
+                    Next
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <span className="w-10 h-10 rounded-xl bg-success/10 flex items-center justify-center flex-shrink-0">
+                    <CheckCircle className="w-5 h-5 text-success" />
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-body-sm font-bold text-text-1">
+                      {currentLessonIndex === allLessons.length - 1 ? 'Course Complete! 🎉' : 'Lesson Complete!'}
+                    </p>
+                    <p className="text-caption text-text-3">
+                      {currentLessonIndex === allLessons.length - 1 ? 'Great job — you finished all lessons.' : 'The next lesson is locked.'}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           {/* Lesson Info Card */}
           <div className="mobile-card">
             <div className="flex items-start gap-3">

@@ -1,6 +1,7 @@
 import { useLocation } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 import {
   Home,
   GraduationCap,
@@ -18,21 +19,22 @@ interface MobileBottomNavProps {
 
 // Matches design: Home, My Courses, Search, Profile
 const learnerNavItems = [
-  { href: "/courses", icon: Home, label: "Home", isButton: false },
-  { href: "/my-courses", icon: GraduationCap, label: "My Courses", isButton: false },
-  { href: "#search", icon: Search, label: "Search", isButton: true },
-  { href: "/profile", icon: User, label: "Profile", isButton: false },
+  { href: "/courses", icon: Home, labelKey: "nav.home", isButton: false },
+  { href: "/my-courses", icon: GraduationCap, labelKey: "nav.myCourses", isButton: false },
+  { href: "#search", icon: Search, labelKey: "common.search", isButton: true },
+  { href: "/profile", icon: User, labelKey: "nav.profile", isButton: false },
 ];
 
 const adminNavItems = [
-  { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard", isButton: false },
-  { href: "/manage-courses", icon: GraduationCap, label: "Courses", isButton: false },
-  { href: "/analytics", icon: BarChart3, label: "Analytics", isButton: false },
-  { href: "/users", icon: Users, label: "Users", isButton: false },
+  { href: "/dashboard", icon: LayoutDashboard, labelKey: "nav.dashboard", isButton: false },
+  { href: "/manage-courses", icon: GraduationCap, labelKey: "nav.courses", isButton: false },
+  { href: "/analytics", icon: BarChart3, labelKey: "nav.analytics", isButton: false },
+  { href: "/users", icon: Users, labelKey: "nav.users", isButton: false },
 ];
 
 export function MobileBottomNav({ variant = "learner", onSearchClick }: MobileBottomNavProps) {
   const { pathname } = useLocation();
+  const { t } = useTranslation();
   const navItems = variant === "admin" ? adminNavItems : learnerNavItems;
 
   return (
@@ -68,7 +70,7 @@ export function MobileBottomNav({ variant = "learner", onSearchClick }: MobileBo
                   <item.icon className="w-5 h-5 transition-all" />
                 </span>
                 <span className="text-[9px] font-semibold transition-all leading-tight text-text-3">
-                  {item.label}
+                  {t(item.labelKey)}
                 </span>
               </button>
             );
@@ -107,7 +109,7 @@ export function MobileBottomNav({ variant = "learner", onSearchClick }: MobileBo
                 "text-[9px] font-semibold transition-all leading-tight",
                 finalActive ? "text-primary" : "text-text-3"
               )}>
-                {item.label}
+                {t(item.labelKey)}
               </span>
             </Link>
           );

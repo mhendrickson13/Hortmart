@@ -710,17 +710,35 @@ router.post('/:id/unblock', authenticate, requireAdmin, async (req: AuthRequest,
 });
 
 // POST /users/:id/enroll - Admin enrolls a user in a course
-router.post('/:id/enroll', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+// NOTE: Admins can enroll any user into any course.
+// Creators can enroll users only into their OWN published courses.
+router.post('/:id/enroll', authenticate, requireCreatorOrAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.params.id;
     const { courseId } = req.body;
     if (!courseId) return res.status(400).json({ error: 'courseId is required' });
 
-    const user = await queryOne<any>('SELECT id, name, email FROM users WHERE id = ?', [userId]);
+    const user = await queryOne<any>('SELECT id, name, email, role FROM users WHERE id = ?', [userId]);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const course = await queryOne<any>('SELECT id, title, status FROM courses WHERE id = ?', [courseId]);
+    // Prevent creators from taking actions on ADMIN users
+    if (user.role === 'ADMIN' && req.user!.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const course = await queryOne<any>('SELECT id, title, status, creatorId FROM courses WHERE id = ?', [courseId]);
     if (!course) return res.status(404).json({ error: 'Course not found' });
+
+    // Creator scope: only their own courses, and only if published
+    if (req.user!.role === 'CREATOR') {
+      if (course.creatorId !== req.user!.id) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      if (course.status !== 'PUBLISHED') {
+        // Avoid leaking draft/unpublished course existence to non-admin roles
+        return res.status(404).json({ error: 'Course not found' });
+      }
+    }
 
     const existing = await queryOne<any>('SELECT id FROM enrollments WHERE userId = ? AND courseId = ?', [userId, courseId]);
     if (existing) return res.status(409).json({ error: 'User is already enrolled in this course' });
@@ -730,6 +748,18 @@ router.post('/:id/enroll', authenticate, requireAdmin, async (req: AuthRequest, 
 
     // Send enrollment confirmation email
     sendEnrollmentConfirmation(user.email, user.name, course.title, courseId).catch(() => {});
+
+    logActivity({
+      event: 'enrollment.created',
+      userId: userId,
+      userName: user?.name || user?.email,
+      meta: {
+        courseId,
+        courseTitle: course.title,
+        enrolledBy: req.user!.id,
+        enrolledByRole: req.user!.role,
+      },
+    });
 
     res.status(201).json({ message: `User enrolled in "${course.title}"`, enrollmentId });
   } catch (error) {

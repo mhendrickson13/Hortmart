@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,19 +8,21 @@ import { LogoIcon } from "@/components/shared/logo";
 import { useAuth } from "@/lib/auth-context";
 import { Check, X, Mail, AtSign, Globe, BookOpen, PenTool } from "lucide-react";
 import { validateEmail, validateName, hasStartedEmail, PASSWORD_REQUIREMENTS, EMAIL_REQUIREMENTS } from "@/lib/validation";
+import { useTranslation } from "react-i18next";
 
 // ── Email validation indicator ──
 function EmailValidationIndicator({ email }: { email: string }) {
+  const { t } = useTranslation();
   const validation = useMemo(() => validateEmail(email), [email]);
   const hasStarted = hasStartedEmail(email);
 
   const strengthLabel = useMemo(() => {
     if (!hasStarted) return "";
-    if (validation.isValid) return "Valid";
-    if (validation.strength >= 2) return "Almost there";
-    if (validation.strength >= 1) return "Keep going";
-    return "Invalid";
-  }, [hasStarted, validation]);
+    if (validation.isValid) return t("auth.emailStrength.valid");
+    if (validation.strength >= 2) return t("auth.emailStrength.almostThere");
+    if (validation.strength >= 1) return t("auth.emailStrength.keepGoing");
+    return t("auth.emailStrength.invalid");
+  }, [hasStarted, validation, t]);
 
   const strengthColor = useMemo(() => {
     if (validation.isValid) return "bg-success";
@@ -51,7 +53,7 @@ function EmailValidationIndicator({ email }: { email: string }) {
               <div className={`w-4 h-4 rounded-full flex items-center justify-center transition-all duration-300 ${passed ? "bg-success/15" : "bg-surface-3"}`}>
                 {passed ? <Check className="w-2.5 h-2.5" /> : <Icon className="w-2.5 h-2.5" />}
               </div>
-              <span className="hidden sm:inline">{req.label}</span>
+              <span className="hidden sm:inline">{t(`auth.emailRequirements.${req.id}`, { defaultValue: req.label })}</span>
             </div>
           );
         })}
@@ -62,6 +64,7 @@ function EmailValidationIndicator({ email }: { email: string }) {
 
 // ── Password strength indicator ──
 function PasswordStrengthIndicator({ password }: { password: string }) {
+  const { t } = useTranslation();
   const strength = useMemo(() => {
     if (!password) return 0;
     return PASSWORD_REQUIREMENTS.filter((req) => req.test(password)).length;
@@ -69,11 +72,11 @@ function PasswordStrengthIndicator({ password }: { password: string }) {
 
   const strengthLabel = useMemo(() => {
     if (strength === 0) return "";
-    if (strength <= 1) return "Weak";
-    if (strength <= 2) return "Fair";
-    if (strength <= 3) return "Good";
-    return "Strong";
-  }, [strength]);
+    if (strength <= 1) return t("auth.passwordStrength.weak");
+    if (strength <= 2) return t("auth.passwordStrength.fair");
+    if (strength <= 3) return t("auth.passwordStrength.good");
+    return t("auth.passwordStrength.strong");
+  }, [strength, t]);
 
   const strengthColor = useMemo(() => {
     if (strength <= 1) return "bg-danger";
@@ -102,7 +105,7 @@ function PasswordStrengthIndicator({ password }: { password: string }) {
               <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center transition-all duration-300 ${passed ? "bg-success/15" : "bg-surface-3"}`}>
                 {passed ? <Check className="w-2 h-2" /> : <X className="w-2 h-2" />}
               </div>
-              {req.label}
+              {t(`auth.passwordRequirements.${req.id}`, { defaultValue: req.label })}
             </div>
           );
         })}
@@ -114,7 +117,9 @@ function PasswordStrengthIndicator({ password }: { password: string }) {
 // ── Register Page ──
 export default function RegisterPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { register } = useAuth();
+  const { t } = useTranslation();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -129,6 +134,9 @@ export default function RegisterPage() {
   const passwordsMatch = password === confirmPassword && confirmPassword !== "";
   const isFormValid = nameValidation.isValid && emailValidation.isValid && isPasswordValid && passwordsMatch;
 
+  const from = (location.state as any)?.from as { pathname?: string; search?: string } | undefined;
+  const returnTo = from?.pathname ? `${from.pathname}${from.search || ""}` : null;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -137,13 +145,17 @@ export default function RegisterPage() {
     try {
       const result = await register({ email: email.trim(), password, name: name.trim(), role });
       if (result.success) {
-        // Creator goes to dashboard, learner goes to courses
-        navigate(role === "CREATOR" ? "/dashboard" : "/courses", { replace: true });
+        if (returnTo) {
+          navigate(returnTo, { replace: true });
+        } else {
+          // Creator goes to dashboard, learner goes to courses
+          navigate(role === "CREATOR" ? "/dashboard" : "/courses", { replace: true });
+        }
       } else {
-        setError(result.error || "Registration failed. Please try again.");
+        setError(result.error || t("auth.register.registrationFailed"));
       }
     } catch {
-      setError("Something went wrong. Please try again.");
+      setError(t("auth.genericError"));
     } finally {
       setIsLoading(false);
     }
@@ -156,8 +168,8 @@ export default function RegisterPage() {
           <div className="flex justify-center mb-8">
             <LogoIcon size="lg" />
           </div>
-          <h1 className="text-h2 font-bold text-center text-text-1 mb-2">Create an account</h1>
-          <p className="text-body-sm text-text-2 text-center mb-6">Choose your role and start your journey</p>
+          <h1 className="text-h2 font-bold text-center text-text-1 mb-2">{t("auth.register.title")}</h1>
+          <p className="text-body-sm text-text-2 text-center mb-6">{t("auth.register.subtitle")}</p>
 
           {/* Role selector */}
           <div className="grid grid-cols-2 gap-3 mb-6">
@@ -177,8 +189,8 @@ export default function RegisterPage() {
               </div>
               <span className={`text-body-sm font-bold transition-colors ${
                 role === "LEARNER" ? "text-primary" : "text-text-2"
-              }`}>Learner</span>
-              <span className="text-[11px] text-text-3 text-center leading-tight">Browse & take courses</span>
+              }`}>{t("auth.roles.learner")}</span>
+              <span className="text-[11px] text-text-3 text-center leading-tight">{t("auth.roles.learnerDesc")}</span>
             </button>
             <button
               type="button"
@@ -196,17 +208,17 @@ export default function RegisterPage() {
               </div>
               <span className={`text-body-sm font-bold transition-colors ${
                 role === "CREATOR" ? "text-primary" : "text-text-2"
-              }`}>Creator</span>
-              <span className="text-[11px] text-text-3 text-center leading-tight">Create & sell courses</span>
+              }`}>{t("auth.roles.creator")}</span>
+              <span className="text-[11px] text-text-3 text-center leading-tight">{t("auth.roles.creatorDesc")}</span>
             </button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Name */}
             <div className="space-y-1.5">
-              <Label htmlFor="name">Full name</Label>
+              <Label htmlFor="name">{t("auth.fullName")}</Label>
               <div className="relative">
-                <Input id="name" type="text" placeholder="John Doe" value={name} onChange={(e) => setName(e.target.value)} required autoComplete="name"
+                <Input id="name" type="text" placeholder={t("auth.fullNamePlaceholder")} value={name} onChange={(e) => setName(e.target.value)} required autoComplete="name"
                   className={nameValidation.isValid ? "border-success focus:border-success focus:ring-success/20 pr-10" : ""}
                 />
                 {nameValidation.isValid && (
@@ -220,16 +232,16 @@ export default function RegisterPage() {
                   <div className={`w-4 h-4 rounded-full flex items-center justify-center transition-all duration-300 ${nameValidation.isValid ? "bg-success/15" : "bg-surface-3"}`}>
                     <Check className={`w-2.5 h-2.5 transition-colors duration-300 ${nameValidation.isValid ? "text-success" : "text-text-3"}`} />
                   </div>
-                  <span className={`transition-colors duration-300 ${nameValidation.isValid ? "text-success" : "text-text-3"}`}>At least 2 characters</span>
+                  <span className={`transition-colors duration-300 ${nameValidation.isValid ? "text-success" : "text-text-3"}`}>{t("auth.nameMinChars")}</span>
                 </div>
               )}
             </div>
 
             {/* Email */}
             <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t("common.email")}</Label>
               <div className="relative">
-                <Input id="email" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email"
+                <Input id="email" type="email" placeholder={t("auth.emailPlaceholder")} value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email"
                   className={emailValidation.isValid ? "border-success focus:border-success focus:ring-success/20 pr-10" : ""}
                 />
                 {emailValidation.isValid && (
@@ -243,8 +255,8 @@ export default function RegisterPage() {
 
             {/* Password */}
             <div className="space-y-1.5">
-              <Label htmlFor="password">Password</Label>
-              <PasswordInput id="password" placeholder="Create a strong password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="new-password"
+              <Label htmlFor="password">{t("auth.password")}</Label>
+              <PasswordInput id="password" placeholder={t("auth.register.passwordPlaceholder")} value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="new-password"
                 className={isPasswordValid ? "border-success focus:border-success focus:ring-success/20" : ""}
               />
               <PasswordStrengthIndicator password={password} />
@@ -252,8 +264,8 @@ export default function RegisterPage() {
 
             {/* Confirm Password */}
             <div className="space-y-1.5">
-              <Label htmlFor="confirmPassword">Confirm password</Label>
-              <PasswordInput id="confirmPassword" placeholder="Confirm your password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required autoComplete="new-password"
+              <Label htmlFor="confirmPassword">{t("auth.confirmPassword")}</Label>
+              <PasswordInput id="confirmPassword" placeholder={t("auth.register.confirmPasswordPlaceholder")} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required autoComplete="new-password"
                 className={confirmPassword && passwordsMatch ? "border-success focus:border-success focus:ring-success/20" : ""}
               />
               {confirmPassword.length > 0 && (
@@ -261,7 +273,7 @@ export default function RegisterPage() {
                   <div className={`w-4 h-4 rounded-full flex items-center justify-center transition-all duration-300 ${passwordsMatch ? "bg-success/15" : "bg-surface-3"}`}>
                     <Check className={`w-2.5 h-2.5 transition-colors duration-300 ${passwordsMatch ? "text-success" : "text-text-3"}`} />
                   </div>
-                  <span className={`transition-colors duration-300 ${passwordsMatch ? "text-success" : "text-text-3"}`}>Passwords match</span>
+                  <span className={`transition-colors duration-300 ${passwordsMatch ? "text-success" : "text-text-3"}`}>{t("auth.passwordsMatch")}</span>
                 </div>
               )}
             </div>
@@ -271,13 +283,13 @@ export default function RegisterPage() {
             )}
 
             <Button type="submit" className="w-full" size="lg" disabled={isLoading || !isFormValid}>
-              {isLoading ? "Creating account..." : "Create account"}
+              {isLoading ? t("auth.register.creatingAccount") : t("auth.register.createAccount")}
             </Button>
           </form>
 
           <p className="mt-6 text-body-sm text-text-2 text-center">
-            Already have an account?{" "}
-            <Link to="/login" className="text-primary font-semibold hover:underline">Sign in</Link>
+            {t("auth.register.haveAccount")} {" "}
+            <Link to="/login" state={location.state} className="text-primary font-semibold hover:underline">{t("auth.login.signIn")}</Link>
           </p>
         </div>
       </div>
