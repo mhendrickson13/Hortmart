@@ -8,7 +8,7 @@
  */
 
 import nodemailer from 'nodemailer';
-import { queryOne } from './db.js';
+import { queryOne, execute } from './db.js';
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.sendgrid.net',
@@ -29,6 +29,49 @@ async function getLang(): Promise<string> {
     const row = await queryOne<any>(`SELECT value FROM app_settings WHERE \`key\` = 'platformLanguage'`);
     return (row?.value || 'es').toLowerCase().slice(0, 2);
   } catch { return 'es'; }
+}
+
+/** Ensure the preferredLanguage column exists (idempotent) */
+let _columnChecked = false;
+async function ensureColumn(): Promise<void> {
+  if (_columnChecked) return;
+  try {
+    await execute(`ALTER TABLE users ADD COLUMN preferredLanguage VARCHAR(5) NULL DEFAULT NULL`);
+  } catch (e: any) {
+    // ignore duplicate column error (1060)
+    if (e?.errno !== 1060 && !(e?.message || '').includes('Duplicate column')) {
+      console.warn('[Email] ensureColumn warning:', e?.message);
+    }
+  }
+  _columnChecked = true;
+}
+
+/**
+ * Resolve language for an email recipient by their email address.
+ * Returns the user's preferredLanguage if set, otherwise falls back to platform language.
+ */
+async function getUserLang(email: string): Promise<string> {
+  await ensureColumn();
+  try {
+    const row = await queryOne<any>('SELECT preferredLanguage FROM users WHERE email = ?', [email]);
+    if (row?.preferredLanguage) return row.preferredLanguage.toLowerCase().slice(0, 2);
+  } catch { /* fall through */ }
+  return getLang();
+}
+
+/**
+ * Resolve language for an admin/creator by their user ID.
+ * Returns the user's preferredLanguage if set, otherwise falls back to platform language.
+ */
+async function getAdminLang(adminUserId?: string): Promise<string> {
+  if (adminUserId) {
+    await ensureColumn();
+    try {
+      const row = await queryOne<any>('SELECT preferredLanguage FROM users WHERE id = ?', [adminUserId]);
+      if (row?.preferredLanguage) return row.preferredLanguage.toLowerCase().slice(0, 2);
+    } catch { /* fall through */ }
+  }
+  return getLang();
 }
 
 type Lang = 'es' | 'en' | 'fr' | 'pt';
@@ -154,7 +197,7 @@ async function send(to: string, subject: string, html: string, lang: string = 'e
 
 /** Welcome email after registration */
 export async function sendWelcome(to: string, name?: string) {
-  const lang = await getLang();
+  const lang = await getUserLang(to);
   const greeting = name ? `${tr('hi', lang)} ${name},` : `${tr('hi', lang)},`;
   await send(to, tr('welcome.subject', lang), `
     <h2 style="margin:0 0 12px;font-size:20px;color:#1e293b">${greeting}</h2>
@@ -167,7 +210,7 @@ export async function sendWelcome(to: string, name?: string) {
 
 /** Enrollment confirmation email */
 export async function sendEnrollmentConfirmation(to: string, name: string | null, courseTitle: string, courseId: string) {
-  const lang = await getLang();
+  const lang = await getUserLang(to);
   const greeting = name ? `${tr('hi', lang)} ${name},` : `${tr('hi', lang)},`;
   await send(to, `${tr('enroll.subject', lang)} "${courseTitle}"`, `
     <h2 style="margin:0 0 12px;font-size:20px;color:#1e293b">${greeting}</h2>
@@ -176,9 +219,9 @@ export async function sendEnrollmentConfirmation(to: string, name: string | null
   `, lang);
 }
 
-/** Course invitation email (invite link) */
-export async function sendCourseInvite(to: string, inviterName: string | null, courseTitle: string, inviteToken: string) {
-  const lang = await getLang();
+/** Course invitation email (invite link) — uses admin's language */
+export async function sendCourseInvite(to: string, inviterName: string | null, courseTitle: string, inviteToken: string, adminUserId?: string) {
+  const lang = await getAdminLang(adminUserId);
   const inviter = inviterName || 'CXFlow Academy';
   const link = `${FRONTEND}/invite?token=${encodeURIComponent(inviteToken)}`;
   await send(to, `${tr('invite.subject', lang)} "${courseTitle}"`, `
@@ -192,7 +235,7 @@ export async function sendCourseInvite(to: string, inviterName: string | null, c
 
 /** Password reset email with token link */
 export async function sendPasswordReset(to: string, name: string | null, resetToken: string) {
-  const lang = await getLang();
+  const lang = await getUserLang(to);
   const greeting = name ? `${tr('hi', lang)} ${name},` : `${tr('hi', lang)},`;
   const link = `${FRONTEND}/reset-password?token=${resetToken}`;
   await send(to, tr('reset.subject', lang), `
@@ -205,7 +248,7 @@ export async function sendPasswordReset(to: string, name: string | null, resetTo
 
 /** Course completion congratulations */
 export async function sendCourseCompleted(to: string, name: string | null, courseTitle: string) {
-  const lang = await getLang();
+  const lang = await getUserLang(to);
   const greeting = name ? `${tr('complete.congrats', lang)} ${name}!` : `${tr('complete.congrats', lang)}!`;
   await send(to, `${tr('complete.body', lang)} "${courseTitle}"!`, `
     <h2 style="margin:0 0 12px;font-size:20px;color:#1e293b">${greeting}</h2>
@@ -217,7 +260,7 @@ export async function sendCourseCompleted(to: string, name: string | null, cours
 
 /** Module completion notification */
 export async function sendModuleCompleted(to: string, name: string | null, moduleTitle: string, courseTitle: string, courseId: string) {
-  const lang = await getLang();
+  const lang = await getUserLang(to);
   const greeting = name ? `${tr('module.done', lang)} ${name}!` : `${tr('module.done', lang)}!`;
   await send(to, `${tr('module.body', lang)}: "${moduleTitle}"`, `
     <h2 style="margin:0 0 12px;font-size:20px;color:#1e293b">${greeting}</h2>
@@ -229,7 +272,7 @@ export async function sendModuleCompleted(to: string, name: string | null, modul
 
 /** Certificate / Constancia email — formal PDF-like HTML certificate */
 export async function sendCourseCertificate(to: string, name: string | null, courseTitle: string, completedDate: string) {
-  const lang = await getLang();
+  const lang = await getUserLang(to);
   const displayName = name || to;
   const locale = lang === 'en' ? 'en-US' : lang === 'fr' ? 'fr-FR' : lang === 'pt' ? 'pt-BR' : 'es-MX';
   const formattedDate = new Date(completedDate).toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' });
@@ -319,7 +362,7 @@ export async function sendCourseCertificate(to: string, name: string | null, cou
 
 /** Notify course creator when a new student enrolls */
 export async function sendNewStudentNotification(to: string, creatorName: string | null, studentName: string | null, courseTitle: string, courseId: string) {
-  const lang = await getLang();
+  const lang = await getUserLang(to);
   const greeting = creatorName ? `${tr('hi', lang)} ${creatorName},` : `${tr('hi', lang)},`;
   const student = studentName || tr('newStudent.fallback', lang);
   await send(to, `${tr('newStudent.subject', lang)} "${courseTitle}"`, `
@@ -329,9 +372,9 @@ export async function sendNewStudentNotification(to: string, creatorName: string
   `, lang);
 }
 
-/** Admin-created account email with temporary password */
-export async function sendAccountCreated(to: string, name: string | null, tempPassword: string) {
-  const lang = await getLang();
+/** Admin-created account email with temporary password — uses admin's language */
+export async function sendAccountCreated(to: string, name: string | null, tempPassword: string, adminUserId?: string) {
+  const lang = await getAdminLang(adminUserId);
   const greeting = name ? `${tr('hi', lang)} ${name},` : `${tr('hi', lang)},`;
   await send(to, tr('account.subject', lang), `
     <h2 style="margin:0 0 12px;font-size:20px;color:#1e293b">${greeting}</h2>
@@ -346,9 +389,9 @@ export async function sendAccountCreated(to: string, name: string | null, tempPa
   `, lang);
 }
 
-/** Admin sends a custom message to a user */
-export async function sendCustomMessage(to: string, name: string | null, subject: string, message: string) {
-  const lang = await getLang();
+/** Admin sends a custom message to a user — uses admin's language */
+export async function sendCustomMessage(to: string, name: string | null, subject: string, message: string, adminUserId?: string) {
+  const lang = await getAdminLang(adminUserId);
   const greeting = name ? `${tr('hi', lang)} ${name},` : `${tr('hi', lang)},`;
   // Convert newlines to <br> for HTML
   const htmlMessage = message.replace(/\n/g, '<br>');

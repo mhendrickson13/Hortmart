@@ -137,6 +137,8 @@ export const users = {
     const q = new URLSearchParams(params as Record<string, string>).toString();
     return request<{ activities: any[]; total: number }>(`/users/${id}/activity?${q}`, { token });
   },
+  updateLanguage: (language: string, token?: string) =>
+    request<{ language: string }>('/users/language', { method: 'PATCH', body: { language }, token }),
 };
 
 // ==================== Settings ====================
@@ -532,7 +534,7 @@ export interface CourseAnalytics {
   overview: { totalEnrollments: number; activeStudents: number; completionRate: number; averageProgress: number; averageRating: number; totalRevenue: number };
   enrollmentTrend: { date: string; count: number }[];
   lessonStats: { lessonId: string; title: string; completionRate: number; averageWatchTime: number; dropOffRate: number }[];
-  topStudents: { userId: string; name: string | null; progress: number; completedAt: string | null }[];
+  topStudents: { userId: string; name: string | null; email: string | null; progress: number; completedAt: string | null }[];
 }
 
 export interface DashboardAnalytics {

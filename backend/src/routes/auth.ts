@@ -108,7 +108,7 @@ router.post('/login', async (req, res) => {
 router.get('/session', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const user = await queryOne<any>(
-      'SELECT id, email, name, image, bio, role FROM users WHERE id = ?',
+      'SELECT id, email, name, image, bio, role, preferredLanguage FROM users WHERE id = ?',
       [req.user!.id]
     );
 

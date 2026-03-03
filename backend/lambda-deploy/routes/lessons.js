@@ -346,6 +346,7 @@ router.post('/:id/progress', auth_js_1.authenticate, async (req, res) => {
                             userName: user?.name || req.user.email,
                             userEmail: user?.email || req.user.email,
                             moduleId: moduleInfo.id,
+                            moduleName: moduleInfo.title || null,
                             moduleTitle: moduleInfo.title,
                             courseId: mod.courseId,
                             courseName: course?.title || null,
@@ -367,6 +368,9 @@ router.post('/:id/progress', auth_js_1.authenticate, async (req, res) => {
                             title: '¡Módulo Completado! 📚',
                             description: `Has completado el módulo "${moduleInfo.title}" del curso "${course?.title}".`,
                             link: `/player/${mod.courseId}`,
+                            titleKey: 'module.title',
+                            descKey: 'module.desc',
+                            i18nParams: { moduleTitle: moduleInfo.title, courseTitle: course?.title || '' },
                         });
                         console.log(`[Module] User ${req.user.id} completed module ${moduleInfo.id} "${moduleInfo.title}"`);
                     }
@@ -410,6 +414,9 @@ router.post('/:id/progress', auth_js_1.authenticate, async (req, res) => {
                             title: '¡Curso Completado! 🎉',
                             description: `¡Felicidades! Has completado "${course.title}".`,
                             link: `/courses/${mod.courseId}`,
+                            titleKey: 'course.title',
+                            descKey: 'course.desc',
+                            i18nParams: { courseTitle: course.title },
                         });
                     }
                     (0, activity_js_1.logActivity)({ event: 'course.completed', userId: req.user.id, userName: user?.name || req.user.email, meta: { courseId: mod.courseId, courseTitle: course?.title } });

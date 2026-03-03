@@ -56,6 +56,13 @@ router.patch('/', authenticate, requireAdmin, async (req: AuthRequest, res: Resp
           [genId(), key, value || '', ts],
         );
       }
+
+      // When admin saves platformLanguage, also save their personal preferredLanguage
+      if (key === 'platformLanguage' && value && req.user?.id) {
+        try {
+          await execute('UPDATE users SET preferredLanguage = ?, updatedAt = ? WHERE id = ?', [value.toLowerCase().slice(0, 2), ts, req.user.id]);
+        } catch { /* ignore */ }
+      }
     }
 
     // Return updated settings

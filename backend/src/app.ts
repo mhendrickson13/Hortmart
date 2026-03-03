@@ -158,6 +158,21 @@ app.get('/e/debug-watch', async (req, res) => {
   }
 });
 
+// ── Debug: check language settings ──
+app.get('/e/debug-lang', async (req, res) => {
+  try {
+    const setupKey = req.headers['x-setup-key'];
+    if (setupKey !== (process.env.SETUP_KEY || 'cxflow-lms-setup-2026')) {
+      return res.status(403).json({ error: 'Invalid setup key' });
+    }
+    const platformLang = await queryOne<any>(`SELECT * FROM app_settings WHERE \`key\` = 'platformLanguage'`);
+    const users = await query<any[]>('SELECT id, email, name, role, preferredLanguage FROM users ORDER BY role, email');
+    res.json({ platformLang, users });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Schema Migration Endpoint (one-time use) ──
 app.post('/e/migrate', async (req, res) => {
   try {
@@ -315,6 +330,8 @@ app.post('/e/migrate', async (req, res) => {
       `ALTER TABLE lesson_progress ADD COLUMN firstViewedAt DATETIME(3) NULL DEFAULT NULL`,
       // Enrollment completion tracking
       `ALTER TABLE enrollments ADD COLUMN completedAt DATETIME(3) NULL DEFAULT NULL`,
+      // Per-user language preference for emails
+      `ALTER TABLE users ADD COLUMN preferredLanguage VARCHAR(5) NULL DEFAULT NULL`,
     ];
     for (const sql of alterStatements) {
       try { await execute(sql); } catch (e: any) {
@@ -410,6 +427,79 @@ app.use('/e/video', videoRoutes);
 app.use('/e/settings', settingsRoutes);
 app.use('/e/external', externalRoutes);
 app.use('/e/invites', invitesRoutes);
+
+// ── Public OG meta tags endpoint for social sharing (no auth) ──
+app.get('/e/share/course/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const course = await queryOne<any>(
+      `SELECT c.id, c.title, c.subtitle, c.description, c.coverImage, u.name as creatorName
+       FROM courses c LEFT JOIN users u ON c.creatorId = u.id
+       WHERE c.id = ? AND c.status = 'PUBLISHED'`,
+      [id]
+    );
+
+    const FRONTEND = process.env.FRONTEND_URL || 'https://lms.cxflow.io';
+    const canonicalUrl = `${FRONTEND}/course/${id}`;
+
+    if (!course) {
+      // Fallback: redirect to the SPA, which will handle 404
+      return res.redirect(302, canonicalUrl);
+    }
+
+    // Strip HTML from description, truncate to 200 chars
+    const rawDesc = (course.description || course.subtitle || '').replace(/<[^>]*>/g, '').trim();
+    const ogDesc = rawDesc.length > 200 ? rawDesc.slice(0, 197) + '...' : rawDesc;
+    const ogTitle = `${course.title} — CXFlow Academy`;
+    // Ensure image URL is absolute HTTPS
+    let ogImage = course.coverImage || '';
+    if (ogImage && !ogImage.startsWith('http')) {
+      ogImage = `https://${process.env.CLOUDFRONT_DOMAIN || 'd224go81z1q461.cloudfront.net'}/${ogImage}`;
+    }
+
+    // Build image meta tags with dimensions hint for WhatsApp/Facebook
+    const imageTags = ogImage ? `
+  <meta property="og:image" content="${escapeHtml(ogImage)}">
+  <meta property="og:image:secure_url" content="${escapeHtml(ogImage)}">
+  <meta property="og:image:type" content="image/jpeg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">` : '';
+
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.set('Cache-Control', 'public, max-age=300'); // 5 min cache
+    res.send(`<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>${escapeHtml(ogTitle)}</title>
+  <meta name="description" content="${escapeHtml(ogDesc)}">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="CXFlow Academy">
+  <meta property="og:title" content="${escapeHtml(ogTitle)}">
+  <meta property="og:description" content="${escapeHtml(ogDesc)}">
+  <meta property="og:url" content="${canonicalUrl}">${imageTags}
+  <meta name="twitter:card" content="${ogImage ? 'summary_large_image' : 'summary'}">
+  <meta name="twitter:title" content="${escapeHtml(ogTitle)}">
+  <meta name="twitter:description" content="${escapeHtml(ogDesc)}">
+  ${ogImage ? `<meta name="twitter:image" content="${escapeHtml(ogImage)}">` : ''}
+  <link rel="canonical" href="${canonicalUrl}">
+  <script>window.location.replace("${canonicalUrl}");</script>
+</head>
+<body>
+  <p>Redirecting to <a href="${canonicalUrl}">${escapeHtml(course.title)}</a>...</p>
+</body>
+</html>`);
+  } catch (error) {
+    console.error('OG share error:', error);
+    const FRONTEND = process.env.FRONTEND_URL || 'https://lms.cxflow.io';
+    res.redirect(302, `${FRONTEND}/course/${req.params.id}`);
+  }
+});
+
+/** Minimal HTML escaping for OG tag values */
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
 
 // Error handling
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {

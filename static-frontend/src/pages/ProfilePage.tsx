@@ -39,7 +39,7 @@ import { getInitials, formatCurrency, formatDate } from "@/lib/utils";
 
 export default function ProfilePage() {
   const { user, logout } = useAuth();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const isCreator = user?.role === "CREATOR" || user?.role === "ADMIN";
 
   const { data: profileData, isLoading } = useQuery({
@@ -86,7 +86,7 @@ export default function ProfilePage() {
           <div className="min-w-0">
             <h1 className="text-h2 sm:text-h1 font-bold text-text-1">{t("nav.profile")}</h1>
             <p className="text-caption sm:text-body-sm text-text-2 mt-0.5 sm:mt-1">
-              Your creator profile and stats
+              {t("profile.creatorSubtitle")}
             </p>
           </div>
           <Button asChild variant="secondary" size="sm">
@@ -121,10 +121,10 @@ export default function ProfilePage() {
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2 flex-wrap">
                     <h2 className="text-h2 font-bold text-text-1">
-                      {profile?.name || "Creator"}
+                      {profile?.name || t("profile.creator")}
                     </h2>
                     <Pill variant="published">
-                      {profile?.role === "ADMIN" ? "Admin" : "Creator"}
+                      {profile?.role === "ADMIN" ? t("profile.administrator") : t("profile.creator")}
                     </Pill>
                   </div>
 
@@ -135,7 +135,7 @@ export default function ProfilePage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-text-3" />
-                      Member since{" "}
+                      {t("profile.memberSince")}{" "}
                       {profile?.createdAt
                         ? formatDate(profile.createdAt)
                         : "N/A"}
@@ -158,42 +158,42 @@ export default function ProfilePage() {
                 bgColor="bg-primary/10"
                 iconColor="text-primary"
                 value={creatorStats.totalCourses}
-                label="Total Courses"
+                label={t("profile.totalCourses")}
               />
               <StatCard
                 icon={Users}
                 bgColor="bg-success/10"
                 iconColor="text-success"
                 value={creatorStats.totalEnrollments}
-                label="Total Students"
+                label={t("profile.totalStudents")}
               />
               <StatCard
                 icon={TrendingUp}
                 bgColor="bg-warning/10"
                 iconColor="text-warning"
                 value={formatCurrency(creatorStats.totalRevenue)}
-                label="Total Revenue"
+                label={t("profile.totalRevenue")}
               />
               <StatCard
                 icon={Star}
                 bgColor="bg-accent/10"
                 iconColor="text-accent"
                 value={creatorStats.avgRating}
-                label="Avg Rating"
+                label={t("profile.avgRating")}
               />
               <StatCard
                 icon={Award}
                 bgColor="bg-primary/10"
                 iconColor="text-primary"
                 value={creatorStats.publishedCourses}
-                label="Published"
+                label={t("profile.published")}
               />
               <StatCard
                 icon={BarChart3}
                 bgColor="bg-success/10"
                 iconColor="text-success"
                 value={creatorStats.totalReviews}
-                label="Reviews"
+                label={t("profile.reviews")}
               />
             </div>
           </div>
@@ -242,23 +242,23 @@ export default function ProfilePage() {
             {/* Account Info */}
             <Card className="p-4">
               <h3 className="text-body font-bold text-text-1 mb-3">
-                Account Information
+                {t("profile.accountInfo")}
               </h3>
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-caption text-text-3">Account Type</span>
+                  <span className="text-caption text-text-3">{t("profile.accountType")}</span>
                   <Pill size="sm" variant="published">
-                    {profile?.role === "ADMIN" ? "Administrator" : "Creator"}
+                    {profile?.role === "ADMIN" ? t("profile.administrator") : t("profile.creator")}
                   </Pill>
                 </div>
                 <Separator />
                 <div className="flex items-center justify-between">
                   <span className="text-caption text-text-3">
-                    Member Since
+                    {t("profile.memberSince")}
                   </span>
                   <span className="text-caption font-medium text-text-1">
                     {profile?.createdAt
-                      ? new Date(profile.createdAt as string).toLocaleDateString("en-US", { month: "long", year: "numeric" })
+                      ? new Date(profile.createdAt as string).toLocaleDateString(i18n.language, { month: "long", year: "numeric" })
                       : "—"}
                   </span>
                 </div>
@@ -268,13 +268,13 @@ export default function ProfilePage() {
             {/* Help */}
             <Card className="p-4 bg-primary/5 border-primary/20">
               <h3 className="text-body font-bold text-text-1 mb-2">
-                Need Help?
+                {t("profile.needHelp")}
               </h3>
               <p className="text-caption text-text-2 mb-3">
-                Check our creator resources or contact support for assistance.
+                {t("profile.helpDescription")}
               </p>
               <Button variant="ghost" size="sm" className="w-full" asChild>
-                <a href="mailto:support@cxflow.io">Contact Support</a>
+                <a href="mailto:contacto@cxflow.io">{t("profile.contactSupport")}</a>
               </Button>
             </Card>
           </div>
@@ -293,7 +293,7 @@ export default function ProfilePage() {
             {t("nav.profile")}
           </h1>
           <p className="text-caption sm:text-body-sm text-text-2 mt-0.5 sm:mt-1">
-            Your learning journey and progress
+            {t("profile.learnerSubtitle")}
           </p>
         </div>
       </div>
@@ -322,9 +322,9 @@ export default function ProfilePage() {
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2 flex-wrap">
                   <h2 className="text-h2 font-bold text-text-1">
-                    {profile?.name || "Learner"}
+                    {profile?.name || t("profile.learner")}
                   </h2>
-                  <Pill variant="default">Learner</Pill>
+                  <Pill variant="default">{t("profile.learner")}</Pill>
                 </div>
 
                 <div className="space-y-2 text-body-sm text-text-2">
@@ -334,7 +334,7 @@ export default function ProfilePage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-text-3" />
-                    Member since{" "}
+                    {t("profile.memberSince")}{" "}
                     {profile?.createdAt
                       ? formatDate(profile.createdAt)
                       : "N/A"}
@@ -357,35 +357,35 @@ export default function ProfilePage() {
               bgColor="bg-primary/10"
               iconColor="text-primary"
               value={learnerStats?.totalCourses ?? 0}
-              label="Enrolled Courses"
+              label={t("profile.enrolledCourses")}
             />
             <StatCard
               icon={Award}
               bgColor="bg-success/10"
               iconColor="text-success"
               value={learnerStats?.completedCourses ?? 0}
-              label="Completed"
+              label={t("profile.completedLabel")}
             />
             <StatCard
               icon={TrendingUp}
               bgColor="bg-warning/10"
               iconColor="text-warning"
               value={learnerStats?.inProgressCourses ?? 0}
-              label="In Progress"
+              label={t("profile.inProgress")}
             />
             <StatCard
               icon={Target}
               bgColor="bg-accent/10"
               iconColor="text-accent"
               value={learnerStats?.totalLessonsCompleted ?? 0}
-              label="Lessons Done"
+              label={t("profile.lessonsDone")}
             />
             <StatCard
               icon={Clock}
               bgColor="bg-primary/10"
               iconColor="text-primary"
               value={`${(learnerStats?.totalWatchHours ?? 0).toFixed(1)}h`}
-              label="Watch Time"
+              label={t("profile.watchTime")}
             />
             <StatCard
               icon={Star}
@@ -400,23 +400,23 @@ export default function ProfilePage() {
                     )
                   : 0
               }%`}
-              label="Completion Rate"
+              label={t("profile.completionRate")}
             />
           </div>
 
           {/* Recent Activity */}
           <Card className="p-4">
             <h3 className="text-body font-bold text-text-1 mb-4">
-              Recent Activity
+              {t("profile.recentActivity")}
             </h3>
             {!learnerStats?.enrollments?.length ? (
               <div className="text-center py-8">
                 <BookOpen className="w-12 h-12 mx-auto text-text-3 mb-3" />
                 <p className="text-body-sm text-text-2">
-                  You haven't enrolled in any courses yet.
+                  {t("profile.noEnrollments")}
                 </p>
                 <Button asChild className="mt-4">
-                  <Link to="/courses">Browse Courses</Link>
+                  <Link to="/courses">{t("myCourses.browseCourses")}</Link>
                 </Button>
               </div>
             ) : (
@@ -507,7 +507,7 @@ export default function ProfilePage() {
                 onClick={() => { logout(); window.location.href = "/login"; }}
               >
                 <LogOut className="w-4 h-4 mr-2" />
-                Sign Out
+                {t("profile.signOut")}
               </Button>
             </div>
           </Card>
@@ -515,21 +515,21 @@ export default function ProfilePage() {
           {/* Account Info */}
           <Card className="p-4">
             <h3 className="text-body font-bold text-text-1 mb-3">
-              Account Information
+              {t("profile.accountInfo")}
             </h3>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-caption text-text-3">Account Type</span>
+                <span className="text-caption text-text-3">{t("profile.accountType")}</span>
                 <Pill size="sm" variant="published">
-                  Learner
+                  {t("profile.learner")}
                 </Pill>
               </div>
               <Separator />
               <div className="flex items-center justify-between">
-                <span className="text-caption text-text-3">Member Since</span>
+                <span className="text-caption text-text-3">{t("profile.memberSince")}</span>
                 <span className="text-caption font-medium text-text-1">
                   {profile?.createdAt
-                    ? new Date(profile.createdAt as string).toLocaleDateString("en-US", { month: "long", year: "numeric" })
+                    ? new Date(profile.createdAt as string).toLocaleDateString(i18n.language, { month: "long", year: "numeric" })
                     : "—"}
                 </span>
               </div>

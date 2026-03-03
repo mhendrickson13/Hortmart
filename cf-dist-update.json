@@ -1,0 +1,240 @@
+{
+    "CallerReference": "a04a8a63-0bb0-4464-945c-2985e201c604",
+    "Aliases": {
+        "Quantity": 1,
+        "Items": [
+            "lms.cxflow.io"
+        ]
+    },
+    "DefaultRootObject": "index.html",
+    "Origins": {
+        "Quantity": 2,
+        "Items": [
+            {
+                "Id": "cxflowio.s3.amazonaws.com-mlgobjm68y9",
+                "DomainName": "cxflowio.s3.amazonaws.com",
+                "OriginPath": "/academy",
+                "CustomHeaders": {
+                    "Quantity": 0
+                },
+                "S3OriginConfig": {
+                    "OriginAccessIdentity": "",
+                    "OriginReadTimeout": 30
+                },
+                "ConnectionAttempts": 3,
+                "ConnectionTimeout": 10,
+                "OriginShield": {
+                    "Enabled": false
+                },
+                "OriginAccessControlId": "E151KJFBTYENA1"
+            },
+            {
+                "Id": "api-gateway-og",
+                "DomainName": "fobcdczma3.execute-api.us-east-1.amazonaws.com",
+                "OriginPath": "/dev",
+                "CustomHeaders": {
+                    "Quantity": 0
+                },
+                "CustomOriginConfig": {
+                    "HTTPPort": 80,
+                    "HTTPSPort": 443,
+                    "OriginProtocolPolicy": "https-only",
+                    "OriginSslProtocols": {
+                        "Quantity": 1,
+                        "Items": ["TLSv1.2"]
+                    },
+                    "OriginReadTimeout": 30,
+                    "OriginKeepaliveTimeout": 5
+                },
+                "ConnectionAttempts": 3,
+                "ConnectionTimeout": 10,
+                "OriginShield": {
+                    "Enabled": false
+                }
+            }
+        ]
+    },
+    "OriginGroups": {
+        "Quantity": 0
+    },
+    "DefaultCacheBehavior": {
+        "TargetOriginId": "cxflowio.s3.amazonaws.com-mlgobjm68y9",
+        "TrustedSigners": {
+            "Enabled": false,
+            "Quantity": 0
+        },
+        "TrustedKeyGroups": {
+            "Enabled": false,
+            "Quantity": 0
+        },
+        "ViewerProtocolPolicy": "redirect-to-https",
+        "AllowedMethods": {
+            "Quantity": 2,
+            "Items": [
+                "HEAD",
+                "GET"
+            ],
+            "CachedMethods": {
+                "Quantity": 2,
+                "Items": [
+                    "HEAD",
+                    "GET"
+                ]
+            }
+        },
+        "SmoothStreaming": false,
+        "Compress": true,
+        "LambdaFunctionAssociations": {
+            "Quantity": 0
+        },
+        "FunctionAssociations": {
+            "Quantity": 1,
+            "Items": [
+                {
+                    "FunctionARN": "arn:aws:cloudfront::855436543387:function/og-bot-rewrite",
+                    "EventType": "viewer-request"
+                }
+            ]
+        },
+        "FieldLevelEncryptionId": "",
+        "CachePolicyId": "658327ea-f89d-4fab-a63d-7e88639e58f6",
+        "OriginRequestPolicyId": "88a5eaf4-2fd4-4709-b370-b4c650ea3fcf",
+        "ResponseHeadersPolicyId": "60669652-455b-4ae9-85a4-c4c02393f86c",
+        "GrpcConfig": {
+            "Enabled": false
+        }
+    },
+    "CacheBehaviors": {
+        "Quantity": 2,
+        "Items": [
+            {
+                "PathPattern": "/e/share/*",
+                "TargetOriginId": "api-gateway-og",
+                "TrustedSigners": {
+                    "Enabled": false,
+                    "Quantity": 0
+                },
+                "TrustedKeyGroups": {
+                    "Enabled": false,
+                    "Quantity": 0
+                },
+                "ViewerProtocolPolicy": "redirect-to-https",
+                "AllowedMethods": {
+                    "Quantity": 2,
+                    "Items": [
+                        "HEAD",
+                        "GET"
+                    ],
+                    "CachedMethods": {
+                        "Quantity": 2,
+                        "Items": [
+                            "HEAD",
+                            "GET"
+                        ]
+                    }
+                },
+                "SmoothStreaming": false,
+                "Compress": true,
+                "LambdaFunctionAssociations": {
+                    "Quantity": 0
+                },
+                "FunctionAssociations": {
+                    "Quantity": 0
+                },
+                "FieldLevelEncryptionId": "",
+                "CachePolicyId": "4135ea2d-6df8-44a3-9df3-4b5a84be39ad",
+                "GrpcConfig": {
+                    "Enabled": false
+                }
+            },
+            {
+                "PathPattern": "academy/encoded/*",
+                "TargetOriginId": "cxflowio.s3.amazonaws.com-mlgobjm68y9",
+                "TrustedSigners": {
+                    "Enabled": false,
+                    "Quantity": 0
+                },
+                "TrustedKeyGroups": {
+                    "Enabled": true,
+                    "Quantity": 1,
+                    "Items": [
+                        "ca3e4c2c-9eee-4c67-8431-af272c862f59"
+                    ]
+                },
+                "ViewerProtocolPolicy": "redirect-to-https",
+                "AllowedMethods": {
+                    "Quantity": 2,
+                    "Items": [
+                        "HEAD",
+                        "GET"
+                    ],
+                    "CachedMethods": {
+                        "Quantity": 2,
+                        "Items": [
+                            "HEAD",
+                            "GET"
+                        ]
+                    }
+                },
+                "SmoothStreaming": false,
+                "Compress": true,
+                "LambdaFunctionAssociations": {
+                    "Quantity": 0
+                },
+                "FunctionAssociations": {
+                    "Quantity": 0
+                },
+                "FieldLevelEncryptionId": "",
+                "CachePolicyId": "658327ea-f89d-4fab-a63d-7e88639e58f6",
+                "GrpcConfig": {
+                    "Enabled": false
+                }
+            }
+        ]
+    },
+    "CustomErrorResponses": {
+        "Quantity": 2,
+        "Items": [
+            {
+                "ErrorCode": 403,
+                "ResponsePagePath": "/index.html",
+                "ResponseCode": "200",
+                "ErrorCachingMinTTL": 0
+            },
+            {
+                "ErrorCode": 404,
+                "ResponsePagePath": "/index.html",
+                "ResponseCode": "200",
+                "ErrorCachingMinTTL": 0
+            }
+        ]
+    },
+    "Comment": "CloudFront distribution for CXFlow LMS (academy folder in S3)",
+    "Logging": {
+        "Enabled": false,
+        "IncludeCookies": false,
+        "Bucket": "",
+        "Prefix": ""
+    },
+    "PriceClass": "PriceClass_All",
+    "Enabled": true,
+    "ViewerCertificate": {
+        "CloudFrontDefaultCertificate": false,
+        "ACMCertificateArn": "arn:aws:acm:us-east-1:855436543387:certificate/fd899162-9895-481f-b210-397218b55095",
+        "SSLSupportMethod": "sni-only",
+        "MinimumProtocolVersion": "TLSv1.2_2021",
+        "Certificate": "arn:aws:acm:us-east-1:855436543387:certificate/fd899162-9895-481f-b210-397218b55095",
+        "CertificateSource": "acm"
+    },
+    "Restrictions": {
+        "GeoRestriction": {
+            "RestrictionType": "none",
+            "Quantity": 0
+        }
+    },
+    "WebACLId": "arn:aws:wafv2:us-east-1:855436543387:global/webacl/CreatedByCloudFront-c156bada/9b9e21ac-5161-4c19-b811-27fe4a7bfb5c",
+    "HttpVersion": "http2",
+    "IsIPV6Enabled": true,
+    "ContinuousDeploymentPolicyId": "",
+    "Staging": false
+}

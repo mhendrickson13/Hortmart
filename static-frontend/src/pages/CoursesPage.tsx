@@ -136,8 +136,8 @@ export default function CoursesPage() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center flex-1 gap-4 py-20">
-        <p className="text-text-2 text-body font-bold">Failed to load courses</p>
-        <button onClick={() => refetch()} className="h-10 px-4 rounded-[16px] border border-primary/55 bg-primary text-white font-black text-[13px]">Try again</button>
+        <p className="text-text-2 text-body font-bold">{t("courseCatalog.failedToLoad")}</p>
+        <button onClick={() => refetch()} className="h-10 px-4 rounded-[16px] border border-primary/55 bg-primary text-white font-black text-[13px]">{t("common.tryAgain")}</button>
       </div>
     );
   }
@@ -150,7 +150,7 @@ export default function CoursesPage() {
           <div>
             <h1 className="text-[20px] sm:text-h1 font-black tracking-[-0.25px] text-text-1">{t("courses.title")}</h1>
             <p className="text-[12px] font-extrabold text-text-3 mt-1">
-              {isLoading ? "Loading..." : `${courses.length} course${courses.length !== 1 ? "s" : ""} available`}
+              {isLoading ? t("courseCatalog.loadingText") : t("courseCatalog.available", { count: courses.length })}
             </p>
           </div>
         </div>
@@ -201,7 +201,7 @@ export default function CoursesPage() {
                   <span className="text-[13px] font-black text-text-1">{t("common.filter")}</span>
                   {activeFilterCount > 0 && (
                     <button onClick={clearAll} className="text-[11px] font-bold text-primary hover:underline">
-                      Clear all
+                      {t("courseCatalog.clearAll")}
                     </button>
                   )}
                 </div>
@@ -209,8 +209,8 @@ export default function CoursesPage() {
                 {/* Category section */}
                 {categories.length > 0 && (
                   <div className="mt-1">
-                    <div className="px-3.5 py-1.5 text-[10px] font-black text-text-3 uppercase tracking-[0.5px]">Category</div>
-                    <FilterOption selected={categoryFilter === "all"} label="All categories" onClick={() => setCategoryFilter("all")} />
+                    <div className="px-3.5 py-1.5 text-[10px] font-black text-text-3 uppercase tracking-[0.5px]">{t("courseCatalog.categoryLabel")}</div>
+                    <FilterOption selected={categoryFilter === "all"} label={t("courseCatalog.allCategories")} onClick={() => setCategoryFilter("all")} />
                     {categories.map((cat) => (
                       <FilterOption key={cat} selected={categoryFilter === cat} label={cat} onClick={() => setCategoryFilter(cat)} />
                     ))}
@@ -222,7 +222,7 @@ export default function CoursesPage() {
 
                 {/* Level section */}
                 <div>
-                  <div className="px-3.5 py-1.5 text-[10px] font-black text-text-3 uppercase tracking-[0.5px]">Level</div>
+                  <div className="px-3.5 py-1.5 text-[10px] font-black text-text-3 uppercase tracking-[0.5px]">{t("courseCatalog.levelLabel")}</div>
                   <FilterOption selected={levelFilter === "all"} label={t("courses.allLevels")} onClick={() => setLevelFilter("all")} />
                   <FilterOption selected={levelFilter === "BEGINNER"} label={t("courses.beginner")} onClick={() => setLevelFilter("BEGINNER")} />
                   <FilterOption selected={levelFilter === "INTERMEDIATE"} label={t("courses.intermediate")} onClick={() => setLevelFilter("INTERMEDIATE")} />
@@ -235,10 +235,10 @@ export default function CoursesPage() {
 
                 {/* Price section */}
                 <div className="pb-2">
-                  <div className="px-3.5 py-1.5 text-[10px] font-black text-text-3 uppercase tracking-[0.5px]">Price</div>
+                  <div className="px-3.5 py-1.5 text-[10px] font-black text-text-3 uppercase tracking-[0.5px]">{t("courseCatalog.priceLabel")}</div>
                   <FilterOption selected={priceFilter === "all"} label={t("courses.price")} onClick={() => setPriceFilter("all")} />
                   <FilterOption selected={priceFilter === "free"} label={t("courses.free")} onClick={() => setPriceFilter("free")} />
-                  <FilterOption selected={priceFilter === "paid"} label="Paid" onClick={() => setPriceFilter("paid")} />
+                  <FilterOption selected={priceFilter === "paid"} label={t("courseCatalog.paid")} onClick={() => setPriceFilter("paid")} />
                 </div>
 
                 {/* Apply button */}
@@ -247,7 +247,7 @@ export default function CoursesPage() {
                     onClick={() => setFilterOpen(false)}
                     className="w-full h-9 rounded-xl bg-primary text-white text-[12px] font-black shadow-[0_14px_28px_rgba(47,111,237,0.22)] hover:brightness-110 transition-all"
                   >
-                    Show {courses.length} course{courses.length !== 1 ? "s" : ""}
+                    {t("courseCatalog.showCourses", { count: courses.length })}
                   </button>
                 </div>
               </div>
@@ -266,18 +266,18 @@ export default function CoursesPage() {
             )}
             {levelFilter !== "all" && (
               <span className="h-[26px] px-2.5 rounded-full bg-primary/10 border border-primary/15 inline-flex items-center gap-1.5 text-[11px] font-black text-primary-600">
-                {levelFilter === "ALL_LEVELS" ? "All Levels" : levelFilter.charAt(0) + levelFilter.slice(1).toLowerCase()}
+                {levelFilter === "ALL_LEVELS" ? t("courses.allLevels") : levelFilter.charAt(0) + levelFilter.slice(1).toLowerCase()}
                 <button onClick={() => setLevelFilter("all")} className="hover:text-primary/70"><X className="w-3 h-3" /></button>
               </span>
             )}
             {priceFilter !== "all" && (
               <span className="h-[26px] px-2.5 rounded-full bg-primary/10 border border-primary/15 inline-flex items-center gap-1.5 text-[11px] font-black text-primary-600">
-                {priceFilter === "free" ? "Free" : "Paid"}
+                {priceFilter === "free" ? t("courses.free") : t("courseCatalog.paid")}
                 <button onClick={() => setPriceFilter("all")} className="hover:text-primary/70"><X className="w-3 h-3" /></button>
               </span>
             )}
             <button onClick={clearAll} className="text-[11px] font-bold text-text-3 hover:text-primary transition-colors ml-1">
-              Clear all
+              {t("courseCatalog.clearAll")}
             </button>
           </div>
         )}
@@ -298,11 +298,11 @@ export default function CoursesPage() {
               {hasFilters ? t("common.noResults") : t("common.noResults")}
             </h3>
             <p className="text-body-sm text-text-2 mb-4">
-              {hasFilters ? "Try adjusting your filters or search terms" : "Check back soon for new courses!"}
+              {hasFilters ? t("courseCatalog.adjustFilters") : t("courseCatalog.checkBackSoon")}
             </p>
             {hasFilters && (
               <button onClick={clearAll} className="h-9 px-4 rounded-xl border border-primary/55 bg-primary text-white font-black text-[12px]">
-                Clear all filters
+                {t("courseCatalog.clearAllFilters")}
               </button>
             )}
           </div>

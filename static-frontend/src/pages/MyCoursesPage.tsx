@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { users as usersApi, favourites as favouritesApi } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { CourseCard } from "@/components/learner/course-card";
@@ -14,6 +15,7 @@ type Tab = "enrolled" | "favourites" | "bookmarks";
 
 export default function MyCoursesPage() {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<Tab>("enrolled");
 
   const { data, isLoading, error, refetch } = useQuery({
@@ -31,8 +33,8 @@ export default function MyCoursesPage() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center flex-1 gap-4 py-20">
-        <p className="text-text-2 text-body font-bold">Failed to load your courses</p>
-        <button onClick={() => refetch()} className="h-10 px-4 rounded-[16px] border border-primary/55 bg-primary text-white font-black text-[13px]">Try again</button>
+        <p className="text-text-2 text-body font-bold">{t("myCourses.failedToLoad")}</p>
+        <button onClick={() => refetch()} className="h-10 px-4 rounded-[16px] border border-primary/55 bg-primary text-white font-black text-[13px]">{t("common.tryAgain")}</button>
       </div>
     );
   }
@@ -81,20 +83,20 @@ export default function MyCoursesPage() {
     <>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div>
-          <h1 className="text-h2 sm:text-h1 font-bold text-text-1">My Courses</h1>
-          <p className="text-body-sm text-text-2 mt-0.5">{courses.length} enrolled</p>
+          <h1 className="text-h2 sm:text-h1 font-bold text-text-1">{t("myCourses.title")}</h1>
+          <p className="text-body-sm text-text-2 mt-0.5">{t("myCourses.enrolledCount", { count: courses.length })}</p>
         </div>
         <Button asChild variant="secondary" size="sm">
-          <Link to="/courses">Browse Courses <ArrowRight className="w-4 h-4 ml-1" /></Link>
+          <Link to="/courses">{t("myCourses.browseCourses")} <ArrowRight className="w-4 h-4 ml-1" /></Link>
         </Button>
       </div>
 
       {/* Tabs */}
       <div className="flex border-b border-border mb-5 gap-0 -mx-1">
         {([
-          { id: "enrolled" as Tab, label: "Enrolled", count: courses.length },
-          { id: "favourites" as Tab, label: "Favourites", count: favCourses.length },
-          { id: "bookmarks" as Tab, label: "Bookmarks", count: bmCourses.length },
+          { id: "enrolled" as Tab, label: t("myCourses.enrolledTab"), count: courses.length },
+          { id: "favourites" as Tab, label: t("myCourses.favouritesTab"), count: favCourses.length },
+          { id: "bookmarks" as Tab, label: t("myCourses.bookmarksTab"), count: bmCourses.length },
         ]).map(tab => (
           <button
             key={tab.id}
@@ -128,9 +130,9 @@ export default function MyCoursesPage() {
               <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-red-50 dark:bg-red-950 flex items-center justify-center">
                 <Heart className="w-8 h-8 text-red-400" />
               </div>
-              <h3 className="text-h3 font-semibold text-text-1 mb-2">No favourites yet</h3>
-              <p className="text-body-sm text-text-2 mb-4">Tap the heart icon on courses you love to save them here.</p>
-              <Button asChild size="sm"><Link to="/courses">Explore Courses</Link></Button>
+              <h3 className="text-h3 font-semibold text-text-1 mb-2">{t("myCourses.noFavourites")}</h3>
+              <p className="text-body-sm text-text-2 mb-4">{t("myCourses.favouritesHint")}</p>
+              <Button asChild size="sm"><Link to="/courses">{t("myCourses.exploreCourses")}</Link></Button>
             </div>
           </div>
         ) : (
@@ -150,9 +152,9 @@ export default function MyCoursesPage() {
               <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-blue-50 flex items-center justify-center">
                 <Bookmark className="w-8 h-8 text-blue-400" />
               </div>
-              <h3 className="text-h3 font-semibold text-text-1 mb-2">No bookmarks yet</h3>
-              <p className="text-body-sm text-text-2 mb-4">Bookmark courses to save them for later.</p>
-              <Button asChild size="sm"><Link to="/courses">Explore Courses</Link></Button>
+              <h3 className="text-h3 font-semibold text-text-1 mb-2">{t("myCourses.noBookmarks")}</h3>
+              <p className="text-body-sm text-text-2 mb-4">{t("myCourses.bookmarksHint")}</p>
+              <Button asChild size="sm"><Link to="/courses">{t("myCourses.exploreCourses")}</Link></Button>
             </div>
           </div>
         ) : (
@@ -172,10 +174,10 @@ export default function MyCoursesPage() {
               <div className="w-20 h-20 mx-auto mb-6 rounded-2xl gradient-primary flex items-center justify-center">
                 <GraduationCap className="w-10 h-10 text-primary" />
               </div>
-              <h3 className="text-h2 font-semibold text-text-1 mb-3">Start your learning journey</h3>
-              <p className="text-body text-text-2 mb-6">Explore our catalog and enroll in courses that interest you.</p>
+              <h3 className="text-h2 font-semibold text-text-1 mb-3">{t("myCourses.startJourney")}</h3>
+              <p className="text-body text-text-2 mb-6">{t("myCourses.startJourneyHint")}</p>
               <Button asChild size="lg">
-                <Link to="/courses"><BookOpen className="w-4 h-4 mr-2" />Browse Courses</Link>
+                <Link to="/courses"><BookOpen className="w-4 h-4 mr-2" />{t("myCourses.browseCourses")}</Link>
               </Button>
             </div>
           </div>
@@ -186,8 +188,8 @@ export default function MyCoursesPage() {
                 <div className="flex items-center gap-2 mb-4">
                   <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center"><Rocket className="w-4 h-4 text-primary" /></div>
                   <div>
-                    <h2 className="text-h3 font-semibold text-text-1">Continue Learning</h2>
-                    <p className="text-body-sm text-text-2">Pick up where you left off</p>
+                    <h2 className="text-h3 font-semibold text-text-1">{t("myCourses.continueLearning")}</h2>
+                    <p className="text-body-sm text-text-2">{t("myCourses.pickUpWhereLeftOff")}</p>
                   </div>
                 </div>
                 <div className="space-y-3">
@@ -202,8 +204,8 @@ export default function MyCoursesPage() {
                 <div className="flex items-center gap-2 mb-4">
                   <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center"><BookOpen className="w-4 h-4 text-accent" /></div>
                   <div>
-                    <h2 className="text-h3 font-semibold text-text-1">Ready to Start</h2>
-                    <p className="text-body-sm text-text-2">Courses waiting for you</p>
+                    <h2 className="text-h3 font-semibold text-text-1">{t("myCourses.readyToStart")}</h2>
+                    <p className="text-body-sm text-text-2">{t("myCourses.coursesWaiting")}</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -218,8 +220,8 @@ export default function MyCoursesPage() {
                 <div className="flex items-center gap-2 mb-4">
                   <div className="w-8 h-8 rounded-lg bg-success/10 flex items-center justify-center"><Trophy className="w-4 h-4 text-success" /></div>
                   <div>
-                    <h2 className="text-h3 font-semibold text-text-1">Completed</h2>
-                    <p className="text-body-sm text-text-2">Great job finishing these courses!</p>
+                    <h2 className="text-h3 font-semibold text-text-1">{t("myCourses.completedSection")}</h2>
+                    <p className="text-body-sm text-text-2">{t("myCourses.completedHint")}</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

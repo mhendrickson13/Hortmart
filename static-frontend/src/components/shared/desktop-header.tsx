@@ -102,7 +102,7 @@ export function DesktopHeader({ user, variant = "learner", onSearchClick }: Desk
             {isHelpOpen && (
               <div className="absolute right-0 top-full mt-2 w-56 rounded-xl bg-card border border-border shadow-lg py-2 z-50 animate-fade-in-up">
                 <a
-                  href="mailto:support@cxflow.io"
+                  href="mailto:contacto@cxflow.io"
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={() => setIsHelpOpen(false)}

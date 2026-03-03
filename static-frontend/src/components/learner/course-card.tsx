@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Pill } from "@/components/ui/pill";
 import { Clock, Users, BookOpen, Play, CheckCircle2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface CourseCardProps {
   course: {
@@ -33,8 +34,9 @@ interface CourseCardProps {
 }
 
 export function CourseCard({ course, progress, variant = "catalog", linkTo }: CourseCardProps) {
+  const { t } = useTranslation();
   const isCompleted = progress?.progressPercent === 100;
-  const levelDisplay = course.level?.replace("_", " ") || "All Levels";
+  const levelDisplay = course.level?.replace("_", " ") || t("courseCard.allLevels");
   const href = linkTo || `/course/${course.id}`;
 
   // Featured variant - horizontal card for "Continue Learning"
@@ -91,7 +93,7 @@ export function CourseCard({ course, progress, variant = "catalog", linkTo }: Co
                 <div>
                   <div className="flex justify-between items-center mb-1.5">
                     <span className="text-caption text-text-3">
-                      {progress.completedLessons}/{progress.totalLessons} lessons
+                      {t("courseCard.progressLessons", { completed: progress.completedLessons, total: progress.totalLessons })}
                     </span>
                     <span className="text-caption font-semibold text-primary">
                       {progress.progressPercent}%
@@ -112,7 +114,7 @@ export function CourseCard({ course, progress, variant = "catalog", linkTo }: Co
                 {course.lessonsCount !== undefined && course.lessonsCount > 0 && (
                   <span className="flex items-center gap-1">
                     <BookOpen className="w-3.5 h-3.5" />
-                    {course.lessonsCount} lessons
+                    {t("courseCard.lessons", { count: course.lessonsCount })}
                   </span>
                 )}
               </div>
@@ -146,7 +148,7 @@ export function CourseCard({ course, progress, variant = "catalog", linkTo }: Co
           {variant === "catalog" && (
             <div className="absolute top-3 right-3">
               <div className="px-3 py-1.5 rounded-lg bg-white/90 backdrop-blur-sm text-caption font-bold text-text-1">
-                {course.price === 0 ? "Free" : formatPrice(course.price)}
+                {course.price === 0 ? t("courseCard.free") : formatPrice(course.price)}
               </div>
             </div>
           )}
@@ -156,7 +158,7 @@ export function CourseCard({ course, progress, variant = "catalog", linkTo }: Co
             <div className="absolute top-3 left-3">
               <div className="px-2.5 py-1 rounded-lg bg-success/90 backdrop-blur-sm text-caption font-bold text-white flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                Completed
+                {t("courseCard.completedBadge")}
               </div>
             </div>
           )}
@@ -200,7 +202,7 @@ export function CourseCard({ course, progress, variant = "catalog", linkTo }: Co
             <div className="mb-3">
               <div className="flex justify-between items-center mb-1.5">
                 <span className="text-caption text-text-3">
-                  {isCompleted ? "Completed" : `${progress.completedLessons}/${progress.totalLessons} lessons`}
+                  {isCompleted ? t("courseCard.completedBadge") : t("courseCard.progressLessons", { completed: progress.completedLessons, total: progress.totalLessons })}
                 </span>
                 <span className={cn(
                   "text-caption font-semibold",
@@ -224,7 +226,7 @@ export function CourseCard({ course, progress, variant = "catalog", linkTo }: Co
             {course.lessonsCount !== undefined && course.lessonsCount > 0 && (
               <span className="flex items-center gap-1">
                 <BookOpen className="w-3.5 h-3.5" />
-                {course.lessonsCount} lessons
+                {t("courseCard.lessons", { count: course.lessonsCount })}
               </span>
             )}
             {course._count?.enrollments !== undefined && (

@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -10,6 +11,7 @@ import { PASSWORD_REQUIREMENTS } from "@/lib/validation";
 
 // ── Password strength indicator (same as signup) ──
 function PasswordStrengthIndicator({ password }: { password: string }) {
+  const { t } = useTranslation();
   const strength = useMemo(() => {
     if (!password) return 0;
     return PASSWORD_REQUIREMENTS.filter((req) => req.test(password)).length;
@@ -17,11 +19,11 @@ function PasswordStrengthIndicator({ password }: { password: string }) {
 
   const strengthLabel = useMemo(() => {
     if (strength === 0) return "";
-    if (strength <= 1) return "Weak";
-    if (strength <= 2) return "Fair";
-    if (strength <= 3) return "Good";
-    return "Strong";
-  }, [strength]);
+    if (strength <= 1) return t("resetPassword.weak");
+    if (strength <= 2) return t("resetPassword.fair");
+    if (strength <= 3) return t("resetPassword.good");
+    return t("resetPassword.strong");
+  }, [strength, t]);
 
   const strengthColor = useMemo(() => {
     if (strength <= 1) return "bg-danger";
@@ -60,6 +62,7 @@ function PasswordStrengthIndicator({ password }: { password: string }) {
 }
 
 export default function ResetPasswordPage() {
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token") || "";
 
@@ -82,7 +85,7 @@ export default function ResetPasswordPage() {
       await auth.resetPassword({ token, password });
       setSuccess(true);
     } catch (err: any) {
-      setError(err?.message || "Failed to reset password. The link may be expired.");
+      setError(err?.message || t("resetPassword.failedError"));
     } finally {
       setIsLoading(false);
     }
@@ -96,10 +99,10 @@ export default function ResetPasswordPage() {
             <div className="w-16 h-16 rounded-full bg-danger/10 flex items-center justify-center mx-auto mb-4">
               <XCircle className="w-8 h-8 text-danger" />
             </div>
-            <h1 className="text-h2 font-bold text-text-1 mb-2">Invalid link</h1>
-            <p className="text-body-sm text-text-2 mb-6">This password reset link is missing or invalid.</p>
+            <h1 className="text-h2 font-bold text-text-1 mb-2">{t("resetPassword.invalidLink")}</h1>
+            <p className="text-body-sm text-text-2 mb-6">{t("resetPassword.invalidLinkMessage")}</p>
             <Link to="/forgot-password" className="text-primary font-semibold hover:underline text-body-sm">
-              Request a new reset link
+              {t("resetPassword.requestNewLink")}
             </Link>
           </div>
         </div>
@@ -120,27 +123,27 @@ export default function ResetPasswordPage() {
               <div className="w-16 h-16 rounded-full bg-success/10 flex items-center justify-center mx-auto mb-4">
                 <CheckCircle className="w-8 h-8 text-success" />
               </div>
-              <h1 className="text-h2 font-bold text-text-1 mb-2">Password reset!</h1>
+              <h1 className="text-h2 font-bold text-text-1 mb-2">{t("resetPassword.success")}</h1>
               <p className="text-body-sm text-text-2 mb-6">
-                Your password has been updated. You can now sign in with your new password.
+                {t("resetPassword.successMessage")}
               </p>
               <Link to="/login">
-                <Button className="w-full" size="lg">Sign in</Button>
+                <Button className="w-full" size="lg">{t("resetPassword.signIn")}</Button>
               </Link>
             </div>
           ) : (
             <>
-              <h1 className="text-h2 font-bold text-center text-text-1 mb-2">Reset password</h1>
+              <h1 className="text-h2 font-bold text-center text-text-1 mb-2">{t("resetPassword.title")}</h1>
               <p className="text-body-sm text-text-2 text-center mb-8">
-                Choose a new password for your account.
+                {t("resetPassword.subtitle")}
               </p>
 
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="space-y-1.5">
-                  <Label htmlFor="password">New password</Label>
+                  <Label htmlFor="password">{t("resetPassword.newPassword")}</Label>
                   <PasswordInput
                     id="password"
-                    placeholder="At least 8 characters"
+                    placeholder={t("resetPassword.placeholder")}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
@@ -151,17 +154,17 @@ export default function ResetPasswordPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="confirmPassword">Confirm password</Label>
+                  <Label htmlFor="confirmPassword">{t("resetPassword.confirmPassword")}</Label>
                   <PasswordInput
                     id="confirmPassword"
-                    placeholder="Re-enter your password"
+                    placeholder={t("resetPassword.confirmPlaceholder")}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
                     autoComplete="new-password"
                   />
                   {confirmPassword && password !== confirmPassword && (
-                    <p className="text-xs text-danger mt-1">Passwords don't match</p>
+                    <p className="text-xs text-danger mt-1">{t("resetPassword.passwordsDontMatch")}</p>
                   )}
                 </div>
 
@@ -172,7 +175,7 @@ export default function ResetPasswordPage() {
                 )}
 
                 <Button type="submit" className="w-full" size="lg" disabled={isLoading || !isFormValid}>
-                  {isLoading ? "Resetting..." : "Reset password"}
+                  {isLoading ? t("resetPassword.resetting") : t("resetPassword.resetButton")}
                 </Button>
               </form>
             </>

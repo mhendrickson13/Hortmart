@@ -93,7 +93,7 @@ router.post('/login', async (req, res) => {
 // GET /auth/session
 router.get('/session', auth_js_1.authenticate, async (req, res) => {
     try {
-        const user = await (0, db_js_1.queryOne)('SELECT id, email, name, image, bio, role FROM users WHERE id = ?', [req.user.id]);
+        const user = await (0, db_js_1.queryOne)('SELECT id, email, name, image, bio, role, preferredLanguage FROM users WHERE id = ?', [req.user.id]);
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
         }

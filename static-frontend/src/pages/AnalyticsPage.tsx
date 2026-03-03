@@ -61,7 +61,7 @@ export default function AnalyticsPage() {
   const [showRangeMenu, setShowRangeMenu] = useState(false);
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const range = useMemo(() => {
     if (rangeKey === "custom" && customFrom && customTo) {
@@ -139,7 +139,7 @@ export default function AnalyticsPage() {
     const enrMap = new Map(enrollmentTrend.map((e: any) => [e.date, e.count]));
     for (const d of sorted) {
       chartDays.push({
-        label: new Date(d + "T00:00:00").toLocaleDateString("en", { month: "short", day: "numeric" }),
+        label: new Date(d + "T00:00:00").toLocaleDateString(i18n.language, { month: "short", day: "numeric" }),
         revenue: revMap.get(d) || 0,
         enrollments: enrMap.get(d) || 0,
       });

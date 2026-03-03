@@ -63,6 +63,7 @@ export async function fireWebhook(body: Record<string, any>): Promise<void> {
     const url = row?.value;
     if (!url) return; // no webhook configured
 
+    console.log('[Webhook] Sending payload:', JSON.stringify(body));
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

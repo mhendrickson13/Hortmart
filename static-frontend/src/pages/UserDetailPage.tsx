@@ -277,10 +277,14 @@ export default function UserDetailPage() {
                                       {ld.moduleTitle}
                                     </span>
                                   </div>
-                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 mt-2 text-[11px]">
+                                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-x-4 gap-y-1 mt-2 text-[11px]">
                                     <div className="flex items-center gap-1 text-text-3">
                                       <Eye className="w-3 h-3" />
                                       <span className="font-bold">{ld.viewCount}</span> {t("userDetail.views")}
+                                    </div>
+                                    <div className="flex items-center gap-1 text-text-3">
+                                      <Rewind className="w-3 h-3" />
+                                      <span className="font-bold">{ld.seekCount ?? 0}</span> {t("userDetail.seeks")}
                                     </div>
                                     <div className="flex items-center gap-1 text-text-3">
                                       <Clock className="w-3 h-3" />

@@ -23,22 +23,22 @@ function getRange(key: RangeKey, customFrom?: string, customTo?: string) {
   const today = fmt(now);
   const sub = (days: number) => { const d = new Date(now); d.setDate(d.getDate() - days); return fmt(d); };
   switch (key) {
-    case "7d": return { from: sub(7), to: today, label: "Last 7 days" };
-    case "14d": return { from: sub(14), to: today, label: "Last 14 days" };
-    case "30d": return { from: sub(30), to: today, label: "Last 30 days" };
-    default: return { from: sub(30), to: today, label: "Last 30 days" };
+    case "7d": return { from: sub(7), to: today, label: "dashboard.last7Days" };
+    case "14d": return { from: sub(14), to: today, label: "dashboard.last14Days" };
+    case "30d": return { from: sub(30), to: today, label: "dashboard.last30Days" };
+    default: return { from: sub(30), to: today, label: "dashboard.last30Days" };
   }
 }
 
 const RANGE_OPTIONS: { key: RangeKey; label: string }[] = [
-  { key: "7d", label: "Last 7 days" },
-  { key: "14d", label: "Last 14 days" },
-  { key: "30d", label: "Last 30 days" },
+  { key: "7d", label: "dashboard.last7Days" },
+  { key: "14d", label: "dashboard.last14Days" },
+  { key: "30d", label: "dashboard.last30Days" },
 ];
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [searchQuery, setSearchQuery] = useState("");
   const [rangeKey, setRangeKey] = useState<RangeKey>("30d");
   const [showRangeMenu, setShowRangeMenu] = useState(false);
@@ -58,9 +58,9 @@ export default function DashboardPage() {
         <div className="w-16 h-16 rounded-full bg-danger/10 flex items-center justify-center mb-2">
           <BarChart3 className="w-7 h-7 text-danger" />
         </div>
-        <p className="text-text-1 text-body font-bold">Failed to load dashboard</p>
-        <p className="text-text-3 text-body-sm">{(error as any)?.message || "Something went wrong"}</p>
-        <button onClick={() => refetch()} className="h-10 px-6 rounded-2xl bg-primary text-white font-bold text-body-sm shadow-primary hover:shadow-primary-hover transition-all">Try again</button>
+        <p className="text-text-1 text-body font-bold">{t("dashboard.failedToLoad")}</p>
+        <p className="text-text-3 text-body-sm">{(error as any)?.message || t("dashboard.somethingWentWrong")}</p>
+        <button onClick={() => refetch()} className="h-10 px-6 rounded-2xl bg-primary text-white font-bold text-body-sm shadow-primary hover:shadow-primary-hover transition-all">{t("common.tryAgain")}</button>
       </div>
     );
   }
@@ -103,7 +103,7 @@ export default function DashboardPage() {
     const enrMap = new Map(enrollmentTrend.map((e: any) => [e.date, e.count]));
     for (const d of sorted) {
       chartDays.push({
-        label: new Date(d + "T00:00:00").toLocaleDateString("en", { month: "short", day: "numeric" }),
+        label: new Date(d + "T00:00:00").toLocaleDateString(i18n.language, { month: "short", day: "numeric" }),
         revenue: revMap.get(d) || 0,
         enrollments: enrMap.get(d) || 0,
       });
@@ -138,10 +138,10 @@ export default function DashboardPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-h1 font-bold text-text-1">
-            {greeting}, {user?.name?.split(" ")[0] || "Creator"}
+            {t(greeting)}, {user?.name?.split(" ")[0] || t("roles.creator")}
           </h1>
           <p className="text-body-sm text-text-3 mt-1">
-            Here's what's happening with your platform today
+            {t("dashboard.platformToday")}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -152,7 +152,7 @@ export default function DashboardPage() {
               className="h-10 px-3.5 rounded-xl border border-border bg-white dark:bg-card text-text-1 font-semibold text-body-sm inline-flex items-center gap-2 hover:bg-muted/50 transition-colors"
             >
               <Calendar className="w-4 h-4 text-text-3" />
-              <span className="hidden sm:inline">{range.label}</span>
+              <span className="hidden sm:inline">{rangeKey === "custom" ? range.label : t(range.label)}</span>
               <ChevronDown className="w-3.5 h-3.5 text-text-3" />
             </button>
             {showRangeMenu && (
@@ -166,19 +166,19 @@ export default function DashboardPage() {
                         onClick={() => { setRangeKey(opt.key); setShowRangeMenu(false); }}
                         className={`w-full text-left px-4 py-2.5 text-body-sm transition-colors ${rangeKey === opt.key ? "bg-primary/10 text-primary font-semibold" : "text-text-2 hover:bg-muted/50"}`}
                       >
-                        {opt.label}
+                        {t(opt.label)}
                       </button>
                     ))}
                   </div>
                   <div className="border-t border-border px-4 py-3">
-                    <p className="text-caption font-semibold text-text-3 mb-2">Custom range</p>
+                    <p className="text-caption font-semibold text-text-3 mb-2">{t("dashboard.customRange")}</p>
                     <div className="space-y-2">
                       <div>
-                        <label className="text-[10px] text-text-3 mb-0.5 block">From</label>
+                        <label className="text-[10px] text-text-3 mb-0.5 block">{t("dashboard.fromLabel")}</label>
                         <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="w-full h-9 px-2.5 rounded-lg border border-border bg-surface-2 text-body-sm text-text-1" />
                       </div>
                       <div>
-                        <label className="text-[10px] text-text-3 mb-0.5 block">To</label>
+                        <label className="text-[10px] text-text-3 mb-0.5 block">{t("dashboard.toLabel")}</label>
                         <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="w-full h-9 px-2.5 rounded-lg border border-border bg-surface-2 text-body-sm text-text-1" />
                       </div>
                     </div>
@@ -186,7 +186,7 @@ export default function DashboardPage() {
                       onClick={() => { if (customFrom && customTo) { setRangeKey("custom"); setShowRangeMenu(false); } }}
                       disabled={!customFrom || !customTo}
                       className="mt-3 w-full h-9 rounded-lg bg-primary text-white text-body-sm font-semibold disabled:opacity-40 hover:bg-primary/90 transition-colors"
-                    >Apply</button>
+                    >{t("dashboard.apply")}</button>
                   </div>
                 </div>
               </>
@@ -195,7 +195,7 @@ export default function DashboardPage() {
           <div className="hidden sm:flex items-center gap-2 h-10 px-3.5 rounded-xl border border-border bg-white dark:bg-card text-body-sm">
             <Search className="w-4 h-4 text-text-3" />
             <input
-              type="text" placeholder="Search courses…" value={searchQuery}
+              type="text" placeholder={t("dashboard.searchCourses")} value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && searchQuery.trim()) window.location.href = `/manage-courses?search=${encodeURIComponent(searchQuery)}`; }}
               className="bg-transparent outline-none w-48 placeholder:text-text-3 text-text-1"
@@ -203,7 +203,7 @@ export default function DashboardPage() {
           </div>
           <Link to="/manage-courses/new" className="h-10 px-4 rounded-xl bg-primary text-white font-semibold text-body-sm inline-flex items-center gap-2 shadow-primary hover:shadow-primary-hover transition-all">
             <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">New Course</span>
+            <span className="hidden sm:inline">{t("dashboard.newCourse")}</span>
           </Link>
         </div>
       </div>
@@ -211,8 +211,8 @@ export default function DashboardPage() {
       {/* Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard title={t("dashboard.revenue")} value={formatCurrency(totalRevenue)} change={revenueChange} changeLabel={t("dashboard.vsLast30Days")} icon={DollarSign} color="blue" />
-        <StatCard title={t("dashboard.enrollments")} value={formatNumber(totalEnrollments)} change={enrollmentChange} changeLabel={`${overview?.totalCourses ?? 0} courses`} icon={GraduationCap} color="green" />
-        <StatCard title={t("dashboard.activeLearners")} value={formatNumber(activeUsers)} changeLabel={`${formatNumber(overview?.totalUsers ?? 0)} total users`} icon={Users} color="amber" />
+        <StatCard title={t("dashboard.enrollments")} value={formatNumber(totalEnrollments)} change={enrollmentChange} changeLabel={t("dashboard.coursesCount", { count: overview?.totalCourses ?? 0 })} icon={GraduationCap} color="green" />
+        <StatCard title={t("dashboard.activeLearners")} value={formatNumber(activeUsers)} changeLabel={t("dashboard.totalUsersCount", { count: overview?.totalUsers ?? 0 })} icon={Users} color="amber" />
         <StatCard title={t("dashboard.completionRate")} value={`${completionRate}%`} changeLabel={t("dashboard.avgAcrossCourses")} icon={TrendingUp} color="red" />
       </div>
 
@@ -222,12 +222,12 @@ export default function DashboardPage() {
         <Card className="lg:col-span-2 p-5">
           <div className="flex items-center justify-between mb-5">
             <div>
-              <h3 className="text-body font-bold text-text-1">Revenue & Enrollments</h3>
-              <p className="text-caption text-text-3 mt-0.5">Last 14 days</p>
+              <h3 className="text-body font-bold text-text-1">{t("dashboard.revenueAndEnrollments")}</h3>
+              <p className="text-caption text-text-3 mt-0.5">{t("dashboard.last14DaysLabel")}</p>
             </div>
             <div className="flex items-center gap-4 text-caption text-text-3">
-              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-primary" />Revenue</span>
-              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-success" />Enrollments</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-primary" />{t("dashboard.revenueLegend")}</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-success" />{t("dashboard.enrollmentsLegend")}</span>
             </div>
           </div>
           {chartDays.length > 0 ? (
@@ -249,7 +249,7 @@ export default function DashboardPage() {
           ) : (
             <div className="flex flex-col items-center justify-center h-[220px] text-text-3">
               <BarChart3 className="w-10 h-10 mb-2 opacity-30" />
-              <p className="text-body-sm">No data for this period</p>
+              <p className="text-body-sm">{t("dashboard.noDataForPeriod")}</p>
             </div>
           )}
         </Card>
@@ -257,15 +257,15 @@ export default function DashboardPage() {
         {/* Progress Donut */}
         <Card className="p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-body font-bold text-text-1">Learner Progress</h3>
-            <span className="text-caption text-text-3 bg-muted px-2.5 py-1 rounded-full">30d</span>
+            <h3 className="text-body font-bold text-text-1">{t("dashboard.learnerProgressLabel")}</h3>
+            <span className="text-caption text-text-3 bg-muted px-2.5 py-1 rounded-full">{t("dashboard.30d")}</span>
           </div>
           <ProgressDonut data={progressBuckets} />
           <div className="mt-4 space-y-2">
             {progressEntries(progressBuckets).map(({ label, count, color }) => (
               <div key={label} className="flex items-center gap-3">
                 <span className={`w-3 h-3 rounded-full ${color} flex-shrink-0`} />
-                <span className="text-caption text-text-2 flex-1">{label}</span>
+                <span className="text-caption text-text-2 flex-1">{label === "Completed" ? t("dashboard.completed") : label}</span>
                 <span className="text-caption font-bold text-text-1">{count}</span>
               </div>
             ))}
@@ -278,9 +278,9 @@ export default function DashboardPage() {
         {/* Top Courses */}
         <Card className="p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-body font-bold text-text-1">Top Courses by Revenue</h3>
+            <h3 className="text-body font-bold text-text-1">{t("dashboard.topCoursesByRevenue")}</h3>
             <Link to="/manage-courses" className="text-caption text-primary font-semibold hover:underline inline-flex items-center gap-1">
-              View all <ChevronRight className="w-3.5 h-3.5" />
+              {t("dashboard.viewAll")} <ChevronRight className="w-3.5 h-3.5" />
             </Link>
           </div>
           {topCourses.length > 0 ? (
@@ -294,7 +294,7 @@ export default function DashboardPage() {
                     <div className="flex-1 min-w-0">
                       <div className="text-body-sm font-semibold text-text-1 truncate group-hover:text-primary transition-colors">{course.title}</div>
                       <div className="flex items-center gap-3 mt-0.5">
-                        <span className="text-caption text-text-3">{course.enrollments} learners</span>
+                        <span className="text-caption text-text-3">{course.enrollments} {t("dashboard.learnersLabel")}</span>
                         {course.rating && <span className="text-caption text-text-3">★ {Number(course.rating).toFixed(1)}</span>}
                       </div>
                     </div>
@@ -309,16 +309,16 @@ export default function DashboardPage() {
               })}
             </div>
           ) : (
-            <EmptyState icon={BookOpen} message="No courses yet" action={<Link to="/manage-courses/new" className="text-primary font-semibold text-caption hover:underline">Create your first course →</Link>} />
+            <EmptyState icon={BookOpen} message={t("dashboard.noCoursesYet")} action={<Link to="/manage-courses/new" className="text-primary font-semibold text-caption hover:underline">{t("dashboard.createFirstCourse")}</Link>} />
           )}
         </Card>
 
         {/* Recent Learners */}
         <Card className="p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-body font-bold text-text-1">Recent Learners</h3>
+            <h3 className="text-body font-bold text-text-1">{t("dashboard.recentLearners")}</h3>
             <Link to="/users" className="text-caption text-primary font-semibold hover:underline inline-flex items-center gap-1">
-              View all <ChevronRight className="w-3.5 h-3.5" />
+              {t("dashboard.viewAll")} <ChevronRight className="w-3.5 h-3.5" />
             </Link>
           </div>
           {topLearners.length > 0 ? (
@@ -343,19 +343,19 @@ export default function DashboardPage() {
               ))}
             </div>
           ) : (
-            <EmptyState icon={Users} message="No learner activity yet" />
+            <EmptyState icon={Users} message={t("dashboard.noLearnerActivity")} />
           )}
         </Card>
       </div>
 
       {/* Quick Actions */}
       <Card className="p-5">
-        <h3 className="text-body font-bold text-text-1 mb-4">Quick Actions</h3>
+        <h3 className="text-body font-bold text-text-1 mb-4">{t("dashboard.quickActions")}</h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <QuickAction icon={Plus} label="Create Course" to="/manage-courses/new" color="bg-primary/10 text-primary" />
-          <QuickAction icon={Users} label="Manage Users" to="/users" color="bg-success/10 text-success" />
-          <QuickAction icon={BarChart3} label="View Analytics" to="/analytics" color="bg-amber-500/10 text-amber-600" />
-          <QuickAction icon={Clock} label="Recent Activity" to="/analytics" color="bg-accent/10 text-accent" />
+          <QuickAction icon={Plus} label={t("dashboard.createCourse")} to="/manage-courses/new" color="bg-primary/10 text-primary" />
+          <QuickAction icon={Users} label={t("dashboard.manageUsers")} to="/users" color="bg-success/10 text-success" />
+          <QuickAction icon={BarChart3} label={t("dashboard.viewAnalytics")} to="/analytics" color="bg-amber-500/10 text-amber-600" />
+          <QuickAction icon={Clock} label={t("dashboard.recentActivity")} to="/analytics" color="bg-accent/10 text-accent" />
         </div>
       </Card>
     </div>
@@ -365,6 +365,7 @@ export default function DashboardPage() {
 /* ──────────────── Sub-components ──────────────── */
 
 function ProgressDonut({ data }: { data: Record<string, number> }) {
+  const { t } = useTranslation();
   const entries = progressEntries(data);
   const total = entries.reduce((s, e) => s + e.count, 0);
   const divisor = total || 1; // avoid division by zero but display real total
@@ -393,7 +394,7 @@ function ProgressDonut({ data }: { data: Record<string, number> }) {
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className="text-h3 font-bold text-text-1">{total}</span>
-          <span className="text-caption text-text-3">Learners</span>
+          <span className="text-caption text-text-3">{t("dashboard.learnersCenter")}</span>
         </div>
       </div>
     </div>
@@ -435,8 +436,8 @@ function EmptyState({ icon: Icon, message, action }: { icon: React.ComponentType
 
 function getGreeting(): string {
   const hour = new Date().getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 18) return "Good afternoon";
-  return "Good evening";
+  if (hour < 12) return "dashboard.greetingMorning";
+  if (hour < 18) return "dashboard.greetingAfternoon";
+  return "dashboard.greetingEvening";
 }
 

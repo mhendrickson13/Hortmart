@@ -52,6 +52,13 @@ router.patch('/', auth_js_1.authenticate, requireAdmin, async (req, res) => {
             else {
                 await (0, db_js_1.execute)('INSERT INTO app_settings (id, `key`, value, updatedAt) VALUES (?, ?, ?, ?)', [(0, db_js_1.genId)(), key, value || '', ts]);
             }
+            // When admin saves platformLanguage, also save their personal preferredLanguage
+            if (key === 'platformLanguage' && value && req.user?.id) {
+                try {
+                    await (0, db_js_1.execute)('UPDATE users SET preferredLanguage = ?, updatedAt = ? WHERE id = ?', [value.toLowerCase().slice(0, 2), ts, req.user.id]);
+                }
+                catch { /* ignore */ }
+            }
         }
         // Return updated settings
         const rows = await (0, db_js_1.query)('SELECT `key`, value FROM app_settings');

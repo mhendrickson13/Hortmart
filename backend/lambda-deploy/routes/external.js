@@ -12,7 +12,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
  *   Authorization: Bearer <token from Settings page>
  *   Content-Type: application/json
  *   {
- *     "accountid": "<creator/admin id>",     // optional — validated if provided
  *     "usrmail": "learner@example.com",
  *     "usrname": "Full Name",
  *     "suscribedcourses": ["courseId1", "courseId2"]   // optional
@@ -51,7 +50,6 @@ async function requireBearerToken(req, res, next) {
  *   Authorization: Bearer <api token from Settings>
  *
  * Body (JSON):
- *   accountid        (string, optional)  – creator/admin account ID (validated if provided)
  *   usrmail          (string, required)  – learner email
  *   usrname          (string, optional)  – learner full name
  *   suscribedcourses (string[], optional) – course IDs to auto-enrol
@@ -61,12 +59,8 @@ async function requireBearerToken(req, res, next) {
  */
 router.post('/create-learner', requireBearerToken, async (req, res) => {
     try {
-        const { accountid, usrmail, usrname, suscribedcourses } = req.body;
+        const { usrmail, usrname, suscribedcourses } = req.body;
         const account = req.account;
-        // ── Validate accountid if provided ──
-        if (accountid && accountid !== account.id) {
-            return res.status(403).json({ error: 'accountid does not match the authenticated account' });
-        }
         // ── Validate email ──
         if (!usrmail) {
             return res.status(400).json({ error: 'usrmail is required' });
@@ -136,6 +130,9 @@ router.post('/create-learner', requireBearerToken, async (req, res) => {
                 title: 'Enrollment Confirmed',
                 description: `You have been enrolled in "${course.title}".`,
                 link: `/player/${courseId}`,
+                titleKey: 'enrollment.title',
+                descKey: 'enrollment.desc',
+                i18nParams: { courseTitle: course.title },
             });
             // Notify course creator
             if (course.creatorId) {
@@ -145,6 +142,9 @@ router.post('/create-learner', requireBearerToken, async (req, res) => {
                     title: 'New Student Enrolled',
                     description: `A new student was enrolled in "${course.title}" via CXflow.`,
                     link: `/manage-courses/${courseId}/analytics`,
+                    titleKey: 'newStudent.title',
+                    descKey: 'newStudent.external.desc',
+                    i18nParams: { courseTitle: course.title },
                 });
             }
             // Email learner about enrollment (await so Lambda doesn't freeze)

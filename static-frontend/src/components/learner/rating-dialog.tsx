@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Dialog,
   DialogContent,
@@ -36,6 +37,7 @@ export function RatingDialog({
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [loading, setLoading] = useState(false);
+  const { t } = useTranslation();
   const [existingReviewId, setExistingReviewId] = useState<string | null>(null);
 
   // Fetch existing review when dialog opens
@@ -75,7 +77,7 @@ export function RatingDialog({
 
   const handleSubmit = async () => {
     if (rating === 0) {
-      toast({ title: "Please select a rating", variant: "error" });
+      toast({ title: t("rating.pleaseSelectRating"), variant: "error" });
       return;
     }
 
@@ -83,15 +85,15 @@ export function RatingDialog({
     try {
       if (existingReviewId) {
         await reviews.update(existingReviewId, { rating, comment: comment || undefined });
-        toast({ title: "Review updated!", variant: "success" });
+        toast({ title: t("rating.reviewUpdated"), variant: "success" });
       } else {
         await courses.createReview(courseId, { rating, comment: comment || undefined });
-        toast({ title: "Thank you for your review!", variant: "success" });
+        toast({ title: t("rating.thankYou"), variant: "success" });
       }
       handleOpenChange(false);
       onSuccess?.();
     } catch (error) {
-      const message = error instanceof ApiError ? error.message : "Failed to submit review";
+      const message = error instanceof ApiError ? error.message : t("rating.failedToSubmit");
       toast({ title: message, variant: "error" });
     } finally {
       setSubmitting(false);
@@ -103,11 +105,11 @@ export function RatingDialog({
     setDeleting(true);
     try {
       await reviews.delete(existingReviewId);
-      toast({ title: "Review deleted", variant: "success" });
+      toast({ title: t("rating.reviewDeleted"), variant: "success" });
       handleOpenChange(false);
       onSuccess?.();
     } catch (error) {
-      const message = error instanceof ApiError ? error.message : "Failed to delete review";
+      const message = error instanceof ApiError ? error.message : t("rating.failedToDelete");
       toast({ title: message, variant: "error" });
     } finally {
       setDeleting(false);
@@ -116,11 +118,11 @@ export function RatingDialog({
 
   const ratingLabels = [
     "",
-    "Poor",
-    "Fair",
-    "Good",
-    "Very Good",
-    "Excellent",
+    t("rating.poor"),
+    t("rating.fair"),
+    t("rating.good"),
+    t("rating.veryGood"),
+    t("rating.excellent"),
   ];
 
   const isEditing = !!existingReviewId;
@@ -133,9 +135,9 @@ export function RatingDialog({
           <div className="w-14 h-14 rounded-full bg-yellow-100 dark:bg-yellow-500/20 flex items-center justify-center mb-3">
             <Star className="w-7 h-7 text-yellow-500 fill-yellow-500" />
           </div>
-          <DialogTitle>{isEditing ? "Edit your review" : "Rate this course"}</DialogTitle>
+          <DialogTitle>{isEditing ? t("rating.editReview") : t("rating.rateThisCourse")}</DialogTitle>
           <DialogDescription className="max-w-[280px]">
-            How would you rate &quot;{courseName}&quot;?
+            {t("rating.howWouldYouRate", { courseName })}
           </DialogDescription>
         </DialogHeader>
 
@@ -169,17 +171,17 @@ export function RatingDialog({
                 ))}
               </div>
               <span className="text-[13px] font-semibold text-text-2 h-5">
-                {ratingLabels[hoverRating || rating] || "Select a rating"}
+                {ratingLabels[hoverRating || rating] || t("rating.selectARating")}
               </span>
             </div>
 
             {/* Comment */}
             <div>
               <label className="text-[13px] font-bold text-text-1 block mb-2">
-                Review (optional)
+                {t("rating.reviewOptional")}
               </label>
               <Textarea
-                placeholder="Share your experience with this course..."
+                placeholder={t("rating.sharePlaceholder")}
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
                 rows={3}
@@ -198,9 +200,9 @@ export function RatingDialog({
             {submitting ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : isEditing ? (
-              "Update Review"
+              t("rating.updateReview")
             ) : (
-              "Submit Review"
+              t("rating.submitReview")
             )}
           </Button>
           {isEditing && (
@@ -215,7 +217,7 @@ export function RatingDialog({
               ) : (
                 <>
                   <Trash2 className="w-4 h-4 mr-2" />
-                  Delete Review
+                  {t("rating.deleteReview")}
                 </>
               )}
             </Button>
@@ -226,7 +228,7 @@ export function RatingDialog({
             disabled={busy}
             className="w-full h-12 rounded-full font-black text-[14px] text-text-2"
           >
-            Cancel
+            {t("rating.cancelBtn")}
           </Button>
         </DialogFooter>
       </DialogContent>

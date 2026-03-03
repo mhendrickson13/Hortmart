@@ -146,7 +146,7 @@ router.get('/', authenticate, requireCreatorOrAdmin, async (req: AuthRequest, re
 router.get('/profile', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const user = await queryOne<any>(
-      'SELECT id, email, name, image, bio, role, createdAt, updatedAt, notifyEmailEnrollment, notifyEmailCompletion, notifyEmailNewStudent, notifyEmailReview, notifyInApp FROM users WHERE id = ?',
+      'SELECT id, email, name, image, bio, role, createdAt, updatedAt, preferredLanguage, notifyEmailEnrollment, notifyEmailCompletion, notifyEmailNewStudent, notifyEmailReview, notifyInApp FROM users WHERE id = ?',
       [req.user!.id]
     );
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -250,7 +250,7 @@ router.patch('/profile', authenticate, async (req: AuthRequest, res: Response) =
 
     await execute(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`, params);
     const user = await queryOne<any>(
-      'SELECT id, email, name, image, bio, role, updatedAt FROM users WHERE id = ?',
+      'SELECT id, email, name, image, bio, role, preferredLanguage, updatedAt FROM users WHERE id = ?',
       [req.user!.id]
     );
 
@@ -258,6 +258,22 @@ router.patch('/profile', authenticate, async (req: AuthRequest, res: Response) =
   } catch (error) {
     console.error('Update profile error:', error);
     res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
+// PATCH /users/language — save user's preferred language for emails
+router.patch('/language', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const { language } = req.body;
+    const allowed = ['es', 'en', 'fr', 'pt'];
+    if (!language || !allowed.includes(language)) {
+      return res.status(400).json({ error: 'Language must be one of: es, en, fr, pt' });
+    }
+    await execute('UPDATE users SET preferredLanguage = ?, updatedAt = ? WHERE id = ?', [language, now(), req.user!.id]);
+    res.json({ language });
+  } catch (error) {
+    console.error('Update language error:', error);
+    res.status(500).json({ error: 'Failed to update language' });
   }
 });
 
@@ -503,6 +519,19 @@ router.get('/:id/enrollments', authenticate, async (req: AuthRequest, res: Respo
       [id, ...creatorParams]
     );
 
+    // Pre-fetch seek counts from activity_log for all lessons of this user
+    const seekRows = await query<any[]>(
+      `SELECT JSON_UNQUOTE(JSON_EXTRACT(meta, '$.lessonId')) as lessonId, COUNT(*) as cnt
+       FROM activity_log
+       WHERE userId = ? AND event = 'seeked'
+       GROUP BY JSON_UNQUOTE(JSON_EXTRACT(meta, '$.lessonId'))`,
+      [id]
+    );
+    const seekCountMap = new Map<string, number>();
+    for (const r of seekRows) {
+      seekCountMap.set(r.lessonId, Number(r.cnt));
+    }
+
     const result = [];
     for (const enr of enrollments) {
       // Lesson counts
@@ -547,6 +576,7 @@ router.get('/:id/enrollments', authenticate, async (req: AuthRequest, res: Respo
           firstViewedAt: lp?.firstViewedAt ?? null,
           lastWatchedAt: lp?.lastWatchedAt ?? null,
           completedAt: lp?.completedAt ?? null,
+          seekCount: seekCountMap.get(l.id) ?? 0,
         };
       });
 
@@ -647,8 +677,8 @@ router.post('/', authenticate, requireAdmin, async (req: AuthRequest, res: Respo
       [id]
     );
 
-    // Send account-created email with temp password (await so Lambda doesn't freeze)
-    try { await sendAccountCreated(email, name || null, password); } catch (e) { console.error('[Users] account-created email failed:', e); }
+    // Send account-created email with temp password — use admin's language
+    try { await sendAccountCreated(email, name || null, password, req.user!.id); } catch (e) { console.error('[Users] account-created email failed:', e); }
 
     logActivity({ event: 'user.created_by_admin', userId: id, userName: name || email, meta: { email, role: role || 'LEARNER', createdBy: req.user!.id } });
 
@@ -778,7 +808,8 @@ router.post('/:id/message', authenticate, requireAdmin, async (req: AuthRequest,
     const user = await queryOne<any>('SELECT id, name, email FROM users WHERE id = ?', [userId]);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    await sendCustomMessage(user.email, user.name, subject, message);
+    // Use admin's language for custom messages
+    await sendCustomMessage(user.email, user.name, subject, message, req.user!.id);
 
     res.json({ message: 'Email sent successfully' });
   } catch (error) {

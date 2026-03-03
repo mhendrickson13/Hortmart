@@ -1024,7 +1024,6 @@ Authorization: Bearer <your-api-token>
 Content-Type: application/json
 
 {
-  "accountid": "...",
   "usrmail": "...",
   "usrname": "...",
   "suscribedcourses": ["...", "..."]
@@ -1149,8 +1148,9 @@ Content-Type: application/json
                   key="auto"
                   onClick={() => {
                     setLanguagePreference("auto");
-                    // Also save platform email language for admin
+                    // Save platform email language for admin, and per-user language for all
                     if (isAdminCheck) settingsApi.update({ platformLanguage: i18n.language }).catch(() => {});
+                    usersApi.updateLanguage(i18n.language).catch(() => {});
                     toast({
                       title: t("settings.languageUpdated"),
                       description: t("settings.languageAutoDetected"),
@@ -1192,8 +1192,9 @@ Content-Type: application/json
                   key={lang.code}
                   onClick={() => {
                     setLanguagePreference(lang.code);
-                    // Also save platform email language for admin
+                    // Save platform email language for admin, and per-user language for all
                     if (isAdminCheck) settingsApi.update({ platformLanguage: lang.code }).catch(() => {});
+                    usersApi.updateLanguage(lang.code).catch(() => {});
                     toast({
                       title: t("settings.languageUpdated"),
                       description: `${t("settings.languageChangedTo")} ${lang.nativeName}`,

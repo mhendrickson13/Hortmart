@@ -6,6 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { Star, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { courses, type ReviewWithUser, type ReviewStats as ApiReviewStats } from "@/lib/api-client";
+import { useTranslation } from "react-i18next";
 
 type Review = ReviewWithUser;
 
@@ -26,6 +27,7 @@ export function ReviewsSection({ courseId, initialStats }: ReviewsSectionProps) 
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const { t, i18n } = useTranslation();
 
   useEffect(() => {
     fetchReviews(1);
@@ -61,7 +63,7 @@ export function ReviewsSection({ courseId, initialStats }: ReviewsSectionProps) 
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
+    return new Date(dateString).toLocaleDateString(i18n.language, {
       month: "short",
       day: "numeric",
       year: "numeric",
@@ -90,7 +92,7 @@ export function ReviewsSection({ courseId, initialStats }: ReviewsSectionProps) 
     return (
       <Card className="p-6 text-center">
         <Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" />
-        <p className="text-body-sm text-text-2 mt-2">Loading reviews...</p>
+        <p className="text-body-sm text-text-2 mt-2">{t("reviews.loadingReviews")}</p>
       </Card>
     );
   }
@@ -100,7 +102,7 @@ export function ReviewsSection({ courseId, initialStats }: ReviewsSectionProps) 
       <Card className="p-6 text-center">
         <Star className="w-10 h-10 text-text-3 mx-auto mb-2" />
         <p className="text-body-sm text-text-2">
-          No reviews yet. Be the first to review this course!
+          {t("reviews.noReviewsYet")}
         </p>
       </Card>
     );
@@ -111,7 +113,7 @@ export function ReviewsSection({ courseId, initialStats }: ReviewsSectionProps) 
       {/* Rating Summary */}
       <Card className="p-4 lg:p-6">
         <h2 className="text-body lg:text-h3 font-semibold text-text-1 mb-4">
-          Student Reviews
+          {t("reviews.studentReviews")}
         </h2>
         
         <div className="flex flex-col sm:flex-row gap-6">
@@ -124,7 +126,7 @@ export function ReviewsSection({ courseId, initialStats }: ReviewsSectionProps) 
               {renderStars(Math.round(stats.averageRating))}
             </div>
             <p className="text-caption text-text-3 mt-1">
-              {stats.totalReviews} {stats.totalReviews === 1 ? "review" : "reviews"}
+              {t("reviews.review", { count: stats.totalReviews })}
             </p>
           </div>
 
@@ -170,7 +172,7 @@ export function ReviewsSection({ courseId, initialStats }: ReviewsSectionProps) 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-body-sm font-semibold text-text-1">
-                    {review.user.name || "Anonymous"}
+                    {review.user.name || t("reviews.anonymous")}
                   </span>
                   <span className="text-caption text-text-3">
                     {formatDate(review.createdAt)}
@@ -195,7 +197,7 @@ export function ReviewsSection({ courseId, initialStats }: ReviewsSectionProps) 
           className="w-full"
           onClick={() => fetchReviews(page + 1)}
         >
-          Load more reviews
+          {t("reviews.loadMore")}
         </Button>
       )}
     </div>

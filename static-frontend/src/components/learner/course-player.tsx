@@ -36,6 +36,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { toast } from "@/components/ui/toaster";
+import { useTranslation } from "react-i18next";
 
 interface CoursePlayerProps {
   course: {
@@ -92,6 +93,7 @@ interface CoursePlayerProps {
 function ActivityChart({ courseId, gradientId }: { courseId: string; gradientId?: string }) {
   const { token } = useAuth();
   const [dailyData, setDailyData] = useState<Record<string, number>>({});
+  const { t, i18n } = useTranslation();
 
   // Fetch real watch activity from backend
   useEffect(() => {
@@ -125,7 +127,7 @@ function ActivityChart({ courseId, gradientId }: { courseId: string; gradientId?
       const d = new Date(now);
       d.setDate(d.getDate() - i);
       // Use Intl to get day-of-week in CST to match backend
-      const dow = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: 'America/Chicago' }).format(d).toUpperCase();
+      const dow = new Intl.DateTimeFormat(i18n.language, { weekday: 'short', timeZone: 'America/Chicago' }).format(d).toUpperCase();
       days.push({
         label: dow,
         dateStr: toCST(d),
@@ -216,7 +218,7 @@ function ActivityChart({ courseId, gradientId }: { courseId: string; gradientId?
               fill="#94a3b8"
               fontSize="11"
             >
-              No activity yet
+              {t("coursePlayer.noActivityYet")}
             </text>
           )}
         </svg>
@@ -239,6 +241,7 @@ export function CoursePlayer({
   totalOtherStudents,
   isPreview = false,
 }: CoursePlayerProps) {
+  const { t, i18n } = useTranslation();
   const videoRef = useRef<VideoPlayerRef>(null);
   const chartGradientId = useId();
   const [, setSearchParams] = useSearchParams();
@@ -399,10 +402,10 @@ export function CoursePlayer({
     try {
       const result = await favouritesApi.toggleFavourite(course.id);
       setIsFavorited(result.isFavourite);
-      toast({ title: result.isFavourite ? "Added to favorites" : "Removed from favorites", variant: "success" });
+      toast({ title: result.isFavourite ? t("coursePlayer.addedToFavorites") : t("coursePlayer.removedFromFavorites"), variant: "success" });
     } catch {
       setIsFavorited(prev);
-      toast({ title: "Failed to update", variant: "error" });
+      toast({ title: t("coursePlayer.failedToUpdate"), variant: "error" });
     }
   };
 
@@ -412,10 +415,10 @@ export function CoursePlayer({
     try {
       const result = await favouritesApi.toggleBookmark(course.id);
       setIsBookmarked(result.isBookmarked);
-      toast({ title: result.isBookmarked ? "Bookmarked" : "Bookmark removed", variant: "success" });
+      toast({ title: result.isBookmarked ? t("coursePlayer.bookmarked") : t("coursePlayer.bookmarkRemoved"), variant: "success" });
     } catch {
       setIsBookmarked(prev);
-      toast({ title: "Failed to update", variant: "error" });
+      toast({ title: t("coursePlayer.failedToUpdate"), variant: "error" });
     }
   };
 
@@ -462,7 +465,7 @@ export function CoursePlayer({
         videoAreaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 100);
     } else if (lesson?.isLocked) {
-      toast({ title: "This lesson is locked", description: "Complete previous lessons first.", variant: "warning" });
+      toast({ title: t("coursePlayer.lessonLocked"), description: t("coursePlayer.completePreviousFirst"), variant: "warning" });
     }
   }, [allLessons, saveBeforeSwitch, getProgress, setSearchParams]);
 
@@ -496,7 +499,7 @@ export function CoursePlayer({
       {isPreview && (
         <div className="w-full bg-amber-500 text-white text-center py-2 px-4 text-sm font-semibold rounded-xl flex items-center justify-center gap-2 lg:col-span-2" style={{ order: -1 }}>
           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-          Preview Mode — Progress will not be saved
+          {t("coursePlayer.previewMode")}
         </div>
       )}
       {/* Main Content */}
@@ -511,14 +514,14 @@ export function CoursePlayer({
           <div className="flex-1 min-w-0">
             <h1 className="text-body lg:text-[22px] lg:leading-tight font-extrabold text-text-1 truncate tracking-tight">{course.title}</h1>
             <p className="text-caption text-text-2 hidden sm:block mt-0.5">
-              Instructor &nbsp;<span className="font-semibold text-primary-600">{course.creator.name}</span>
+              {t("coursePlayer.instructor")} &nbsp;<span className="font-semibold text-primary-600">{course.creator.name}</span>
             </p>
           </div>
           {/* Desktop Actions */}
           <div className="hidden lg:flex items-center gap-3">
             {/* Preview: Edit Course link */}
             {isPreview && (
-              <Link to={`/manage-courses/${course.id}/edit`} className="text-caption font-semibold text-primary hover:underline">Edit Course</Link>
+              <Link to={`/manage-courses/${course.id}/edit`} className="text-caption font-semibold text-primary hover:underline">{t("coursePlayer.editCourse")}</Link>
             )}
             {/* Other Students */}
             {!isPreview && totalOtherStudents > 0 && (
@@ -563,9 +566,7 @@ export function CoursePlayer({
                   )}
                 </div>
                 <span className="text-[11px] font-semibold text-text-3">
-                  {totalOtherStudents === 1 
-                    ? "1 other student" 
-                    : `${totalOtherStudents} other students`}
+                  {t("coursePlayer.otherStudent", { count: totalOtherStudents })}
                 </span>
               </div>
             )}
@@ -578,7 +579,7 @@ export function CoursePlayer({
               onClick={() => setShowRatingDialog(true)}
             >
               <Star className="w-4 h-4" />
-              Leave a rating
+              {t("coursePlayer.leaveRating")}
             </Button>
             <Button 
               variant="secondary" 
@@ -593,12 +594,12 @@ export function CoursePlayer({
               onClick={async () => {
                 try {
                   await navigator.clipboard.writeText(window.location.href);
-                  toast({ title: "Link copied!", variant: "success" });
+                  toast({ title: t("coursePlayer.linkCopied"), variant: "success" });
                 } catch {
                   try {
                     await navigator.share?.({ url: window.location.href });
                   } catch {
-                    toast({ title: "Could not copy link", variant: "error" });
+                    toast({ title: t("coursePlayer.couldNotCopyLink"), variant: "error" });
                   }
                 }
               }}
@@ -627,14 +628,14 @@ export function CoursePlayer({
             <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
               <AlertCircle className="w-6 h-6 text-red-500" />
             </div>
-            <p className="text-body-sm font-semibold text-red-700 dark:text-red-400">Video processing failed</p>
+            <p className="text-body-sm font-semibold text-red-700 dark:text-red-400">{t("coursePlayer.videoFailed")}</p>
             <p className="text-caption text-red-600/70 dark:text-red-400/60 max-w-xs text-center">{videoError}</p>
           </div>
         ) : videoEncoding && !videoSrc ? (
           <div className="aspect-video lg:aspect-auto lg:h-full rounded-[22px] bg-gradient-to-br from-muted to-surface-3 border border-border/90 flex flex-col items-center justify-center gap-3" style={{ boxShadow: '0 14px 40px rgba(21,25,35,0.08)' }}>
             <Loader2 className="w-10 h-10 animate-spin text-primary" />
-            <p className="text-body-sm font-semibold text-text-2">Video is being processed...</p>
-            <p className="text-caption text-text-3">This usually takes a few minutes. It will appear automatically when ready.</p>
+            <p className="text-body-sm font-semibold text-text-2">{t("coursePlayer.videoProcessing")}</p>
+            <p className="text-caption text-text-3">{t("coursePlayer.videoProcessingHint")}</p>
           </div>
         ) : (
           <div className="lg:h-full relative" style={{ boxShadow: '0 14px 40px rgba(21,25,35,0.08)', borderRadius: '22px' }}>
@@ -658,33 +659,33 @@ export function CoursePlayer({
               {nextLessonAvailable ? (
                 <>
                   <CheckCircle className="w-12 h-12 text-success mb-3" />
-                  <p className="text-white font-bold text-body mb-1">Lesson Complete!</p>
-                  <p className="text-white/70 text-body-sm mb-5">Up next:</p>
+                  <p className="text-white font-bold text-body mb-1">{t("coursePlayer.lessonComplete")}</p>
+                  <p className="text-white/70 text-body-sm mb-5">{t("coursePlayer.upNext")}</p>
                   <p className="text-white font-semibold text-body-sm mb-6 max-w-xs text-center truncate px-4">{nextLesson!.title}</p>
                   <button
                     onClick={() => handleLessonSelect(nextLesson!.id)}
                     className="flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-white font-bold text-body-sm hover:bg-primary/90 transition-colors shadow-lg"
                   >
                     <Play className="w-5 h-5" fill="currentColor" />
-                    Play Next Lesson
+                    {t("coursePlayer.playNextLesson")}
                   </button>
                   <button
                     onClick={() => setVideoEnded(false)}
                     className="mt-3 text-white/60 text-caption hover:text-white/90 transition-colors"
                   >
-                    Stay on this lesson
+                    {t("coursePlayer.stayOnThisLesson")}
                   </button>
                 </>
               ) : (
                 <>
                   <CheckCircle className="w-14 h-14 text-success mb-3" />
-                  <p className="text-white font-bold text-h3 mb-1">{currentLessonIndex === allLessons.length - 1 ? 'Course Complete!' : 'Lesson Complete!'}</p>
-                  <p className="text-white/60 text-body-sm mb-5">{currentLessonIndex === allLessons.length - 1 ? 'You\'ve finished all lessons. Great job!' : 'The next lesson is locked.'}</p>
+                  <p className="text-white font-bold text-h3 mb-1">{currentLessonIndex === allLessons.length - 1 ? t("coursePlayer.courseComplete") : t("coursePlayer.lessonComplete")}</p>
+                  <p className="text-white/60 text-body-sm mb-5">{currentLessonIndex === allLessons.length - 1 ? t("coursePlayer.courseCompleteMsg") : t("coursePlayer.nextLessonLocked")}</p>
                   <button
                     onClick={() => setVideoEnded(false)}
                     className="px-6 py-3 rounded-xl bg-white/20 text-white font-bold text-body-sm hover:bg-white/30 transition-colors"
                   >
-                    Dismiss
+                    {t("coursePlayer.dismiss")}
                   </button>
                 </>
               )}
@@ -705,7 +706,7 @@ export function CoursePlayer({
                     <CheckCircle className="w-5 h-5 text-success" />
                   </span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-caption font-semibold text-success mb-0.5">Lesson Complete!</p>
+                    <p className="text-caption font-semibold text-success mb-0.5">{t("coursePlayer.lessonComplete")}</p>
                     <p className="text-body-sm font-bold text-text-1 truncate">{nextLesson!.title}</p>
                   </div>
                   <button
@@ -723,10 +724,10 @@ export function CoursePlayer({
                   </span>
                   <div className="flex-1 min-w-0">
                     <p className="text-body-sm font-bold text-text-1">
-                      {currentLessonIndex === allLessons.length - 1 ? 'Course Complete! 🎉' : 'Lesson Complete!'}
+                      {currentLessonIndex === allLessons.length - 1 ? t("coursePlayer.courseCompleteEmoji") : t("coursePlayer.lessonComplete")}
                     </p>
                     <p className="text-caption text-text-3">
-                      {currentLessonIndex === allLessons.length - 1 ? 'Great job — you finished all lessons.' : 'The next lesson is locked.'}
+                      {currentLessonIndex === allLessons.length - 1 ? t("coursePlayer.greatJobFinished") : t("coursePlayer.nextLessonLocked")}
                     </p>
                   </div>
                 </div>
@@ -747,22 +748,22 @@ export function CoursePlayer({
               </span>
               <div className="flex-1 min-w-0">
                 <p className="text-[11px] text-text-3 font-medium mb-0.5">
-                  Lesson {currentLessonIndex + 1} of {totalLessons}
+                  {t("coursePlayer.lessonXofY", { current: currentLessonIndex + 1, total: totalLessons })}
                 </p>
                 <h3 className="text-body-sm font-bold text-text-1 truncate">
-                  {currentLesson?.title || "Select a lesson"}
+                  {currentLesson?.title || t("coursePlayer.selectALesson")}
                 </h3>
               </div>
               <div className="flex flex-col items-end">
                 {isCurrentLessonCompleted ? (
                   <>
-                    <span className="text-body-sm font-bold text-success">Done</span>
-                    <span className="text-[10px] text-success/70">completed</span>
+                    <span className="text-body-sm font-bold text-success">{t("coursePlayer.done")}</span>
+                    <span className="text-[10px] text-success/70">{t("coursePlayer.completed")}</span>
                   </>
                 ) : (
                   <>
                     <span className="text-h3 font-bold text-primary">{currentLessonLivePercent}%</span>
-                    <span className="text-[10px] text-text-3">watched</span>
+                    <span className="text-[10px] text-text-3">{t("coursePlayer.watched")}</span>
                   </>
                 )}
               </div>
@@ -782,8 +783,8 @@ export function CoursePlayer({
                 />
               </div>
               <div className="flex justify-between mt-1">
-                <span className="text-[10px] text-text-3">{isCurrentLessonCompleted ? "Completed" : "This lesson"}</span>
-                <span className="text-[10px] text-text-3 font-medium">{completedLessons}/{totalLessons} lessons complete</span>
+                <span className="text-[10px] text-text-3">{isCurrentLessonCompleted ? t("coursePlayer.completedLabel") : t("coursePlayer.thisLesson")}</span>
+                <span className="text-[10px] text-text-3 font-medium">{t("coursePlayer.lessonsComplete", { completed: completedLessons, total: totalLessons })}</span>
               </div>
             </div>
           </div>
@@ -806,7 +807,7 @@ export function CoursePlayer({
               disabled={currentLessonIndex === 0 || allLessons[currentLessonIndex - 1]?.isLocked}
             >
               <SkipBack className="w-4 h-4 mr-1" />
-              Previous
+              {t("coursePlayer.previous")}
             </Button>
             
             {/* Lessons list button */}
@@ -833,7 +834,7 @@ export function CoursePlayer({
               }}
               disabled={currentLessonIndex === allLessons.length - 1}
             >
-              Next
+              {t("coursePlayer.next")}
               <SkipForward className="w-4 h-4 ml-1" />
             </Button>
           </div>
@@ -848,7 +849,7 @@ export function CoursePlayer({
                 "w-5 h-5 transition-colors",
                 isFavorited ? "fill-red-500 text-red-500" : "text-text-2"
               )} />
-              <span className="text-[10px] font-medium text-text-3">Favorite</span>
+              <span className="text-[10px] font-medium text-text-3">{t("coursePlayer.favorite")}</span>
             </button>
             
             <button 
@@ -859,26 +860,26 @@ export function CoursePlayer({
                 "w-5 h-5 transition-colors",
                 isBookmarked ? "fill-primary text-primary" : "text-text-2"
               )} />
-              <span className="text-[10px] font-medium text-text-3">Bookmark</span>
+              <span className="text-[10px] font-medium text-text-3">{t("coursePlayer.bookmark")}</span>
             </button>
             
             <button 
               onClick={async () => {
                 try {
                   await navigator.clipboard.writeText(window.location.href);
-                  toast({ title: "Link copied!", variant: "success" });
+                  toast({ title: t("coursePlayer.linkCopied"), variant: "success" });
                 } catch {
                   try {
                     await navigator.share?.({ url: window.location.href });
                   } catch {
-                    toast({ title: "Could not copy link", variant: "error" });
+                    toast({ title: t("coursePlayer.couldNotCopyLink"), variant: "error" });
                   }
                 }
               }}
               className="flex flex-col items-center gap-1 py-2 px-4 active:scale-95 transition-all"
             >
               <Share2 className="w-5 h-5 text-text-2" />
-              <span className="text-[10px] font-medium text-text-3">Share</span>
+              <span className="text-[10px] font-medium text-text-3">{t("coursePlayer.share")}</span>
             </button>
             
             <button 
@@ -886,7 +887,7 @@ export function CoursePlayer({
               className="flex flex-col items-center gap-1 py-2 px-4 active:scale-95 transition-all"
             >
               <Star className="w-5 h-5 text-text-2" />
-              <span className="text-[10px] font-medium text-text-3">Rate</span>
+              <span className="text-[10px] font-medium text-text-3">{t("coursePlayer.rate")}</span>
             </button>
           </div>}
         </div>
@@ -894,14 +895,14 @@ export function CoursePlayer({
         {/* Tabs */}
         <Tabs defaultValue="overview" className="flex-1 lg:flex-[2] lg:min-h-0 flex flex-col" style={{ minHeight: 0 }}>
           <TabsList className="w-full lg:w-max justify-start overflow-x-auto flex-shrink-0">
-            <TabsTrigger value="overview" className="text-[13px] font-semibold lg:flex-none">Overview</TabsTrigger>
+            <TabsTrigger value="overview" className="text-[13px] font-semibold lg:flex-none">{t("coursePlayer.overview")}</TabsTrigger>
             {(currentLesson as any)?.qaEnabled !== false && (
-              <TabsTrigger value="qa" className="text-[13px] font-semibold lg:flex-none">Q&A</TabsTrigger>
+              <TabsTrigger value="qa" className="text-[13px] font-semibold lg:flex-none">{t("coursePlayer.qa")}</TabsTrigger>
             )}
             {(currentLesson as any)?.notesEnabled !== false && (
-              <TabsTrigger value="notes" className="text-[13px] font-semibold lg:flex-none">Notes</TabsTrigger>
+              <TabsTrigger value="notes" className="text-[13px] font-semibold lg:flex-none">{t("coursePlayer.notes")}</TabsTrigger>
             )}
-            <TabsTrigger value="resources" className="text-[13px] font-semibold lg:flex-none">Resources</TabsTrigger>
+            <TabsTrigger value="resources" className="text-[13px] font-semibold lg:flex-none">{t("coursePlayer.resources")}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="lg:flex-1 lg:min-h-0 lg:overflow-y-auto">
@@ -910,25 +911,25 @@ export function CoursePlayer({
               <div className="flex items-center gap-2.5 rounded-[18px] bg-white/92 dark:bg-card/90 border border-border/60 px-3 py-2.5">
                 <BarChart3 className="w-[18px] h-[18px] text-text-2 flex-shrink-0" />
                 <div className="min-w-0">
-                  <div className="text-[11px] text-text-3 font-semibold uppercase tracking-wide leading-none">Skill level</div>
+                  <div className="text-[11px] text-text-3 font-semibold uppercase tracking-wide leading-none">{t("coursePlayer.skillLevel")}</div>
                   <div className="text-[13px] font-bold text-text-1 truncate mt-0.5">
-                    {course.level?.replace("_", " ") || "All Levels"}
+                    {course.level?.replace("_", " ") || t("coursePlayer.allLevels")}
                   </div>
                 </div>
               </div>
               <div className="flex items-center gap-2.5 rounded-[18px] bg-white/92 dark:bg-card/90 border border-border/60 px-3 py-2.5">
                 <Clock className="w-[18px] h-[18px] text-text-2 flex-shrink-0" />
                 <div className="min-w-0">
-                  <div className="text-[11px] text-text-3 font-semibold uppercase tracking-wide leading-none">Course length</div>
+                  <div className="text-[11px] text-text-3 font-semibold uppercase tracking-wide leading-none">{t("coursePlayer.courseLength")}</div>
                   <div className="text-[13px] font-bold text-text-1 mt-0.5">
-                    {Math.round(totalDuration / 60)} min
+                    {Math.round(totalDuration / 60)} {t("coursePlayer.min")}
                   </div>
                 </div>
               </div>
               <div className="flex items-center gap-2.5 rounded-[18px] bg-white/92 dark:bg-card/90 border border-border/60 px-3 py-2.5">
                 <Users className="w-[18px] h-[18px] text-text-2 flex-shrink-0" />
                 <div className="min-w-0">
-                  <div className="text-[11px] text-text-3 font-semibold uppercase tracking-wide leading-none">Progress</div>
+                  <div className="text-[11px] text-text-3 font-semibold uppercase tracking-wide leading-none">{t("coursePlayer.progress")}</div>
                   <div className="text-[13px] font-bold text-text-1 mt-0.5">
                     {completedLessons}/{totalLessons}
                   </div>
@@ -937,7 +938,7 @@ export function CoursePlayer({
               <div className="flex items-center gap-2.5 rounded-[18px] bg-white/92 dark:bg-card/90 border border-border/60 px-3 py-2.5">
                 <Globe className="w-[18px] h-[18px] text-text-2 flex-shrink-0" />
                 <div className="min-w-0">
-                  <div className="text-[11px] text-text-3 font-semibold uppercase tracking-wide leading-none">Language</div>
+                  <div className="text-[11px] text-text-3 font-semibold uppercase tracking-wide leading-none">{t("coursePlayer.language")}</div>
                   <div className="text-[13px] font-bold text-text-1 mt-0.5">
                     {course.language}
                   </div>
@@ -988,7 +989,7 @@ export function CoursePlayer({
                     </span>
                     <Button asChild variant="ghost" size="sm">
                       <a href={resource.url} target="_blank" rel="noopener noreferrer">
-                        Download
+                        {t("coursePlayer.download")}
                       </a>
                     </Button>
                   </Card>
@@ -997,7 +998,7 @@ export function CoursePlayer({
             ) : (
               <Card className="p-6 text-center">
                 <p className="text-body-sm text-text-2">
-                  No resources for this lesson yet.
+                  {t("coursePlayer.noResources")}
                 </p>
               </Card>
             )}
@@ -1008,8 +1009,8 @@ export function CoursePlayer({
       {/* Desktop Sidebar - Lesson List */}
       <aside className="hidden lg:flex w-[600px] flex-shrink-0 rounded-[22px] bg-white/85 dark:bg-card/85 border border-border/70 p-3.5 flex-col gap-3.5">
         <div className="flex items-center justify-between flex-shrink-0">
-          <h3 className="text-[14px] font-extrabold text-text-1">Course content</h3>
-          <span className="text-[12px] font-semibold text-text-3">{totalLessons} lessons</span>
+          <h3 className="text-[14px] font-extrabold text-text-1">{t("coursePlayer.courseContent")}</h3>
+          <span className="text-[12px] font-semibold text-text-3">{t("coursePlayer.lessonsCount", { count: totalLessons })}</span>
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto space-y-4 scrollbar-thin">
@@ -1036,7 +1037,7 @@ export function CoursePlayer({
         {/* Your Time on the Course — pushed to bottom like design */}
         <div className="mt-auto flex-shrink-0 rounded-[18px] bg-white/92 dark:bg-card/90 border border-border/60 p-3 pt-2.5">
           <h4 className="text-[12px] font-extrabold text-text-1 mb-2">
-            Your time on the course
+            {t("coursePlayer.yourTimeOnCourse")}
           </h4>
           <ActivityChart courseId={course.id} gradientId={chartGradientId} />
         </div>
@@ -1046,14 +1047,14 @@ export function CoursePlayer({
       <BottomSheet
         isOpen={showLessonList}
         onClose={() => setShowLessonList(false)}
-        title="Course Content"
-        subtitle={`${completedLessons}/${totalLessons} completed`}
+        title={t("coursePlayer.courseContent")}
+        subtitle={t("coursePlayer.completedCount", { completed: `${completedLessons}/${totalLessons}` })}
         maxHeight="85vh"
       >
         {/* Progress Section */}
         <div className="px-4 py-4 bg-gradient-to-br from-primary/5 to-primary/10 border-b border-border/30">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-caption font-medium text-text-2">Your progress</span>
+            <span className="text-caption font-medium text-text-2">{t("coursePlayer.yourProgress")}</span>
             <span className="text-body-sm font-bold text-primary">{progressPercent}%</span>
           </div>
           <div className="w-full h-2.5 bg-white/50 dark:bg-card/50 rounded-full overflow-hidden shadow-inner">
@@ -1063,8 +1064,8 @@ export function CoursePlayer({
             />
           </div>
           <div className="flex justify-between mt-2 text-[11px] text-text-3">
-            <span>{completedLessons} completed</span>
-            <span>{totalLessons - completedLessons} remaining</span>
+            <span>{t("coursePlayer.completedCount", { completed: completedLessons })}</span>
+            <span>{t("coursePlayer.remainingCount", { remaining: totalLessons - completedLessons })}</span>
           </div>
         </div>
 
@@ -1163,12 +1164,12 @@ export function CoursePlayer({
                           "text-[11px]",
                           isCurrent ? "text-white/70" : "text-text-3"
                         )}>
-                          {Math.floor(lesson.durationSeconds / 60)} min
+                          {Math.floor(lesson.durationSeconds / 60)} {t("coursePlayer.min")}
                           {isCompleted && (
-                            <span className={isCurrent ? "text-white/90" : "text-success"}> • ✓ Completed</span>
+                            <span className={isCurrent ? "text-white/90" : "text-success"}> • ✓ {t("coursePlayer.completedMark")}</span>
                           )}
                           {!isCompleted && mergedProgress && mergedProgress.progressPercent > 0 && (
-                            <span className={isCurrent ? "text-white/90" : "text-primary"}> • {Math.round(mergedProgress.progressPercent)}% watched</span>
+                            <span className={isCurrent ? "text-white/90" : "text-primary"}> • {t("coursePlayer.watchedPercent", { percent: Math.round(mergedProgress.progressPercent) })}</span>
                           )}
                         </p>
                         {/* Progress bar for partially watched lessons */}

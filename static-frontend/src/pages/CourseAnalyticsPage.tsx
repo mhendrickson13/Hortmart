@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatCard } from "@/components/admin/stat-card";
 import {
   ArrowLeft, TrendingUp, Users, BarChart3,
-  GraduationCap, Target, DollarSign, BookOpen,
+  GraduationCap, Target, DollarSign, BookOpen, Search,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 
@@ -17,7 +17,8 @@ type TabKey = "overview" | "students" | "funnel";
 export default function CourseAnalyticsPage() {
   const { id } = useParams<{ id: string }>();
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
-  const { t } = useTranslation();
+  const [studentSearch, setStudentSearch] = useState("");
+  const { t, i18n } = useTranslation();
 
   const { data: courseData } = useQuery({
     queryKey: ["course", id],
@@ -31,6 +32,16 @@ export default function CourseAnalyticsPage() {
     enabled: !!id,
   });
 
+  const analytics = data?.analytics;
+  const topStudents = analytics?.topStudents || [];
+  const filteredStudents = useMemo(() => {
+    if (!studentSearch.trim()) return topStudents;
+    const q = studentSearch.toLowerCase();
+    return topStudents.filter((s: any) =>
+      (s.name && s.name.toLowerCase().includes(q)) || (s.email && s.email.toLowerCase().includes(q))
+    );
+  }, [topStudents, studentSearch]);
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -43,11 +54,9 @@ export default function CourseAnalyticsPage() {
     );
   }
 
-  const analytics = data?.analytics;
   const overview = analytics?.overview;
   const courseTitle = courseData?.course?.title || t("courseAnalytics.courseFallback");
   const lessonStats = analytics?.lessonStats || [];
-  const topStudents = analytics?.topStudents || [];
   const enrollmentTrend = analytics?.enrollmentTrend || [];
 
   const tabs: { key: TabKey; label: string; icon: any }[] = [
@@ -104,7 +113,7 @@ export default function CourseAnalyticsPage() {
                     <div key={i} className="flex-1 flex flex-col items-center gap-1 group">
                       <span className="text-[10px] font-bold text-text-3 opacity-0 group-hover:opacity-100 transition-opacity">{d.count}</span>
                       <div className="w-full bg-primary rounded-t-lg transition-all group-hover:opacity-80" style={{ height: `${Math.max((d.count / max) * 160, 4)}px` }} />
-                      <span className="text-[9px] text-text-3 truncate max-w-full">{new Date(d.date).toLocaleDateString("en", { month: "short", day: "numeric" })}</span>
+                      <span className="text-[9px] text-text-3 truncate max-w-full">{new Date(d.date).toLocaleDateString(i18n.language, { month: "short", day: "numeric" })}</span>
                     </div>
                   );
                 })}
@@ -146,14 +155,25 @@ export default function CourseAnalyticsPage() {
       {activeTab === "students" && (
         <Card className="p-5">
           <h3 className="text-body font-bold text-text-1 mb-4">{t("courseAnalytics.topStudents")}</h3>
+          <div className="relative mb-4">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-3" />
+            <input
+              type="text"
+              value={studentSearch}
+              onChange={(e) => setStudentSearch(e.target.value)}
+              placeholder={t("courseAnalytics.searchStudents")}
+              className="w-full pl-9 pr-3 py-2 rounded-xl border border-border bg-background text-body-sm text-text-1 placeholder:text-text-3 focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
+          </div>
           <div className="space-y-2">
-            {topStudents.length > 0 ? topStudents.map((student: any, i: number) => (
+            {filteredStudents.length > 0 ? filteredStudents.map((student: any, i: number) => (
               <div key={student.userId || i} className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted/50 transition-colors">
                 <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center text-caption font-bold text-primary flex-shrink-0">
                   {student.name?.charAt(0) || "#"}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-body-sm font-semibold text-text-1 truncate">{student.name || t("courseAnalytics.studentFallback")}</div>
+                  {student.email && <div className="text-caption text-text-3 truncate">{student.email}</div>}
                   <div className="text-caption text-text-3 mt-0.5">
                     {student.completedAt ? t("courseAnalytics.completedOn", { date: new Date(student.completedAt).toLocaleDateString() }) : t("courses.inProgress")}
                   </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/lib/auth-context";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,7 @@ interface QASectionProps {
 
 export function QASection({ lessonId, courseCreatorId }: QASectionProps) {
   const { user, token, isLoading: sessionLoading, isAuthenticated } = useAuth();
+  const { t } = useTranslation();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [newQuestion, setNewQuestion] = useState("");
   const [loading, setLoading] = useState(true);
@@ -92,9 +94,9 @@ export function QASection({ lessonId, courseCreatorId }: QASectionProps) {
       const data = await lessons.createQuestion(lessonId, { content: newQuestion });
       setQuestions([{ ...data.question, answers: [], _count: { answers: 0 } } as unknown as Question, ...questions]);
       setNewQuestion("");
-      toast({ title: "Question posted!", variant: "success" });
+      toast({ title: t("qa.questionPosted"), variant: "success" });
     } catch (error) {
-      const message = error instanceof ApiError ? error.message : "Failed to post question";
+      const message = error instanceof ApiError ? error.message : t("qa.failedToPostQuestion");
       toast({ title: message, variant: "error" });
     } finally {
       setSubmitting(false);
@@ -116,9 +118,9 @@ export function QASection({ lessonId, courseCreatorId }: QASectionProps) {
         )
       );
       setAnswerText({ ...answerText, [questionId]: "" });
-      toast({ title: "Answer posted!", variant: "success" });
+      toast({ title: t("qa.answerPosted"), variant: "success" });
     } catch (error) {
-      toast({ title: "Failed to post answer", variant: "error" });
+      toast({ title: t("qa.failedToPostAnswer"), variant: "error" });
     } finally {
       setAnsweringId(null);
     }
@@ -140,9 +142,9 @@ export function QASection({ lessonId, courseCreatorId }: QASectionProps) {
             : q
         )
       );
-      toast({ title: "Answer accepted!", variant: "success" });
+      toast({ title: t("qa.answerAccepted"), variant: "success" });
     } catch (error) {
-      toast({ title: "Failed to accept answer", variant: "error" });
+      toast({ title: t("qa.failedToAcceptAnswer"), variant: "error" });
     }
   };
 
@@ -150,9 +152,9 @@ export function QASection({ lessonId, courseCreatorId }: QASectionProps) {
     try {
       await questionsApi.delete(questionId);
       setQuestions(questions.filter((q) => q.id !== questionId));
-      toast({ title: "Question deleted", variant: "success" });
+      toast({ title: t("qa.questionDeleted"), variant: "success" });
     } catch (error) {
-      toast({ title: "Failed to delete question", variant: "error" });
+      toast({ title: t("qa.failedToDeleteQuestion"), variant: "error" });
     }
   };
 
@@ -172,9 +174,9 @@ export function QASection({ lessonId, courseCreatorId }: QASectionProps) {
     const diff = now.getTime() - date.getTime();
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
 
-    if (days === 0) return "Today";
-    if (days === 1) return "Yesterday";
-    if (days < 7) return `${days} days ago`;
+    if (days === 0) return t("qa.today");
+    if (days === 1) return t("qa.yesterday");
+    if (days < 7) return t("qa.daysAgo", { count: days });
     return date.toLocaleDateString();
   };
 
@@ -182,7 +184,7 @@ export function QASection({ lessonId, courseCreatorId }: QASectionProps) {
     return (
       <Card className="p-6 text-center">
         <Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" />
-        <p className="text-body-sm text-text-2 mt-2">Loading questions...</p>
+        <p className="text-body-sm text-text-2 mt-2">{t("qa.loadingQuestions")}</p>
       </Card>
     );
   }
@@ -191,8 +193,8 @@ export function QASection({ lessonId, courseCreatorId }: QASectionProps) {
     return (
       <Card className="p-6 text-center">
         <MessageCircle className="w-10 h-10 text-text-3 mx-auto mb-2" />
-        <p className="text-body-sm text-text-2 mb-3">Failed to load questions</p>
-        <Button size="sm" variant="secondary" onClick={() => fetchQuestions(1, false)}>Try again</Button>
+        <p className="text-body-sm text-text-2 mb-3">{t("qa.failedToLoadQuestions")}</p>
+        <Button size="sm" variant="secondary" onClick={() => fetchQuestions(1, false)}>{t("qa.tryAgain")}</Button>
       </Card>
     );
   }
@@ -202,7 +204,7 @@ export function QASection({ lessonId, courseCreatorId }: QASectionProps) {
       {/* Ask a Question */}
       {!user && (
         <Card className="p-4 text-center">
-          <p className="text-body-sm text-text-2">Sign in to ask questions about this lesson.</p>
+          <p className="text-body-sm text-text-2">{t("qa.signInToAsk")}</p>
         </Card>
       )}
       {user && (
@@ -214,7 +216,7 @@ export function QASection({ lessonId, courseCreatorId }: QASectionProps) {
             </Avatar>
             <div className="flex-1 space-y-2">
               <Textarea
-                placeholder="Ask a question about this lesson..."
+                placeholder={t("qa.askPlaceholder")}
                 value={newQuestion}
                 onChange={(e) => setNewQuestion(e.target.value)}
                 rows={2}
@@ -230,7 +232,7 @@ export function QASection({ lessonId, courseCreatorId }: QASectionProps) {
                   ) : (
                     <>
                       <Send className="w-4 h-4 mr-1" />
-                      Post Question
+                      {t("qa.postQuestion")}
                     </>
                   )}
                 </Button>
@@ -245,7 +247,7 @@ export function QASection({ lessonId, courseCreatorId }: QASectionProps) {
         <Card className="p-6 text-center">
           <MessageCircle className="w-10 h-10 text-text-3 mx-auto mb-2" />
           <p className="text-body-sm text-text-2">
-            No questions yet. Be the first to ask!
+            {t("qa.noQuestionsYet")}
           </p>
         </Card>
       ) : (
@@ -262,10 +264,10 @@ export function QASection({ lessonId, courseCreatorId }: QASectionProps) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-caption font-semibold text-text-1">
-                        {question.user.name || "Anonymous"}
+                        {question.user.name || t("qa.anonymous")}
                       </span>
                       {question.user.id === courseCreatorId && (
-                        <Pill size="sm" variant="completed">Instructor</Pill>
+                        <Pill size="sm" variant="completed">{t("qa.instructorBadge")}</Pill>
                       )}
                       <span className="text-caption text-text-3">
                         {formatDate(question.createdAt)}
@@ -279,7 +281,7 @@ export function QASection({ lessonId, courseCreatorId }: QASectionProps) {
                         onClick={() => toggleQuestion(question.id)}
                       >
                         <MessageCircle className="w-4 h-4" />
-                        {question._count.answers} {question._count.answers === 1 ? "answer" : "answers"}
+                        {t("qa.answer", { count: question._count.answers })}
                         {expandedQuestions.has(question.id) ? (
                           <ChevronUp className="w-4 h-4" />
                         ) : (
@@ -300,7 +302,7 @@ export function QASection({ lessonId, courseCreatorId }: QASectionProps) {
                               onClick={() => handleDeleteQuestion(question.id)}
                             >
                               <Trash2 className="w-4 h-4 mr-2" />
-                              Delete
+                              {t("qa.delete")}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -323,15 +325,15 @@ export function QASection({ lessonId, courseCreatorId }: QASectionProps) {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-caption font-semibold text-text-1">
-                              {answer.user.name || "Anonymous"}
+                              {answer.user.name || t("qa.anonymous")}
                             </span>
                             {answer.user.id === courseCreatorId && (
-                              <Pill size="sm" variant="completed">Instructor</Pill>
+                              <Pill size="sm" variant="completed">{t("qa.instructorBadge")}</Pill>
                             )}
                             {answer.isAccepted && (
                               <Pill size="sm" variant="completed">
                                 <Check className="w-3 h-3 mr-0.5" />
-                                Accepted
+                                {t("qa.accepted")}
                               </Pill>
                             )}
                             <span className="text-caption text-text-3">
@@ -349,7 +351,7 @@ export function QASection({ lessonId, courseCreatorId }: QASectionProps) {
                                 onClick={() => handleAcceptAnswer(answer.id, question.id)}
                               >
                                 <Check className="w-4 h-4" />
-                                Accept answer
+                                {t("qa.acceptAnswer")}
                               </button>
                             )}
                         </div>
@@ -367,7 +369,7 @@ export function QASection({ lessonId, courseCreatorId }: QASectionProps) {
                         </Avatar>
                         <div className="flex-1 space-y-2">
                           <Textarea
-                            placeholder="Write an answer..."
+                            placeholder={t("qa.writeAnswer")}
                             value={answerText[question.id] || ""}
                             onChange={(e) =>
                               setAnswerText({ ...answerText, [question.id]: e.target.value })
@@ -384,7 +386,7 @@ export function QASection({ lessonId, courseCreatorId }: QASectionProps) {
                               {answeringId === question.id ? (
                                 <Loader2 className="w-4 h-4 animate-spin" />
                               ) : (
-                                "Reply"
+                                t("qa.reply")
                               )}
                             </Button>
                           </div>
@@ -405,9 +407,9 @@ export function QASection({ lessonId, courseCreatorId }: QASectionProps) {
                 disabled={loadingMore}
               >
                 {loadingMore ? (
-                  <><Loader2 className="w-4 h-4 animate-spin mr-1" /> Loading...</>
+                  <><Loader2 className="w-4 h-4 animate-spin mr-1" /> {t("qa.loading")}</>
                 ) : (
-                  "Load more questions"
+                  t("qa.loadMore")
                 )}
               </Button>
             </div>

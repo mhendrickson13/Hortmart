@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/lib/auth-context";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ interface NotesSectionProps {
 
 export function NotesSection({ lessonId, currentTime, onSeek }: NotesSectionProps) {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [notes, setNotes] = useState<Note[]>([]);
   const [newNote, setNewNote] = useState("");
   const [loading, setLoading] = useState(true);
@@ -78,9 +80,9 @@ export function NotesSection({ lessonId, currentTime, onSeek }: NotesSectionProp
       setNotes([...notes, data.note].sort((a, b) => a.timestampSeconds - b.timestampSeconds));
       setNewNote("");
       setShowAddForm(false);
-      toast({ title: "Note saved!", variant: "success" });
+      toast({ title: t("notesSection.noteSaved"), variant: "success" });
     } catch (error) {
-      const message = error instanceof ApiError ? error.message : "Failed to save note";
+      const message = error instanceof ApiError ? error.message : t("notesSection.failedToSaveNote");
       toast({ title: message, variant: "error" });
     } finally {
       setSubmitting(false);
@@ -95,9 +97,9 @@ export function NotesSection({ lessonId, currentTime, onSeek }: NotesSectionProp
       setNotes(notes.map((n) => (n.id === noteId ? data.note : n)));
       setEditingId(null);
       setEditContent("");
-      toast({ title: "Note updated!", variant: "success" });
+      toast({ title: t("notesSection.noteUpdated"), variant: "success" });
     } catch (error) {
-      toast({ title: "Failed to update note", variant: "error" });
+      toast({ title: t("notesSection.failedToUpdateNote"), variant: "error" });
     }
   };
 
@@ -105,9 +107,9 @@ export function NotesSection({ lessonId, currentTime, onSeek }: NotesSectionProp
     try {
       await notesApi.delete(noteId);
       setNotes(notes.filter((n) => n.id !== noteId));
-      toast({ title: "Note deleted", variant: "success" });
+      toast({ title: t("notesSection.noteDeleted"), variant: "success" });
     } catch (error) {
-      toast({ title: "Failed to delete note", variant: "error" });
+      toast({ title: t("notesSection.failedToDeleteNote"), variant: "error" });
     }
   };
 
@@ -126,7 +128,7 @@ export function NotesSection({ lessonId, currentTime, onSeek }: NotesSectionProp
       <Card className="p-6 text-center">
         <StickyNote className="w-10 h-10 text-text-3 mx-auto mb-2" />
         <p className="text-body-sm text-text-2">
-          Sign in to take notes on this lesson.
+          {t("notesSection.signInToTakeNotes")}
         </p>
       </Card>
     );
@@ -136,7 +138,7 @@ export function NotesSection({ lessonId, currentTime, onSeek }: NotesSectionProp
     return (
       <Card className="p-6 text-center">
         <Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" />
-        <p className="text-body-sm text-text-2 mt-2">Loading notes...</p>
+        <p className="text-body-sm text-text-2 mt-2">{t("notesSection.loadingNotes")}</p>
       </Card>
     );
   }
@@ -145,8 +147,8 @@ export function NotesSection({ lessonId, currentTime, onSeek }: NotesSectionProp
     return (
       <Card className="p-6 text-center">
         <StickyNote className="w-10 h-10 text-text-3 mx-auto mb-2" />
-        <p className="text-body-sm text-text-2 mb-3">Failed to load notes</p>
-        <Button size="sm" variant="secondary" onClick={fetchNotes}>Try again</Button>
+        <p className="text-body-sm text-text-2 mb-3">{t("notesSection.failedToLoadNotes")}</p>
+        <Button size="sm" variant="secondary" onClick={fetchNotes}>{t("notesSection.tryAgain")}</Button>
       </Card>
     );
   }
@@ -161,7 +163,7 @@ export function NotesSection({ lessonId, currentTime, onSeek }: NotesSectionProp
           onClick={() => setShowAddForm(true)}
         >
           <Plus className="w-4 h-4 mr-2" />
-          Add note at {formatTimestamp(Math.floor(currentTime))}
+          {t("notesSection.addNoteAt", { timestamp: formatTimestamp(Math.floor(currentTime)) })}
         </Button>
       ) : (
         <Card className="p-4">
@@ -174,10 +176,10 @@ export function NotesSection({ lessonId, currentTime, onSeek }: NotesSectionProp
               <Clock className="w-3.5 h-3.5" />
               {formatTimestamp(Math.floor(currentTime))}
             </button>
-            <span className="text-caption text-text-3">Note will be saved at this timestamp</span>
+            <span className="text-caption text-text-3">{t("notesSection.noteWillBeSaved")}</span>
           </div>
           <Textarea
-            placeholder="Write your note..."
+            placeholder={t("notesSection.writePlaceholder")}
             value={newNote}
             onChange={(e) => setNewNote(e.target.value)}
             rows={3}
@@ -192,7 +194,7 @@ export function NotesSection({ lessonId, currentTime, onSeek }: NotesSectionProp
                 setNewNote("");
               }}
             >
-              Cancel
+              {t("notesSection.cancel")}
             </Button>
             <Button
               size="sm"
@@ -204,7 +206,7 @@ export function NotesSection({ lessonId, currentTime, onSeek }: NotesSectionProp
               ) : (
                 <>
                   <Save className="w-4 h-4 mr-1" />
-                  Save Note
+                  {t("notesSection.saveNote")}
                 </>
               )}
             </Button>
@@ -217,7 +219,7 @@ export function NotesSection({ lessonId, currentTime, onSeek }: NotesSectionProp
         <Card className="p-6 text-center">
           <StickyNote className="w-10 h-10 text-text-3 mx-auto mb-2" />
           <p className="text-body-sm text-text-2">
-            No notes yet. Click the button above to add your first note!
+            {t("notesSection.noNotesYet")}
           </p>
         </Card>
       ) : (
@@ -235,7 +237,7 @@ export function NotesSection({ lessonId, currentTime, onSeek }: NotesSectionProp
                   <div className="flex justify-end gap-2">
                     <Button variant="ghost" size="sm" onClick={cancelEdit}>
                       <X className="w-4 h-4 mr-1" />
-                      Cancel
+                      {t("notesSection.cancel")}
                     </Button>
                     <Button
                       size="sm"
@@ -243,7 +245,7 @@ export function NotesSection({ lessonId, currentTime, onSeek }: NotesSectionProp
                       disabled={!editContent.trim()}
                     >
                       <Save className="w-4 h-4 mr-1" />
-                      Save
+                      {t("notesSection.save")}
                     </Button>
                   </div>
                 </div>

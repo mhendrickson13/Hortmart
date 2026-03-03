@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
+import i18n from "@/lib/i18n";
 
 type UserRole = "LEARNER" | "CREATOR" | "ADMIN";
 
@@ -8,6 +9,7 @@ export interface AuthUser {
   name: string | null;
   image: string | null;
   role: UserRole;
+  preferredLanguage?: string | null;
 }
 
 interface AuthContextType {
@@ -27,6 +29,21 @@ const TOKEN_KEY = "cxflow_token";
 const USER_KEY = "cxflow_user";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "";
+
+/** Sync the user's current browser language to the backend (fire-and-forget) */
+function syncLanguageToBackend(authToken: string) {
+  try {
+    // Use the actual resolved language from i18next (browser / geo / user preference)
+    const langCode = (i18n.language || 'es').slice(0, 2).toLowerCase();
+    const allowed = ['es', 'en', 'fr', 'pt'];
+    if (!allowed.includes(langCode)) return;
+    fetch(`${API_BASE_URL}/users/language`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify({ language: langCode }),
+    }).catch(() => {});
+  } catch { /* ignore */ }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -63,6 +80,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (data?.user) {
               setUser(data.user);
               localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+              // Sync language to backend on every page load
+              syncLanguageToBackend(storedToken);
             }
           })
           .catch(() => {
@@ -98,6 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setToken(data.token);
         localStorage.setItem(TOKEN_KEY, data.token);
         localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+        syncLanguageToBackend(data.token);
         return { success: true };
       }
 
@@ -127,6 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setToken(responseData.token);
         localStorage.setItem(TOKEN_KEY, responseData.token);
         localStorage.setItem(USER_KEY, JSON.stringify(responseData.user));
+        syncLanguageToBackend(responseData.token);
       }
 
       return { success: true };

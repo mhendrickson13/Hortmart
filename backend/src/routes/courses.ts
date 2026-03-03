@@ -492,17 +492,22 @@ router.post('/:id/enroll', authenticate, async (req: AuthRequest, res: Response)
 
     const enrollment = await queryOne<any>('SELECT * FROM enrollments WHERE id = ?', [enrollmentId]);
 
+    // Fetch course info for notifications
+    const courseInfo = await queryOne<any>('SELECT creatorId, title FROM courses WHERE id = ?', [id]);
+
     // Notify the learner
     createNotification({
       userId: req.user!.id,
       type: 'course',
       title: 'Enrollment Confirmed',
-      description: `You have successfully enrolled in a course.`,
+      description: `You have been enrolled in a course.`,
       link: `/player/${id}`,
+      titleKey: 'enrollment.title',
+      descKey: 'enrollment.desc',
+      i18nParams: { courseTitle: courseInfo?.title || '' },
     });
 
     // Notify the course creator
-    const courseInfo = await queryOne<any>('SELECT creatorId, title FROM courses WHERE id = ?', [id]);
     if (courseInfo && courseInfo.creatorId !== req.user!.id) {
       createNotification({
         userId: courseInfo.creatorId,
@@ -510,6 +515,9 @@ router.post('/:id/enroll', authenticate, async (req: AuthRequest, res: Response)
         title: 'New Student Enrolled',
         description: `A new student enrolled in "${courseInfo.title}".`,
         link: `/manage-courses/${id}/analytics`,
+        titleKey: 'newStudent.title',
+        descKey: 'newStudent.desc',
+        i18nParams: { courseTitle: courseInfo.title },
       });
     }
 
@@ -631,7 +639,7 @@ router.post('/:id/invite', authenticate, requireCreatorOrAdmin, async (req: Auth
     );
 
     const inviter = await queryOne<any>('SELECT name, email FROM users WHERE id = ?', [req.user!.id]);
-    await sendCourseInvite(email, inviter?.name || inviter?.email || null, course.title, inviteToken);
+    await sendCourseInvite(email, inviter?.name || inviter?.email || null, course.title, inviteToken, req.user!.id);
 
     logActivity({
       event: 'enrollment.created',
@@ -1201,6 +1209,9 @@ router.post('/:id/reviews', authenticate, async (req: AuthRequest, res: Response
         title: 'New Course Review',
         description: `${user?.name || 'A student'} left a ${rating}-star review on "${courseInfo.title}".`,
         link: `/manage-courses/${id}`,
+        titleKey: 'review.title',
+        descKey: 'review.desc',
+        i18nParams: { userName: user?.name || '', rating: String(rating), courseTitle: courseInfo.title },
       });
     }
 
@@ -1225,7 +1236,7 @@ router.get('/:id/analytics', authenticate, async (req: AuthRequest, res: Respons
 
     // Enrollments
     const enrollments = await query<any[]>(
-      `SELECT e.*, u.id as u_id, u.name as u_name, u.image as u_image
+      `SELECT e.*, u.id as u_id, u.name as u_name, u.email as u_email, u.image as u_image
        FROM enrollments e JOIN users u ON e.userId = u.id
        WHERE e.courseId = ?`,
       [id]
@@ -1263,7 +1274,7 @@ router.get('/:id/analytics', authenticate, async (req: AuthRequest, res: Respons
       const completed = progress.filter(p => p.completedAt).length;
       const pct = totalLessons > 0 ? (completed / totalLessons) * 100 : 0;
       return {
-        userId: e.u_id, name: e.u_name,
+        userId: e.u_id, name: e.u_name, email: e.u_email || null,
         progress: Math.round(pct * 10) / 10,
         completedAt: completed === totalLessons && totalLessons > 0
           ? progress.filter(p => p.completedAt).sort((a: any, b: any) => {

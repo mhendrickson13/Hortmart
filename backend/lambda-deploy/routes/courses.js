@@ -447,16 +447,20 @@ router.post('/:id/enroll', auth_js_1.authenticate, async (req, res) => {
         const enrollmentId = (0, db_js_1.genId)();
         await (0, db_js_1.execute)('INSERT INTO enrollments (id, userId, courseId) VALUES (?, ?, ?)', [enrollmentId, req.user.id, id]);
         const enrollment = await (0, db_js_1.queryOne)('SELECT * FROM enrollments WHERE id = ?', [enrollmentId]);
+        // Fetch course info for notifications
+        const courseInfo = await (0, db_js_1.queryOne)('SELECT creatorId, title FROM courses WHERE id = ?', [id]);
         // Notify the learner
         (0, notifications_js_1.createNotification)({
             userId: req.user.id,
             type: 'course',
             title: 'Enrollment Confirmed',
-            description: `You have successfully enrolled in a course.`,
+            description: `You have been enrolled in a course.`,
             link: `/player/${id}`,
+            titleKey: 'enrollment.title',
+            descKey: 'enrollment.desc',
+            i18nParams: { courseTitle: courseInfo?.title || '' },
         });
         // Notify the course creator
-        const courseInfo = await (0, db_js_1.queryOne)('SELECT creatorId, title FROM courses WHERE id = ?', [id]);
         if (courseInfo && courseInfo.creatorId !== req.user.id) {
             (0, notifications_js_1.createNotification)({
                 userId: courseInfo.creatorId,
@@ -464,6 +468,9 @@ router.post('/:id/enroll', auth_js_1.authenticate, async (req, res) => {
                 title: 'New Student Enrolled',
                 description: `A new student enrolled in "${courseInfo.title}".`,
                 link: `/manage-courses/${id}/analytics`,
+                titleKey: 'newStudent.title',
+                descKey: 'newStudent.desc',
+                i18nParams: { courseTitle: courseInfo.title },
             });
         }
         // Send emails (fire-and-forget) — respecting user notification preferences
@@ -564,7 +571,7 @@ router.post('/:id/invite', auth_js_1.authenticate, auth_js_1.requireCreatorOrAdm
             invitedById: req.user.id,
         }, JWT_SECRET, { expiresIn: (process.env.INVITE_EXPIRES_IN || '14d') });
         const inviter = await (0, db_js_1.queryOne)('SELECT name, email FROM users WHERE id = ?', [req.user.id]);
-        await (0, email_js_1.sendCourseInvite)(email, inviter?.name || inviter?.email || null, course.title, inviteToken);
+        await (0, email_js_1.sendCourseInvite)(email, inviter?.name || inviter?.email || null, course.title, inviteToken, req.user.id);
         (0, activity_js_1.logActivity)({
             event: 'enrollment.created',
             userId: req.user.id,
@@ -1044,6 +1051,9 @@ router.post('/:id/reviews', auth_js_1.authenticate, async (req, res) => {
                 title: 'New Course Review',
                 description: `${user?.name || 'A student'} left a ${rating}-star review on "${courseInfo.title}".`,
                 link: `/manage-courses/${id}`,
+                titleKey: 'review.title',
+                descKey: 'review.desc',
+                i18nParams: { userName: user?.name || '', rating: String(rating), courseTitle: courseInfo.title },
             });
         }
         (0, activity_js_1.logActivity)({ event: 'review.created', userId: req.user.id, userName: user?.name || req.user.email, meta: { courseId: id, courseTitle: courseInfo?.title, rating } });
@@ -1065,7 +1075,7 @@ router.get('/:id/analytics', auth_js_1.authenticate, async (req, res) => {
             return res.status(403).json({ error: 'Access denied' });
         }
         // Enrollments
-        const enrollments = await (0, db_js_1.query)(`SELECT e.*, u.id as u_id, u.name as u_name, u.image as u_image
+        const enrollments = await (0, db_js_1.query)(`SELECT e.*, u.id as u_id, u.name as u_name, u.email as u_email, u.image as u_image
        FROM enrollments e JOIN users u ON e.userId = u.id
        WHERE e.courseId = ?`, [id]);
         // All lessons in course
@@ -1092,7 +1102,7 @@ router.get('/:id/analytics', auth_js_1.authenticate, async (req, res) => {
             const completed = progress.filter(p => p.completedAt).length;
             const pct = totalLessons > 0 ? (completed / totalLessons) * 100 : 0;
             return {
-                userId: e.u_id, name: e.u_name,
+                userId: e.u_id, name: e.u_name, email: e.u_email || null,
                 progress: Math.round(pct * 10) / 10,
                 completedAt: completed === totalLessons && totalLessons > 0
                     ? progress.filter(p => p.completedAt).sort((a, b) => {

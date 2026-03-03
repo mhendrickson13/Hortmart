@@ -107,7 +107,7 @@ router.get('/', auth_js_1.authenticate, auth_js_1.requireCreatorOrAdmin, async (
 // GET /users/profile
 router.get('/profile', auth_js_1.authenticate, async (req, res) => {
     try {
-        const user = await (0, db_js_1.queryOne)('SELECT id, email, name, image, bio, role, createdAt, updatedAt, notifyEmailEnrollment, notifyEmailCompletion, notifyEmailNewStudent, notifyEmailReview, notifyInApp FROM users WHERE id = ?', [req.user.id]);
+        const user = await (0, db_js_1.queryOne)('SELECT id, email, name, image, bio, role, createdAt, updatedAt, preferredLanguage, notifyEmailEnrollment, notifyEmailCompletion, notifyEmailNewStudent, notifyEmailReview, notifyInApp FROM users WHERE id = ?', [req.user.id]);
         if (!user)
             return res.status(404).json({ error: 'User not found' });
         const counts = await (0, db_js_1.queryOne)(`SELECT
@@ -202,12 +202,28 @@ router.patch('/profile', auth_js_1.authenticate, async (req, res) => {
         params.push((0, db_js_1.now)());
         params.push(req.user.id);
         await (0, db_js_1.execute)(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`, params);
-        const user = await (0, db_js_1.queryOne)('SELECT id, email, name, image, bio, role, updatedAt FROM users WHERE id = ?', [req.user.id]);
+        const user = await (0, db_js_1.queryOne)('SELECT id, email, name, image, bio, role, preferredLanguage, updatedAt FROM users WHERE id = ?', [req.user.id]);
         res.json({ user });
     }
     catch (error) {
         console.error('Update profile error:', error);
         res.status(500).json({ error: 'Failed to update profile' });
+    }
+});
+// PATCH /users/language — save user's preferred language for emails
+router.patch('/language', auth_js_1.authenticate, async (req, res) => {
+    try {
+        const { language } = req.body;
+        const allowed = ['es', 'en', 'fr', 'pt'];
+        if (!language || !allowed.includes(language)) {
+            return res.status(400).json({ error: 'Language must be one of: es, en, fr, pt' });
+        }
+        await (0, db_js_1.execute)('UPDATE users SET preferredLanguage = ?, updatedAt = ? WHERE id = ?', [language, (0, db_js_1.now)(), req.user.id]);
+        res.json({ language });
+    }
+    catch (error) {
+        console.error('Update language error:', error);
+        res.status(500).json({ error: 'Failed to update language' });
     }
 });
 // GET /users/notification-preferences
@@ -439,6 +455,15 @@ router.get('/:id/enrollments', auth_js_1.authenticate, async (req, res) => {
        LEFT JOIN users u ON c.creatorId = u.id
        WHERE e.userId = ?${creatorFilter}
        ORDER BY e.enrolledAt DESC`, [id, ...creatorParams]);
+        // Pre-fetch seek counts from activity_log for all lessons of this user
+        const seekRows = await (0, db_js_1.query)(`SELECT JSON_UNQUOTE(JSON_EXTRACT(meta, '$.lessonId')) as lessonId, COUNT(*) as cnt
+       FROM activity_log
+       WHERE userId = ? AND event = 'seeked'
+       GROUP BY JSON_UNQUOTE(JSON_EXTRACT(meta, '$.lessonId'))`, [id]);
+        const seekCountMap = new Map();
+        for (const r of seekRows) {
+            seekCountMap.set(r.lessonId, Number(r.cnt));
+        }
         const result = [];
         for (const enr of enrollments) {
             // Lesson counts
@@ -475,6 +500,7 @@ router.get('/:id/enrollments', auth_js_1.authenticate, async (req, res) => {
                     firstViewedAt: lp?.firstViewedAt ?? null,
                     lastWatchedAt: lp?.lastWatchedAt ?? null,
                     completedAt: lp?.completedAt ?? null,
+                    seekCount: seekCountMap.get(l.id) ?? 0,
                 };
             });
             result.push({
@@ -554,9 +580,9 @@ router.post('/', auth_js_1.authenticate, auth_js_1.requireAdmin, async (req, res
             throw e;
         }
         const user = await (0, db_js_1.queryOne)('SELECT id, email, name, image, role, createdAt FROM users WHERE id = ?', [id]);
-        // Send account-created email with temp password (await so Lambda doesn't freeze)
+        // Send account-created email with temp password — use admin's language
         try {
-            await (0, email_js_1.sendAccountCreated)(email, name || null, password);
+            await (0, email_js_1.sendAccountCreated)(email, name || null, password, req.user.id);
         }
         catch (e) {
             console.error('[Users] account-created email failed:', e);
@@ -671,7 +697,8 @@ router.post('/:id/message', auth_js_1.authenticate, auth_js_1.requireAdmin, asyn
         const user = await (0, db_js_1.queryOne)('SELECT id, name, email FROM users WHERE id = ?', [userId]);
         if (!user)
             return res.status(404).json({ error: 'User not found' });
-        await (0, email_js_1.sendCustomMessage)(user.email, user.name, subject, message);
+        // Use admin's language for custom messages
+        await (0, email_js_1.sendCustomMessage)(user.email, user.name, subject, message, req.user.id);
         res.json({ message: 'Email sent successfully' });
     }
     catch (error) {
