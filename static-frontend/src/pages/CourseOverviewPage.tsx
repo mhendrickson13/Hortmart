@@ -623,7 +623,7 @@ function MobileCurriculumPanel({ id, course, visibleModules, totalModules, total
                       {isCompleted ? <CheckCircle2 className="w-4 h-4 text-white" /> : lesson.isLocked ? <Lock className="w-2 h-2 text-text-3" /> : <Play className="w-2 h-2 text-primary" fill="currentColor" />}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <span className={cn("text-[11px] font-medium leading-tight", lesson.isLocked ? "text-text-3" : isCompleted ? "text-success line-through" : isPreviewing ? "text-primary font-semibold" : "text-text-1")}>{lesson.title}</span>
+                      <span className={cn("text-[12px] font-medium leading-tight", lesson.isLocked ? "text-text-3" : isCompleted ? "text-success line-through" : isPreviewing ? "text-primary font-semibold" : "text-text-1")}>{lesson.title}</span>
                       {showProgress && isCompleted && lesson.completedAt && <p className="text-[9px] text-success/70 mt-0.5">{fmtCST(lesson.completedAt)}</p>}
                     </div>
                     <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -685,7 +685,7 @@ function DesktopCurriculumPanel({ course, visibleModules, totalModules, totalLes
                       {isCompleted ? <CheckCircle2 className="w-5 h-5 text-white" /> : lesson.isLocked ? <Lock className="w-2.5 h-2.5 text-text-3" /> : lesson.isFreePreview ? <Play className="w-2.5 h-2.5 text-primary" fill="currentColor" /> : showProgress && progress > 0 ? <span className="text-[8px] font-bold text-primary">{progress}</span> : null}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className={cn("text-body-sm font-medium leading-normal", lesson.isLocked ? "text-text-3" : isCompleted ? "text-success" : isPreviewing ? "text-primary font-semibold" : "text-text-1")}>{lesson.title}</p>
+                      <p className={cn("text-[12px] font-medium leading-normal", lesson.isLocked ? "text-text-3" : isCompleted ? "text-success" : isPreviewing ? "text-primary font-semibold" : "text-text-1")}>{lesson.title}</p>
                       <div className="flex items-center gap-2 mt-1">
                         {showProgress && !isCompleted && progress > 0 && (
                           <div className="flex items-center gap-1.5">

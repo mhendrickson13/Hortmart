@@ -329,6 +329,7 @@ export default function AnalyticsPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="text-body-sm font-semibold text-text-1 truncate">{l.name || l.email}</div>
+                        {l.name && l.email && <div className="text-[11px] text-text-3 truncate">{l.email}</div>}
                         <div className="text-caption text-text-3 truncate">{l.course}</div>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">

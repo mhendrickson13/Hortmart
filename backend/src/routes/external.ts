@@ -9,6 +9,7 @@
  *   {
  *     "usrmail": "learner@example.com",
  *     "usrname": "Full Name",
+ *     "language": "es",
  *     "suscribedcourses": ["courseId1", "courseId2"]   // optional
  *   }
  */
@@ -62,6 +63,7 @@ async function requireBearerToken(req: ExternalRequest, res: Response, next: Fun
  * Body (JSON):
  *   usrmail          (string, required)  – learner email
  *   usrname          (string, optional)  – learner full name
+ *   language         (string, optional)  – preferred language code: "es", "en", "fr", "pt"
  *   suscribedcourses (string[], optional) – course IDs to auto-enrol
  *
  * Response 201 (new user) / 200 (existing user):
@@ -69,8 +71,14 @@ async function requireBearerToken(req: ExternalRequest, res: Response, next: Fun
  */
 router.post('/create-learner', requireBearerToken, async (req: ExternalRequest, res: Response) => {
   try {
-    const { usrmail, usrname, suscribedcourses } = req.body;
+    const { usrmail, usrname, suscribedcourses, language } = req.body;
     const account = req.account!;
+
+    // Normalise language code (accept es, en, fr, pt – case-insensitive)
+    const validLangs = ['es', 'en', 'fr', 'pt'];
+    const lang: string | null = language && validLangs.includes(String(language).toLowerCase().slice(0, 2))
+      ? String(language).toLowerCase().slice(0, 2)
+      : null;
 
     // ── Validate email ──
     if (!usrmail) {
@@ -93,6 +101,10 @@ router.post('/create-learner', requireBearerToken, async (req: ExternalRequest, 
 
     if (existing) {
       userId = existing.id;
+      // Update preferred language if provided and user doesn't have one yet
+      if (lang) {
+        await execute('UPDATE users SET preferredLanguage = COALESCE(preferredLanguage, ?), updatedAt = ? WHERE id = ?', [lang, now(), userId]);
+      }
     } else {
       // Generate random password
       const pwd = crypto.randomBytes(8).toString('base64url').slice(0, 12);
@@ -104,8 +116,8 @@ router.post('/create-learner', requireBearerToken, async (req: ExternalRequest, 
       isNew = true;
 
       await execute(
-        'INSERT INTO users (id, email, password, name, role, updatedAt) VALUES (?, ?, ?, ?, ?, ?)',
-        [userId, usrmail, hashed, usrname || null, 'LEARNER', ts],
+        'INSERT INTO users (id, email, password, name, role, preferredLanguage, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [userId, usrmail, hashed, usrname || null, 'LEARNER', lang, ts],
       );
 
       // Send account-created email with temp password (await so Lambda doesn't freeze)

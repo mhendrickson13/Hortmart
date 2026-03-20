@@ -14,6 +14,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
  *   {
  *     "usrmail": "learner@example.com",
  *     "usrname": "Full Name",
+ *     "language": "es",
  *     "suscribedcourses": ["courseId1", "courseId2"]   // optional
  *   }
  */
@@ -52,6 +53,7 @@ async function requireBearerToken(req, res, next) {
  * Body (JSON):
  *   usrmail          (string, required)  – learner email
  *   usrname          (string, optional)  – learner full name
+ *   language         (string, optional)  – preferred language code: "es", "en", "fr", "pt"
  *   suscribedcourses (string[], optional) – course IDs to auto-enrol
  *
  * Response 201 (new user) / 200 (existing user):
@@ -59,8 +61,13 @@ async function requireBearerToken(req, res, next) {
  */
 router.post('/create-learner', requireBearerToken, async (req, res) => {
     try {
-        const { usrmail, usrname, suscribedcourses } = req.body;
+        const { usrmail, usrname, suscribedcourses, language } = req.body;
         const account = req.account;
+        // Normalise language code (accept es, en, fr, pt – case-insensitive)
+        const validLangs = ['es', 'en', 'fr', 'pt'];
+        const lang = language && validLangs.includes(String(language).toLowerCase().slice(0, 2))
+            ? String(language).toLowerCase().slice(0, 2)
+            : null;
         // ── Validate email ──
         if (!usrmail) {
             return res.status(400).json({ error: 'usrmail is required' });
@@ -76,6 +83,10 @@ router.post('/create-learner', requireBearerToken, async (req, res) => {
         let generatedPassword;
         if (existing) {
             userId = existing.id;
+            // Update preferred language if provided and user doesn't have one yet
+            if (lang) {
+                await (0, db_js_1.execute)('UPDATE users SET preferredLanguage = COALESCE(preferredLanguage, ?), updatedAt = ? WHERE id = ?', [lang, (0, db_js_1.now)(), userId]);
+            }
         }
         else {
             // Generate random password
@@ -85,7 +96,7 @@ router.post('/create-learner', requireBearerToken, async (req, res) => {
             userId = (0, db_js_1.genId)();
             const ts = (0, db_js_1.now)();
             isNew = true;
-            await (0, db_js_1.execute)('INSERT INTO users (id, email, password, name, role, updatedAt) VALUES (?, ?, ?, ?, ?, ?)', [userId, usrmail, hashed, usrname || null, 'LEARNER', ts]);
+            await (0, db_js_1.execute)('INSERT INTO users (id, email, password, name, role, preferredLanguage, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)', [userId, usrmail, hashed, usrname || null, 'LEARNER', lang, ts]);
             // Send account-created email with temp password (await so Lambda doesn't freeze)
             try {
                 await (0, email_js_1.sendAccountCreated)(usrmail, usrname || null, pwd);

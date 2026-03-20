@@ -1026,6 +1026,7 @@ Content-Type: application/json
 {
   "usrmail": "...",
   "usrname": "...",
+  "language": "es",
   "suscribedcourses": ["...", "..."]
 }`}
                 </pre>

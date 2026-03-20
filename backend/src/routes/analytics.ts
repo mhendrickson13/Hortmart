@@ -112,13 +112,13 @@ router.get('/', authenticate, requireCreatorOrAdmin, async (req: AuthRequest, re
                       (SELECT MAX(lp2.lastWatchedAt) FROM lesson_progress lp2 WHERE lp2.enrollmentId = e.id) as lastActive
                FROM enrollments e JOIN users u ON e.userId = u.id JOIN courses c ON e.courseId = c.id
                WHERE c.creatorId = ? AND e.enrolledAt >= ? AND e.enrolledAt <= ?
-               ORDER BY e.enrolledAt DESC LIMIT 10`, [creatorId, fromStr, toStr])
+               ORDER BY e.enrolledAt DESC LIMIT 20`, [creatorId, fromStr, toStr])
           : query<any[]>(
               `SELECT e.id as enrollmentId, e.courseId, u.email, u.name, c.title as course,
                       (SELECT MAX(lp2.lastWatchedAt) FROM lesson_progress lp2 WHERE lp2.enrollmentId = e.id) as lastActive
                FROM enrollments e JOIN users u ON e.userId = u.id JOIN courses c ON e.courseId = c.id
                WHERE e.enrolledAt >= ? AND e.enrolledAt <= ?
-               ORDER BY e.enrolledAt DESC LIMIT 10`, [fromStr, toStr]),
+               ORDER BY e.enrolledAt DESC LIMIT 20`, [fromStr, toStr]),
       ]);
 
       const totalUsers = Number(usersRow?.cnt ?? 0);
@@ -229,7 +229,7 @@ router.get('/', authenticate, requireCreatorOrAdmin, async (req: AuthRequest, re
         else progressBuckets['0-25']++;
       }
 
-      // Top learners
+      // Top learners – sorted by progress (most active first)
       const topLearnerProgressMap = new Map<string, number>();
       for (const r of tlProgressRows) topLearnerProgressMap.set(r.enrollmentId, Number(r.totalProgress));
       const topLearnersData = topLearners.map(e => {
@@ -241,7 +241,7 @@ router.get('/', authenticate, requireCreatorOrAdmin, async (req: AuthRequest, re
           lastActive: e.lastActive ? (e.lastActive instanceof Date ? e.lastActive.toISOString() : e.lastActive) : null,
           course: e.course, progress: Math.min(progress, 100),
         };
-      });
+      }).sort((a, b) => b.progress - a.progress).slice(0, 10);
 
       return {
         overview: {
