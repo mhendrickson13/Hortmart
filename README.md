@@ -117,11 +117,6 @@ After seeding the database, you can log in with:
 - **Mockups**: Browse HTML files in `client_designs/`
 - **UX Specifications**: See [docs/design/README.md](./docs/design/README.md)
 
-## Documentation
-
-- **Application Setup**: [videolecture/README.md](./videolecture/README.md)
-- **Design Documentation**: [docs/design/README.md](./docs/design/README.md)
-
 ## License
 
 MIT
