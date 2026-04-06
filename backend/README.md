@@ -1,194 +1,365 @@
 # CXFlow Backend API
 
-Backend API for the CXFlow Learning Platform. Built with Express.js, Prisma, and SQLite.
+Serverless Express.js API for CXFlow Academy. Runs on **AWS Lambda** via `@vendia/serverless-express`. Uses raw **mysql2/promise** instead of an ORM to keep the deploy package under 5 MB.
 
-## Quick Start
+---
 
-### 1. Install dependencies
+## Quick Start (Local)
+
+### 1. Install
 
 ```bash
 cd backend
 npm install
 ```
 
-### 2. Configure environment
+### 2. Environment
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` with your settings:
-
 ```env
-DATABASE_URL="file:./dev.db"
-JWT_SECRET="your-super-secret-jwt-key-change-in-production"
+# ── Required ──
+DATABASE_URL="mysql://user:pass@localhost:3306/cxflow"
+JWT_SECRET="change-in-production"
 JWT_EXPIRES_IN="7d"
 PORT=3001
 FRONTEND_URL="http://localhost:3000"
+
+# ── Email (SendGrid SMTP) ──
+SMTP_HOST="smtp.sendgrid.net"
+SMTP_PORT=587
+SMTP_SECURE=false
+EMAIL_USER="apikey"
+EMAIL_PASSWORD="SG.xxxxx"
+EMAIL_FROM="CXFlow Academy <noreply@cxflow.io>"
+
+# ── AWS (uploads, video, OG previews) ──
+AWS_REGION="us-east-1"
+S3_BUCKET="cxflowio"
+
+# ── Setup endpoint protection ──
+SETUP_KEY="cxflow-lms-setup-2026"
 ```
 
-### 3. Setup database
+### 3. Run
 
 ```bash
-# Generate Prisma client
-npm run db:generate
-
-# Push schema to database
-npm run db:push
-
-# Seed with sample data
-npm run db:seed
+npm run dev          # tsx watch — hot reload on :3001
 ```
 
-### 4. Run the server
+Health check: `GET http://localhost:3001/e/test`
+
+### 4. Build (for Lambda)
 
 ```bash
-# Development (with hot reload)
-npm run dev
-
-# Production
-npm run build
-npm start
+npm run build        # tsc → lambda-deploy/
 ```
 
-The API will be available at `http://localhost:3001/e`
+---
+
+## Project Structure
+
+```
+backend/
+├── src/
+│   ├── index.ts              # Local dev entrypoint (Express listen)
+│   ├── lambda.ts             # AWS Lambda handler (@vendia/serverless-express)
+│   ├── app.ts                # Express app, CORS config, route registration
+│   ├── db.ts                 # mysql2/promise pool, query/execute/genId helpers
+│   ├── cache.ts              # In-memory TTL cache (warm Lambda optimization)
+│   ├── email.ts              # Nodemailer transactional emails (SendGrid)
+│   ├── og.ts                 # OG HTML generator → S3 for social previews
+│   ├── activity.ts           # User activity tracking
+│   ├── middleware/
+│   │   └── auth.ts           # JWT verification & role-based access
+│   └── routes/
+│       ├── auth.ts           # Registration, login, session
+│       ├── users.ts          # User CRUD, profile, password
+│       ├── courses.ts        # Course CRUD, enroll, publish, progress
+│       ├── modules.ts        # Module CRUD, lesson reordering
+│       ├── lessons.ts        # Lesson CRUD, progress, notes, Q&A, resources
+│       ├── questions.ts      # Question CRUD
+│       ├── answers.ts        # Answer CRUD, accept
+│       ├── notes.ts          # Note CRUD
+│       ├── resources.ts      # Resource CRUD
+│       ├── reviews.ts        # Review CRUD
+│       ├── favourites.ts     # Favourites/wishlist
+│       ├── uploads.ts        # S3 presigned URL generation
+│       ├── video.ts          # HLS streaming endpoints
+│       ├── notifications.ts  # Notification management
+│       ├── settings.ts       # Platform settings (admin)
+│       ├── invites.ts        # Email invite system
+│       ├── analytics.ts      # Dashboard & course analytics
+│       └── external.ts       # External integrations
+├── lambda-deploy/             # Compiled JS output (deployed to Lambda)
+│   └── prisma/schema.prisma  # Schema reference (not used at runtime)
+├── package.json
+└── tsconfig.json
+```
+
+---
+
+## Runtime Architecture
+
+```
+Client → CloudFront → API Gateway → Lambda → Express.js → MySQL (RDS)
+                                       │
+                                       ├── S3 (uploads, OG pages, video)
+                                       └── SendGrid (transactional email)
+```
+
+### Key Design Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| Raw `mysql2` over Prisma | Lambda deploy < 5 MB; Prisma client + engine ≈ 15 MB |
+| In-memory TTL cache | Exploits warm Lambda containers; auto-clears on cold start |
+| `@vendia/serverless-express` | Full Express compatibility on Lambda with zero refactor |
+| CUID-style IDs via `crypto` | Compatible with existing VARCHAR(30) columns; no dependency |
+| Connection pool (limit 5) | Matches RDS proxy concurrency per Lambda instance |
+
+---
 
 ## Test Accounts
 
-After seeding, use these accounts:
+| Role | Email | Password |
+|------|-------|----------|
+| Admin | admin@cxflow.io | admin123 |
+| Creator | creator@cxflow.io | creator123 |
+| Learner | juan@example.com | learner123 |
 
-| Role    | Email              | Password    |
-|---------|-------------------|-------------|
-| Admin   | admin@cxflow.io   | admin123    |
-| Creator | creator@cxflow.io | creator123  |
-| Learner | juan@example.com  | learner123  |
+---
 
-## API Endpoints
+## API Reference
+
+All endpoints are prefixed with `/e/`. Authentication is via `Authorization: Bearer <JWT>` header.
 
 ### Authentication
-- `POST /e/auth/register` - Register new user
-- `POST /e/auth/login` - Login user
-- `GET /e/auth/session` - Get current session
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `POST` | `/e/auth/register` | Public | Register new user |
+| `POST` | `/e/auth/login` | Public | Login → JWT token |
+| `GET` | `/e/auth/session` | JWT | Validate session, return user |
 
 ### Users
-- `GET /e/users` - List users (Admin)
-- `GET /e/users/:id` - Get user
-- `PATCH /e/users/:id` - Update user
-- `DELETE /e/users/:id` - Delete user (Admin)
-- `GET /e/users/profile` - Get profile
-- `PATCH /e/users/profile` - Update profile
-- `PATCH /e/users/password` - Change password
-- `GET /e/users/:id/enrollments` - Get enrollments
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `GET` | `/e/users` | Admin | List all users (paginated) |
+| `GET` | `/e/users/:id` | JWT | Get user by ID |
+| `PATCH` | `/e/users/:id` | Admin | Update user (role, block) |
+| `DELETE` | `/e/users/:id` | Admin | Delete user |
+| `GET` | `/e/users/profile` | JWT | Get own profile |
+| `PATCH` | `/e/users/profile` | JWT | Update own profile |
+| `PATCH` | `/e/users/password` | JWT | Change password |
+| `GET` | `/e/users/:id/enrollments` | JWT | Get user enrollments |
 
 ### Courses
-- `GET /e/courses` - List courses
-- `GET /e/courses/search` - Search courses
-- `POST /e/courses` - Create course
-- `GET /e/courses/:id` - Get course
-- `PATCH /e/courses/:id` - Update course
-- `DELETE /e/courses/:id` - Delete course
-- `POST /e/courses/:id/enroll` - Enroll
-- `GET /e/courses/:id/enroll` - Check enrollment
-- `DELETE /e/courses/:id/enroll` - Unenroll
-- `GET /e/courses/:id/progress` - Get progress
-- `POST /e/courses/:id/modules` - Create module
-- `POST /e/courses/:id/lessons` - Create lesson
-- `PATCH /e/courses/:id/reorder` - Reorder modules
-- `POST /e/courses/:id/publish` - Publish
-- `DELETE /e/courses/:id/publish` - Unpublish
-- `GET /e/courses/:id/reviews` - Get reviews
-- `POST /e/courses/:id/reviews` - Create review
-- `GET /e/courses/:id/analytics` - Get analytics
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `GET` | `/e/courses` | Public | List published courses |
+| `GET` | `/e/courses/search` | Public | Full-text search |
+| `POST` | `/e/courses` | Creator+ | Create course |
+| `GET` | `/e/courses/:id` | Public | Get course with curriculum |
+| `PATCH` | `/e/courses/:id` | Creator+ | Update course |
+| `DELETE` | `/e/courses/:id` | Creator+ | Delete course |
+| `POST` | `/e/courses/:id/enroll` | JWT | Enroll in course |
+| `GET` | `/e/courses/:id/enroll` | JWT | Check enrollment status |
+| `DELETE` | `/e/courses/:id/enroll` | JWT | Unenroll |
+| `GET` | `/e/courses/:id/progress` | JWT | Get course progress |
+| `POST` | `/e/courses/:id/modules` | Creator+ | Add module |
+| `POST` | `/e/courses/:id/lessons` | Creator+ | Add lesson |
+| `PATCH` | `/e/courses/:id/reorder` | Creator+ | Reorder modules |
+| `POST` | `/e/courses/:id/publish` | Creator+ | Publish course |
+| `DELETE` | `/e/courses/:id/publish` | Creator+ | Unpublish course |
+| `GET` | `/e/courses/:id/reviews` | Public | Get course reviews |
+| `POST` | `/e/courses/:id/reviews` | JWT | Create review |
+| `GET` | `/e/courses/:id/analytics` | Creator+ | Course analytics |
 
 ### Modules
-- `GET /e/modules/:id` - Get module
-- `PATCH /e/modules/:id` - Update module
-- `DELETE /e/modules/:id` - Delete module
-- `PATCH /e/modules/:id/reorder` - Reorder lessons
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `GET` | `/e/modules/:id` | JWT | Get module |
+| `PATCH` | `/e/modules/:id` | Creator+ | Update module |
+| `DELETE` | `/e/modules/:id` | Creator+ | Delete module |
+| `PATCH` | `/e/modules/:id/reorder` | Creator+ | Reorder lessons |
 
 ### Lessons
-- `GET /e/lessons/:id` - Get lesson
-- `PATCH /e/lessons/:id` - Update lesson
-- `DELETE /e/lessons/:id` - Delete lesson
-- `GET /e/lessons/:id/progress` - Get progress
-- `POST /e/lessons/:id/progress` - Update progress
-- `GET /e/lessons/:id/notes` - Get notes
-- `POST /e/lessons/:id/notes` - Create note
-- `GET /e/lessons/:id/questions` - Get Q&A
-- `POST /e/lessons/:id/questions` - Ask question
-- `GET /e/lessons/:id/resources` - Get resources
-- `POST /e/lessons/:id/resources` - Add resource
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `GET` | `/e/lessons/:id` | JWT | Get lesson |
+| `PATCH` | `/e/lessons/:id` | Creator+ | Update lesson |
+| `DELETE` | `/e/lessons/:id` | Creator+ | Delete lesson |
+| `GET` | `/e/lessons/:id/progress` | JWT | Get lesson progress |
+| `POST` | `/e/lessons/:id/progress` | JWT | Update watch progress |
+| `GET` | `/e/lessons/:id/notes` | JWT | Get user notes |
+| `POST` | `/e/lessons/:id/notes` | JWT | Create note |
+| `GET` | `/e/lessons/:id/questions` | JWT | Get Q&A |
+| `POST` | `/e/lessons/:id/questions` | JWT | Ask question |
+| `GET` | `/e/lessons/:id/resources` | JWT | Get resources |
+| `POST` | `/e/lessons/:id/resources` | Creator+ | Add resource |
 
 ### Questions & Answers
-- `GET /e/questions/:id` - Get question
-- `PATCH /e/questions/:id` - Update question
-- `DELETE /e/questions/:id` - Delete question
-- `POST /e/questions/:id/answers` - Answer question
-- `GET /e/answers/:id` - Get answer
-- `PATCH /e/answers/:id` - Update answer
-- `DELETE /e/answers/:id` - Delete answer
-- `POST /e/answers/:id/accept` - Accept answer
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `GET` | `/e/questions/:id` | JWT | Get question |
+| `PATCH` | `/e/questions/:id` | JWT | Update question (owner) |
+| `DELETE` | `/e/questions/:id` | JWT | Delete question (owner) |
+| `POST` | `/e/questions/:id/answers` | JWT | Post answer |
+| `GET` | `/e/answers/:id` | JWT | Get answer |
+| `PATCH` | `/e/answers/:id` | JWT | Update answer (owner) |
+| `DELETE` | `/e/answers/:id` | JWT | Delete answer (owner) |
+| `POST` | `/e/answers/:id/accept` | JWT | Mark as accepted (creator) |
 
 ### Notes
-- `GET /e/notes/:id` - Get note
-- `PATCH /e/notes/:id` - Update note
-- `DELETE /e/notes/:id` - Delete note
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `GET` | `/e/notes/:id` | JWT | Get note (owner) |
+| `PATCH` | `/e/notes/:id` | JWT | Update note (owner) |
+| `DELETE` | `/e/notes/:id` | JWT | Delete note (owner) |
 
 ### Resources
-- `GET /e/resources/:id` - Get resource
-- `PATCH /e/resources/:id` - Update resource
-- `DELETE /e/resources/:id` - Delete resource
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `GET` | `/e/resources/:id` | JWT | Get resource |
+| `PATCH` | `/e/resources/:id` | Creator+ | Update resource |
+| `DELETE` | `/e/resources/:id` | Creator+ | Delete resource |
 
 ### Reviews
-- `GET /e/reviews/:id` - Get review
-- `PATCH /e/reviews/:id` - Update review
-- `DELETE /e/reviews/:id` - Delete review
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `GET` | `/e/reviews/:id` | Public | Get review |
+| `PATCH` | `/e/reviews/:id` | JWT | Update review (owner) |
+| `DELETE` | `/e/reviews/:id` | JWT | Delete review (owner) |
+
+### Favourites
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `GET` | `/e/favourites` | JWT | List favourites |
+| `POST` | `/e/favourites/:courseId` | JWT | Add to favourites |
+| `DELETE` | `/e/favourites/:courseId` | JWT | Remove from favourites |
+
+### Uploads & Video
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `POST` | `/e/uploads/presign` | Creator+ | Generate S3 presigned URL |
+| `POST` | `/e/uploads/video` | Creator+ | Initiate video upload + transcoding |
+| `GET` | `/e/video/:id/stream` | JWT | Get HLS streaming URL |
+
+### Notifications
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `GET` | `/e/notifications` | JWT | List notifications |
+| `PATCH` | `/e/notifications/:id/read` | JWT | Mark as read |
+
+### Settings & Invites
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `GET` | `/e/settings` | Admin | Get platform settings |
+| `PATCH` | `/e/settings` | Admin | Update platform settings |
+| `POST` | `/e/invites` | Admin | Send invite email |
+| `GET` | `/e/invites/:token` | Public | Validate invite token |
 
 ### Analytics
-- `GET /e/analytics` - Dashboard analytics (Admin)
 
-## Database Management
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `GET` | `/e/analytics` | Admin | Platform-wide dashboard analytics |
+| `GET` | `/e/courses/:id/analytics` | Creator+ | Per-course analytics |
+
+---
+
+## Database
+
+MySQL 8.0 (Amazon RDS). Schema defined in Prisma format for documentation; runtime uses raw SQL via `mysql2/promise`.
+
+### Core Models
+
+| Table | Purpose | Key Indexes |
+|-------|---------|-------------|
+| `users` | Accounts (LEARNER / CREATOR / ADMIN) | `email` UNIQUE |
+| `courses` | Course metadata + status lifecycle | `creatorId`, `status` |
+| `modules` | Ordered sections in a course | `courseId` |
+| `lessons` | Video lessons with position & preview flags | `moduleId` |
+| `resources` | Downloadable attachments per lesson | `lessonId` |
+| `enrollments` | User ↔ Course (unique pair) | `userId + courseId` UNIQUE |
+| `lesson_progress` | Watch progress & completion per lesson | `enrollmentId + lessonId` UNIQUE |
+| `questions` | Lesson-level Q&A threads | `lessonId`, `userId` |
+| `answers` | Answers to questions | `questionId`, `userId` |
+| `notes` | Timestamped user notes on lessons | `lessonId`, `userId` |
+| `reviews` | Ratings (1–5) + comments (unique per user/course) | `userId + courseId` UNIQUE |
+
+Schema reference: [`lambda-deploy/prisma/schema.prisma`](./lambda-deploy/prisma/schema.prisma)
+
+### Database Management
 
 ```bash
-# View database in browser
-npm run db:studio
-
-# Reset database (drop all data)
-npx prisma db push --force-reset
-npm run db:seed
+# One-time setup via API (creates tables on RDS)
+curl -X POST https://your-api/e/setup \
+  -H "Content-Type: application/json" \
+  -H "x-setup-key: cxflow-lms-setup-2026"
 ```
+
+---
 
 ## Deployment
 
-### Environment Variables
+### Lambda Package
 
-Set these in production:
-
-```env
-DATABASE_URL="file:./prod.db"
-JWT_SECRET=your-production-secret-key
-JWT_EXPIRES_IN=7d
-PORT=3001
-NODE_ENV=production
-FRONTEND_URL=https://your-frontend-domain.com
+```bash
+npm run build                     # Compile TS → lambda-deploy/
+cd lambda-deploy
+zip -r function.zip .             # ~3 MB package
+# Upload to Lambda via AWS Console or CLI
 ```
 
-> **Note:** For production with high traffic, consider migrating to PostgreSQL by changing the provider in `prisma/schema.prisma`.
+### Required Lambda Environment Variables
 
-### Docker
+| Variable | Example |
+|----------|---------|
+| `DATABASE_URL` | `mysql://user:pass@rds-host:3306/cxflow` |
+| `JWT_SECRET` | Random 64-char string |
+| `JWT_EXPIRES_IN` | `7d` |
+| `FRONTEND_URL` | `https://lms.cxflow.io` |
+| `S3_BUCKET` | `cxflowio` |
+| `AWS_REGION` | `us-east-1` |
+| `SMTP_HOST` | `smtp.sendgrid.net` |
+| `SMTP_PORT` | `587` |
+| `EMAIL_USER` | `apikey` |
+| `EMAIL_PASSWORD` | `SG.xxxxx` |
+| `EMAIL_FROM` | `CXFlow Academy <noreply@cxflow.io>` |
+| `NODE_ENV` | `production` |
 
-```dockerfile
-FROM node:20-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-COPY . .
-RUN npm run build
-RUN npm run db:generate
-EXPOSE 3001
-CMD ["npm", "start"]
-```
+### Lambda Configuration
 
-## License
+- **Runtime**: Node.js 20.x
+- **Handler**: `lambda.handler`
+- **Memory**: 256 MB (sufficient for mysql2 + Express)
+- **Timeout**: 30 s
+- **Trigger**: API Gateway (HTTP API, proxy integration)
 
-MIT
+---
+
+## Scripts
+
+| Script | Command | Description |
+|--------|---------|-------------|
+| `dev` | `tsx watch src/index.ts` | Local development with hot reload |
+| `build` | `tsc` | Compile TypeScript to `lambda-deploy/` |
+| `start` | `node dist/index.js` | Run compiled JS locally |
+
+---
