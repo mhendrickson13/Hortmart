@@ -1,23 +1,23 @@
 {
-    "Variables":  {
-                      "S3_BUCKET":  "cxflowio",
-                      "S3_REGION":  "us-east-1",
-                      "DB_USER":  "admin",
-                      "SMTP_HOST":  "smtp.sendgrid.net",
-                      "DB_LMS_PASSWORD":  "CxFlowLms2026!Secure",
-                      "DB_LMS_USER":  "lms_service",
-                      "EMAIL_USER":  "apikey",
-                      "DB_NAME":  "cxflow_lms",
-                      "DB_HOST":  "cxflowserverdb.ch4lud8dyidz.us-east-1.rds.amazonaws.com",
-                      "SMTP_SECURE":  "false",
-                      "DB_PROXY_HOST":  "cxflowrdsproxy.proxy-ch4lud8dyidz.us-east-1.rds.amazonaws.com",
-                      "FRONTEND_URL":  "https://lms.cxflow.io",
-                      "CLOUDFRONT_DOMAIN":  "d224go81z1q461.cloudfront.net",
-                      "DATABASE_URL":  "mysql://lms_service:CxFlowLms2026%21Secure@cxflowserverdb.ch4lud8dyidz.us-east-1.rds.amazonaws.com/cxflow_lms",
-                      "SMTP_PORT":  "587",
-                      "EMAIL_PASSWORD":  "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",
-                      "MEDIA_CONVERT_ROLE":  "arn:aws:iam::638257798648:role/MediaConvertRole",
-                      "MEDIA_CONVERT_ENDPOINT":  "https://vasjhqwoc.mediaconvert.us-east-1.amazonaws.com",
-                      "DB_PASSWORD":  "GHds980gds423sdf"
-                  }
+    "Variables": {
+        "S3_BUCKET": "cxflowio",
+        "S3_REGION": "us-east-1",
+        "DB_USER": "admin",
+        "SMTP_HOST": "smtp.sendgrid.net",
+        "DB_LMS_PASSWORD": "CHANGE_ME",
+        "DB_LMS_USER": "lms_service",
+        "EMAIL_USER": "apikey",
+        "DB_NAME": "cxflow_lms",
+        "DB_HOST": "YOUR_RDS_ENDPOINT.us-east-1.rds.amazonaws.com",
+        "SMTP_SECURE": "false",
+        "DB_PROXY_HOST": "YOUR_RDS_PROXY.proxy-XXXXXX.us-east-1.rds.amazonaws.com",
+        "FRONTEND_URL": "https://lms.cxflow.io",
+        "CLOUDFRONT_DOMAIN": "YOUR_CF_DISTRIBUTION.cloudfront.net",
+        "DATABASE_URL": "mysql://lms_service:CHANGE_ME@YOUR_RDS_ENDPOINT.us-east-1.rds.amazonaws.com/cxflow_lms",
+        "SMTP_PORT": "587",
+        "EMAIL_PASSWORD": "SG.CHANGE_ME",
+        "MEDIA_CONVERT_ROLE": "arn:aws:iam::YOUR_ACCOUNT_ID:role/MediaConvertRole",
+        "MEDIA_CONVERT_ENDPOINT": "https://YOUR_ENDPOINT.mediaconvert.us-east-1.amazonaws.com",
+        "DB_PASSWORD": "CHANGE_ME"
+    }
 }
